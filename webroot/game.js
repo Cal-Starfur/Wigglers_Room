@@ -30,7 +30,8 @@ window.addEventListener('message', function(e) {
   }
 });
 
-sendToServer({ type: 'READY' });
+sendToServer({ type: "READY" });
+document.getElementById("player-count").textContent = "Sent READY...";
 
 function onStateSync(newState) {
   state = newState;
