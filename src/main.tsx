@@ -41,7 +41,12 @@ Devvit.addCustomPostType({
         switch (message.type) {
           case 'READY': {
             const freshState = await dm.loadOrInitRoom(roomId);
-            webView.postMessage(JSON.stringify({ type: 'STATE_SYNC', payload: freshState }));
+            const user = await context.reddit.getCurrentUser();
+            const username = user?.username ?? currentUserId;
+            const withPlayer = GameLogic.addPlayer(freshState, currentUserId, username);
+            await dm.saveRoomState(roomId, withPlayer);
+            setRoomStateJson(JSON.stringify(withPlayer));
+            webView.postMessage(JSON.stringify({ type: 'STATE_SYNC', payload: withPlayer }));
             break;
           }
           case 'PLAYER_ACTION': {
