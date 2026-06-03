@@ -93,7 +93,16 @@
     window.addEventListener('resize', resize);
     resize();
 
-    sendToServer({ type: 'READY' });
+    sendToServer({ type: "READY" });
+
+    // Fallback: dismiss loading screen after 3s if no state arrives
+    setTimeout(() => {
+      const ls = document.getElementById("loading-screen");
+      if (!ls.classList.contains("hidden")) {
+        ls.classList.add("hidden");
+        console.log("[UI] Loading screen dismissed by fallback timer");
+      }
+    }, 3000);
 
     function onStateSync(newState) {
       state = newState;
