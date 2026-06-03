@@ -1,0 +1,18 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --bg: #0d1117; --accent: #6BCB77; --accent2: #FFD93D; --text: #e6edf3; --muted: #8b949e; --radius: 12px; }
+html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: none; }
+#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+#loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); z-index: 100; gap: 16px; }
+#loading.hidden { display: none; }
+.worm { animation: wiggle 0.5s ease-in-out infinite alternate; }
+@keyframes wiggle { from { transform: rotate(-15deg) scale(1); } to { transform: rotate(15deg) scale(1.1); } }
+#hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; }
+.hud-chip { background: rgba(22,27,34,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(107,203,119,0.3); border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 600; }
+#score-display { color: var(--accent); } #timer-display { color: var(--accent2); } #player-count { color: var(--muted); }
+#leaderboard-panel { position: absolute; top: 60px; right: 12px; width: 160px; background: rgba(22,27,34,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 10px; z-index: 10; }
+.lb-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.lb-entry { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.lb-entry:last-child { border-bottom: none; }
+.lb-rank { color: var(--muted); width: 16px; } .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .lb-score { color: var(--accent2); font-weight: 700; }
+#emote-bar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10; }
+.emote-btn { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); background: rgba(22,27,34,0.9); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
