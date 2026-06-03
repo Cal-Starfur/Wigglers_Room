@@ -94,6 +94,7 @@
     resize();
 
     sendToServer({ type: "READY" });
+    setTimeout(() => document.getElementById("loading-screen").classList.add("hidden"), 2000);
 
     // Fallback: dismiss loading screen after 3s if no state arrives
     setTimeout(() => {
