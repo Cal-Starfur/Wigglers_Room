@@ -90,7 +90,6 @@ Devvit.addCustomPostType({
       }
     });
 
-    webView.mount();
 
     return (
       <vstack width="100%" height="100%" alignment="center middle">
