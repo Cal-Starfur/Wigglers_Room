@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Wigglers Room 🐛</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --accent: #6BCB77; --accent2: #FFD93D;
+      --text: #e6edf3; --muted: #8b949e; --radius: 12px;
+    }
+    html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: none; }
+    #game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 10; }
+    .hud-chip { background: rgba(22,27,34,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(107,203,119,0.3); border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 600; }
+    #score-display { color: var(--accent); }
+    #timer-display { color: var(--accent2); }
+    #player-count  { color: var(--muted); }
+    #loading-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); z-index: 100; gap: 16px; transition: opacity 0.4s ease; }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    .wiggle-loader { font-size: 48px; animation: wiggle 0.5s ease-in-out infinite alternate; }
+    @keyframes wiggle { from { transform: rotate(-15deg) scale(1); } to { transform: rotate(15deg) scale(1.1); } }
+    .loading-text { color: var(--muted); font-size: 14px; }
+    #emote-bar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10; }
+    .emote-btn { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); background: rgba(22,27,34,0.9); font-size: 20px; cursor: pointer; transition: transform 0.1s, border-color 0.2s; display: flex; align-items: center; justify-content: center; }
+    .emote-btn:active { transform: scale(0.88); border-color: var(--accent); }
+    #leaderboard-panel { position: absolute; top: 60px; right: 12px; width: 160px; background: rgba(22,27,34,0.9); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius); padding: 10px; z-index: 10; }
+    .lb-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+    .lb-entry { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .lb-entry:last-child { border-bottom: none; }
+    .lb-rank { color: var(--muted); width: 16px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-score { color: var(--accent2); font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <div id="loading-screen">
+    <div class="wiggle-loader">🐛</div>
+    <div class="loading-text">Warming up the wigglers...</div>
+  </div>
+
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud">
+    <div class="hud-chip" id="score-display">Score: 0</div>
+    <div class="hud-chip" id="timer-display">3:00</div>
+    <div class="hud-chip" id="player-count">0 players</div>
+  </div>
+
+  <div id="leaderboard-panel">
+    <div class="lb-title">🏆 Top Wigglers</div>
+    <div id="lb-entries"></div>
+  </div>
+
+  <div id="emote-bar">
+    <button class="emote-btn" data-emote="wave">👋</button>
+    <button class="emote-btn" data-emote="flex">💪</button>
+    <button class="emote-btn" data-emote="star">⭐</button>
+    <button class="emote-btn" data-emote="fire">🔥</button>
+  </div>
+
+  <script>
+    function sendToServer(msg) { window.parent.postMessage(msg, '*'); }
+
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (!msg?.type) return;
+      switch (msg.type) {
+        case 'STATE_SYNC': {
+          const state = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;
+          onStateSync(state);
+          break;
+        }
+        case 'ACTION_ACK':
+          if (!msg.success) console.warn('[UI] Action rejected:', msg.error);
+          break;
+        case 'LEADERBOARD_DATA': {
+          const entries = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;
+          renderLeaderboard(entries);
+          break;
+        }
+      }
+    });
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let state = null;
+    let myId = null;
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    sendToServer({ type: 'READY' });
+
+    function onStateSync(newState) {
+      state = newState;
+      document.getElementById('loading-screen').classList.add('hidden');
+      updateHUD();
+      updateLeaderboard();
+    }
+
+    function updateHUD() {
+      if (!state) return;
+      const me = state.players[myId];
+      document.getElementById('score-display').textContent = 'Score: ' + (me?.score ?? 0);
+      document.getElementById('player-count').textContent = Object.keys(state.players).length + ' players';
+      if (state.endsAt) {
+        const remaining = Math.max(0, Math.floor((state.endsAt - Date.now()) / 1000));
+        const m = Math.floor(remaining / 60), s = remaining % 60;
+        document.getElementById('timer-display').textContent = m + ':' + String(s).padStart(2, '0');
+      }
+    }
+
+    function updateLeaderboard() {
+      if (!state) return;
+      const entries = Object.values(state.players).sort((a, b) => b.score - a.score).slice(0, 5);
+      renderLeaderboard(entries.map((p, i) => ({ rank: i+1, userId: p.userId, username: p.username, score: p.score })));
+    }
+
+    function renderLeaderboard(entries) {
+      document.getElementById('lb-entries').innerHTML = entries.map(e =>
+        '<div class="lb-entry">' +
+        '<span class="lb-rank">' + e.rank + '</span>' +
+        '<span class="lb-name">' + (e.username ?? e.userId).slice(0,12) + '</span>' +
+        '<span class="lb-score">' + e.score + '</span>' +
+        '</div>'
+      ).join('');
+    }
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!state) return;
+      sendToServer({ type: 'PLAYER_ACTION', payload: { type: 'MOVE', data: {
+        x: (e.clientX / canvas.width) * 100,
+        y: (e.clientY / canvas.height) * 100
+      }}});
+    });
+
+    document.querySelectorAll('.emote-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sendToServer({ type: 'PLAYER_ACTION', payload: { type: 'EMOTE', data: { emote: btn.dataset.emote } } });
+      });
+    });
+
+    function render() {
+      if (!state) { requestAnimationFrame(render); return; }
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+      for (const obj of state.objects) {
+        const px = (obj.x/100)*W, py = (obj.y/100)*H;
+        ctx.beginPath();
+        ctx.arc(px, py, obj.type === 'powerup' ? 8 : 4, 0, Math.PI*2);
+        ctx.fillStyle = obj.type === 'powerup' ? '#FFD93D' : '#6BCB77';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      for (const p of Object.values(state.players)) {
+        const px = (p.x/100)*W, py = (p.y/100)*H;
+        const wobble = Math.sin(p.wigglePhase) * 4;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(wobble * 0.1);
+        ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2);
+        ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 12; ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(-5,-4,4,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(5,-4,4,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(-4,-3,2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(6,-3,2,0,Math.PI*2); ctx.fill();
+        if (p.emote) {
+          ctx.font = '16px serif'; ctx.textAlign = 'center';
+          ctx.fillText({wave:'👋',flex:'💪',star:'⭐',fire:'🔥'}[p.emote] ?? '?', 0, -28);
+        }
+        ctx.restore();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.username ?? p.userId, px, py + 26);
+      }
+
+      updateHUD();
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+    setInterval(() => sendToServer({ type: 'FETCH_LEADERBOARD' }), 10_000);
+  </script>
+</body>
+</html>
