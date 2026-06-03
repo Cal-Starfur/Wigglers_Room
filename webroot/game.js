@@ -18,8 +18,13 @@ function sendToServer(msg) {
 }
 
 window.addEventListener('message', function(e) {
-  document.getElementById('player-count').textContent = JSON.stringify(e.data).slice(0,50);
-  var msg = e.data;
+  var raw = e.data;
+  var msg;
+  if (raw && raw.type === 'devvit-message' && raw.data && raw.data.message) {
+    msg = typeof raw.data.message === 'string' ? JSON.parse(raw.data.message) : raw.data.message;
+  } else {
+    msg = raw;
+  }
   if (!msg || !msg.type) return;
   if (msg.type === 'STATE_SYNC') {
     var payload = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;
