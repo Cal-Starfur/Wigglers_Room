@@ -18,6 +18,7 @@ function sendToServer(msg) {
 }
 
 window.addEventListener('message', function(e) {
+  document.getElementById('player-count').textContent = 'Got msg: ' + (e.data ? e.data.type || JSON.stringify(e.data).slice(0,20) : 'none');
   var msg = e.data;
   if (!msg || !msg.type) return;
   if (msg.type === 'STATE_SYNC') {
