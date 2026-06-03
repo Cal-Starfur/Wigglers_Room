@@ -92,14 +92,10 @@ Devvit.addCustomPostType({
 
 
     return (
-      <vstack width="100%" height="100%" alignment="center middle">
-        <webview
-          id="wigglers-webview"
-          url="index.html"
-          width="100%"
-          height="100%"
-          grow
-        />
+      <vstack width="100%" height="100%" alignment="center middle" gap="medium">
+        <image url="icon.png" imageWidth={80} imageHeight={80} />
+        <text size="xlarge" weight="bold">Wigglers Room 🐛</text>
+        <button onPress={() => webView.mount()} appearance="primary">Play!</button>
       </vstack>
     );
   },
