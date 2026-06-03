@@ -41,7 +41,7 @@ Devvit.addCustomPostType({
         switch (message.type) {
           case 'READY': {
             const freshState = await dm.loadOrInitRoom(roomId);
-            webViewContext.postMessage({ type: 'STATE_SYNC', payload: JSON.stringify(freshState) });
+            webView.postMessage(JSON.stringify({ type: 'STATE_SYNC', payload: freshState }));
             break;
           }
           case 'PLAYER_ACTION': {
@@ -56,12 +56,12 @@ Devvit.addCustomPostType({
               type: 'STATE_SYNC',
               payload: nextState,
             }));
-            webViewContext.postMessage({ type: 'ACTION_ACK', success: true });
+            webView.postMessage(JSON.stringify({ type: 'ACTION_ACK', success: true }));
             break;
           }
           case 'FETCH_LEADERBOARD': {
             const board = await dm.getLeaderboard(roomId, 10);
-            webViewContext.postMessage({ type: 'LEADERBOARD_DATA', payload: JSON.stringify(board) });
+            webView.postMessage(JSON.stringify({ type: 'LEADERBOARD_DATA', payload: board }));
             break;
           }
           case 'UPDATE_PREFS': {
