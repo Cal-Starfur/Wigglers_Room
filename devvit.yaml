@@ -1,0 +1,11 @@
+name: wigglers-room
+version: 0.1.0
+homepage: https://reddit.com
+
+permissions:
+  - reddit_api
+  - redis
+  - kvStore
+  - realtime
+
+webroot: webroot
