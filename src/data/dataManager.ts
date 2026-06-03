@@ -30,7 +30,8 @@ export class DataManager {
 
   async saveRoomState(roomId: string, state: WigglersGameState): Promise<void> {
     try {
-      await this.redis.set(RedisKeys.roomState(roomId), JSON.stringify(state), { ex: ROOM_STATE_TTL_SECONDS });
+      const expiration = new Date(Date.now() + ROOM_STATE_TTL_SECONDS * 1000);
+      await this.redis.set(RedisKeys.roomState(roomId), JSON.stringify(state), { expiration });
     } catch (err) { console.error('[DataManager] Redis write error:', err); }
   }
 
@@ -60,7 +61,7 @@ export class DataManager {
   async getPlayerRank(roomId: string, userId: string): Promise<number | null> {
     try {
       const rank = await this.redis.zRank(RedisKeys.leaderboard(roomId), userId);
-      return rank !== null ? rank + 1 : null;
+      return (rank !== undefined && rank !== null) ? rank + 1 : null;
     } catch { return null; }
   }
 
@@ -84,7 +85,8 @@ export class DataManager {
 
   async acquireLock(roomId: string, ttlSeconds = 5): Promise<boolean> {
     try {
-      const result = await this.redis.set(RedisKeys.roomLock(roomId), '1', { ex: ttlSeconds, nx: true });
+      const expiration = new Date(Date.now() + ttlSeconds * 1000);
+      const result = await this.redis.set(RedisKeys.roomLock(roomId), '1', { expiration, nx: true });
       return result === 'OK';
     } catch { return false; }
   }

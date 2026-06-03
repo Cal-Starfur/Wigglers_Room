@@ -1,14 +1,7 @@
-/**
- * main.ts — Wigglers Room
- * Entry point for the Devvit app.
- */
-
-import Devvit, { Context } from '@devvit/public-api';
+import { Devvit, useState, useWebView } from '@devvit/public-api';
 import { DataManager } from './data/dataManager.js';
 import { GameLogic } from './game/gameLogic.js';
-import { buildWebViewHTML } from './ui/uiComponent.js';
 import { Ticker } from './utils/ticker.js';
-import type { WigglersGameState, ClientMessage, ServerMessage } from './types.js';
 
 Devvit.configure({
   redditAPI: true,
@@ -22,64 +15,78 @@ Devvit.addCustomPostType({
   description: 'A wiggly multiplayer room game',
   height: 'tall',
 
-  render: (context: Context) => {
-    const { useState, useWebView, reddit, redis, kvStore, userId } = context;
+  render: (context) => {
+    const { redis, kvStore, postId, userId } = context;
     const dm = new DataManager(redis, kvStore);
-    const postId = context.postId ?? 'unknown';
+    const roomId = postId ?? 'unknown';
     const currentUserId = userId ?? 'anonymous';
 
-    const [roomState, setRoomState] = useState<WigglersGameState>(async () => {
-      return dm.loadOrInitRoom(postId);
+    const [roomStateJson, setRoomStateJson] = useState<string>(async () => {
+      const state = await dm.loadOrInitRoom(roomId);
+      return JSON.stringify(state);
     });
 
-    const [userPrefs, setUserPrefs] = useState(async () => {
-      return dm.loadUserPrefs(currentUserId);
+    const [userPrefsJson, setUserPrefsJson] = useState<string>(async () => {
+      const prefs = await dm.loadUserPrefs(currentUserId);
+      return JSON.stringify(prefs);
     });
 
-    const webView = useWebView<ClientMessage, ServerMessage>({
+    const webView = useWebView({
       url: 'index.html',
-      async onMessage(message: ClientMessage, webViewContext) {
+
+      async onMessage(message: any, webViewContext: any) {
+        const roomState = JSON.parse(roomStateJson);
+        const userPrefs = JSON.parse(userPrefsJson);
+
         switch (message.type) {
           case 'READY': {
-            const freshState = await dm.loadOrInitRoom(postId);
-            webViewContext.postMessage({ type: 'STATE_SYNC', payload: freshState });
+            const freshState = await dm.loadOrInitRoom(roomId);
+            webViewContext.postMessage({ type: 'STATE_SYNC', payload: JSON.stringify(freshState) });
             break;
           }
           case 'PLAYER_ACTION': {
             const caught = Ticker.catchUp(roomState);
-            const nextState = GameLogic.applyAction(caught, { userId: currentUserId, action: message.payload });
-            await dm.saveRoomState(postId, nextState);
-            setRoomState(nextState);
-            await context.realtime.send(`room:${postId}`, { type: 'STATE_SYNC', payload: nextState });
+            const nextState = GameLogic.applyAction(caught, {
+              userId: currentUserId,
+              action: message.payload,
+            });
+            await dm.saveRoomState(roomId, nextState);
+            setRoomStateJson(JSON.stringify(nextState));
+            await context.realtime.send(`room:${roomId}`, JSON.stringify({
+              type: 'STATE_SYNC',
+              payload: nextState,
+            }));
             webViewContext.postMessage({ type: 'ACTION_ACK', success: true });
             break;
           }
           case 'FETCH_LEADERBOARD': {
-            const board = await dm.getLeaderboard(postId, 10);
-            webViewContext.postMessage({ type: 'LEADERBOARD_DATA', payload: board });
+            const board = await dm.getLeaderboard(roomId, 10);
+            webViewContext.postMessage({ type: 'LEADERBOARD_DATA', payload: JSON.stringify(board) });
             break;
           }
           case 'UPDATE_PREFS': {
             const updatedPrefs = { ...userPrefs, ...message.payload };
             await dm.saveUserPrefs(currentUserId, updatedPrefs);
-            setUserPrefs(updatedPrefs);
+            setUserPrefsJson(JSON.stringify(updatedPrefs));
             break;
           }
           default:
-            console.warn('[main] Unknown message type:', (message as any).type);
+            console.warn('[main] Unknown message type:', message.type);
         }
       },
+
       onUnmount() {
         console.log('[main] WebView unmounted for user:', currentUserId);
       },
     });
 
+    const roomState = JSON.parse(roomStateJson);
     const ticker = new Ticker(context);
-    ticker.startPolling(postId, async () => {
-      const latest = await dm.loadOrInitRoom(postId);
+    ticker.startPolling(roomId, async () => {
+      const latest = await dm.loadOrInitRoom(roomId);
       if (latest.version !== roomState.version) {
-        setRoomState(latest);
-        webView.postMessage({ type: 'STATE_SYNC', payload: latest });
+        setRoomStateJson(JSON.stringify(latest));
+        webView.postMessage(JSON.stringify({ type: 'STATE_SYNC', payload: latest }));
       }
     });
 
@@ -90,7 +97,6 @@ Devvit.addCustomPostType({
           url="index.html"
           width="100%"
           height="100%"
-          onMessage={webView.onMessage}
           grow
         />
       </vstack>
@@ -101,11 +107,11 @@ Devvit.addCustomPostType({
 Devvit.addMenuItem({
   label: '🐛 Create Wigglers Room',
   location: 'subreddit',
-  onPress: async (event, context) => {
+  onPress: async (_event: any, context: any) => {
     const { reddit, ui } = context;
     const subreddit = await reddit.getCurrentSubreddit();
     const post = await reddit.submitPost({
-      title: "Wigglers Room 🐛 — Come Wiggle!",
+      title: 'Wigglers Room 🐛 — Come Wiggle!',
       subredditName: subreddit.name,
       preview: (
         <vstack alignment="center middle" height="100%" width="100%">
