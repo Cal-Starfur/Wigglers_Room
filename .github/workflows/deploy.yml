@@ -1,17 +1,12 @@
-name: Deploy to Devvit
+name: Build Check
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Reason for manual deploy'
-        required: false
-        default: 'Manual deploy from Claude'
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -31,25 +26,11 @@ jobs:
       - name: Install Devvit CLI
         run: npm install -g devvit
 
-      - name: Restore Devvit auth
-        run: |
-          mkdir -p ~/.devvit
-          printf '%s' "${{ secrets.DEVVIT_TOKEN }}" > ~/.devvit/token
-          printf '%s' "${{ secrets.DEVVIT_SESSION_ID }}" > ~/.devvit/session-id
-
       - name: Build
         run: npm run build
-
-      - name: Upload to Devvit
-        env:
-          CI: true
-          DEVVIT_NO_INTERACTIVE: true
-        run: yes | devvit upload
 
       - name: Report
         if: always()
         run: |
-          echo "Workflow : ${{ github.workflow }}"
-          echo "Commit   : ${{ github.sha }}"
-          echo "Status   : ${{ job.status }}"
-          echo "Triggered: ${{ github.event_name }}"
+          echo "Commit : ${{ github.sha }}"
+          echo "Status : ${{ job.status }}"
