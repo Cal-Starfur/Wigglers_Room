@@ -1,31 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-  <link rel="stylesheet" href="./style.css"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wigglers Room</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="loading">
-    <img src="./icon.png" width="80" height="80" class="worm"/>
-    <p>Warming up the wigglers...</p>
-  </div>
-  <canvas id="game-canvas"></canvas>
-  <div id="hud">
-    <div class="hud-chip" id="score-display">Score: 0</div>
-    <div class="hud-chip" id="timer-display">3:00</div>
-    <div class="hud-chip" id="player-count">0 players</div>
-  </div>
-  <div id="leaderboard-panel">
-    <div class="lb-title">🏆 Top Wigglers</div>
-    <div id="lb-entries"></div>
-  </div>
-  <div id="emote-bar">
-    <button class="emote-btn" data-emote="wave">👋</button>
-    <button class="emote-btn" data-emote="flex">💪</button>
-    <button class="emote-btn" data-emote="star">⭐</button>
-    <button class="emote-btn" data-emote="fire">🔥</button>
-  </div>
+  <div id="root"><canvas id="c"></canvas></div>
   <script src="./game.js"></script>
 </body>
 </html>
