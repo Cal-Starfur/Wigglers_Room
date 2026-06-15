@@ -13,7 +13,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -34,8 +34,11 @@ jobs:
       - name: Restore Devvit auth
         run: |
           mkdir -p ~/.devvit
-          echo "${{ secrets.DEVVIT_TOKEN }}" > ~/.devvit/token
-          echo "${{ secrets.DEVVIT_SESSION_ID }}" > ~/.devvit/session-id
+          printf '%s' "${{ secrets.DEVVIT_TOKEN }}" > ~/.devvit/token
+          printf '%s' "${{ secrets.DEVVIT_SESSION_ID }}" > ~/.devvit/session-id
+
+      - name: Build
+        run: npm run build
 
       - name: Upload to Devvit
         run: devvit upload
