@@ -228,10 +228,27 @@ Always check `nextAfterExit` to tell them apart.
 - Deploy: GAME_ARCHITECTURE.md updated — devvit-pipeline skill bridge now handles deploy.
 - Commit: `ca9ee0b`. Lines: 8,491 → 8,459
 
-### V20 Session 9 — Next Session
-**Work through checklist in order (see WIGGLERS_AUDIT_V20.md):**
-1. ISS-3: Offline death + comment post — game.js + main.tsx
-2. ISS-5: Live weather — main.tsx + game.js
-3. ISS-7: Weekly leaderboard pinned comment — main.tsx
+### V20 Session 9 — 2026-06-16
+- Attempted ISS-3 (offline death), ISS-5 (live weather), ISS-7 (weekly leaderboard).
+- Game broke on Reddit after Session 9 push. Reverted to Session 8 (`ca9ee0b`) — still broken.
+- Full rollback to pre-today baseline: commit `ccef105` (June 15, end of Session 2).
+- Restored via GitHub API (commit `f50c474`). Game confirmed working on Reddit after rollback.
+- **LESSON:** Session 5 subfunction split (`69496a9`) and/or Session 4 otherPlayers rewrite (`43fd1a2`) introduced the movement bug. Session 8 restore was not far enough back.
+- Lines restored: 8,432 (June 15 baseline)
+
+### Emergency Restore Protocol — Documented Here
+If the game breaks on Reddit and restoring one session back doesn't fix it:
+1. Run `sync_from_github.py history webroot/game.js` to see all commits with dates
+2. Identify the last commit from **before today** (different date)
+3. `gh.get_file('webroot/game.js', branch='<that_sha>')` to fetch it
+4. Stage + push via propose_commit.py
+5. Run `devvit upload` in Codespace to deploy
+
+### V20 Session 10 — Next Session
+**Resume from June 15 baseline (ccef105). Sessions 3–9 changes are gone — redo carefully:**
+1. Re-apply Session 3 fixes (starvingHUD rename, dead function deletes) — low risk
+2. Re-apply Session 8 fixes ONE AT A TIME, test on Reddit after each
+3. Do NOT apply Session 4 (otherPlayers rewrite) or Session 5 (subfunction split) until root cause of movement bug is confirmed
+4. ISS-3, ISS-5, ISS-7 remain on backlog
 
 *This file is maintained by the Lead Dev skill. Update every session.*
