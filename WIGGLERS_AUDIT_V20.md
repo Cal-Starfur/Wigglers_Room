@@ -1,329 +1,170 @@
 # Wigglers Room — Lead Dev Audit Report
 **File:** `webroot/game.js`  
 **Repo:** `Cal-Starfur/Wigglers_Room` (branch: `main`)  
-**Scanned:** 2026-06-15  
-**Version:** V20 (post-split from single-file V20.html)  
+**Last full audit:** 2026-06-16 (Session 7) — SHA `8d4064c`, 8,492 lines, 230 issues  
 **Platform:** Devvit / Vanilla Canvas  
-**Total Lines:** 8,402  
-**Total Functions:** 103  
-**Total Issues Found:** 228  
 
 ---
 
-## Summary
+## 🔴 Code Quality Fixes (game.js only)
 
-| Severity | Category | Count |
-|---|---|---|
-| 🔴 Critical | Duplicate Functions | 5 |
-| 🔴 Critical | Devvit Platform Violations | 3 |
-| 🟠 Significant | Duplicate Variable Declarations | 101 |
-| 🟠 Significant | Copy-Paste Blocks | 5 |
-| 🟠 Significant | Long Functions (>50 lines) | 18 |
-| 🟠 Significant | Dead Code | 5 |
-| 🟡 Housekeeping | Naming Convention Mismatches | 17 |
-| 🟡 Housekeeping | Single-Letter Variables | 50 |
-| 🟡 Housekeeping | Magic Numbers | 20 |
+### FIX-1 — Duplicate Snoo Helper Block (Re-emerged)
+**Lines:** 1643–1685 (orphan, no header comment)  
+**Detail:** `snooSvgX`, `snooSvgY`, `snooHeadGrad`, `snooIrisGrad`, `snooSmilePath`, `SNOO_OX`, `SNOO_OY` all defined twice. The correct block with the `// ── Shared Snoo SVG helpers` header is at 1687. The orphan at 1643 is the duplicate — delete it.  
+**Status:** ⏳ Fix this session
 
----
+### FIX-2 — `_svgX` / `_svgY` Still Underscore Named
+**Lines:** 2424–2425 (inside `drawSnooDrain`)  
+**Detail:** Two local shorthands inside `drawSnooDrain` still use `_underscore` prefix. Were missed in Session 4 rename pass. Rename to `svgX` / `svgY` — local scope, no global collision.  
+**Status:** ⏳ Fix this session
 
-## 🔴 CRITICAL — Fix Before Shipping to Devvit
-
-### 1. Duplicate Functions (5 pairs)
-
-These functions are defined **twice** — once inside `drawFarmerSnoo` (~line 1776) and again inside `drawSnoo` (~line 4862). JavaScript silently uses whichever runs last. This is a maintenance trap: editing one copy won't fix the other.
-
-| Function | First Definition | Duplicate |
-|---|---|---|
-| `svgX(v)` | line 1776 | line 4862 |
-| `svgY(v)` | line 1777 | line 4863 |
-| `makeSnooGrad(gcx, gcy, gr)` | line 1779 | line 4865 |
-| `makeIrisGrad(icx, icy)` | line 1826 | line 4921 |
-| `smilePath(topSvgY, botSvgY, ha)` | line 1873 | line 4959 |
-
-**✅ FIXED (Session 2):** `snooSvgX`, `snooSvgY`, `snooHeadGrad`, `snooIrisGrad`, `snooSmilePath` extracted as module-level helpers above `drawFarmerSnoo`. All inner copies removed from `drawFarmerSnoo`, `drawSnoo`, and `drawSnooDrain`. Each function now has a 1-line local shorthand delegating to the shared helper.
+### FIX-3 — `onload` Dead Code
+**Line:** 282  
+**Detail:** `onload` function defined but never called. Leftover from old HTML inline pattern. Safe to delete.  
+**Status:** ⏳ Fix this session
 
 ---
 
-### 2. Raw `localStorage` Writes That Bypass the Devvit Host
+## 🎮 Gameplay Issues & Feature Backlog
 
-`saveSession()` and `loadSession()` correctly dual-write (localStorage fallback + `postToHost`). However these **direct** raw `localStorage.setItem` calls outside those functions will **silently do nothing or cause errors in Devvit's sandboxed webview**:
+### Issue 1 — Username Labels Above Worms
+**Status:** ⏳ Not implemented  
+**Cal's decision:** Show `u/username` above every worm — local player and all `otherPlayers`. Must use the real Reddit username from Devvit auth (already arrives via `MSG_SET_USERNAME` → `username` var). In local dev where `username === 'u/You'`, show nothing.  
+**Where:** `drawWorms()` — add label above head segment for local player and each `otherPlayers` entry.  
+**Notes:** Small font, semi-transparent, positioned above head segment. Same style for all worms.
 
-| Line | Code | Problem |
-|---|---|---|
-| 335 | `localStorage.setItem(SESSION_KEY, ...)` | flood ts written directly, bypasses host |
-| 2788 | `localStorage.setItem(SESSION_KEY, ...)` | offline drain clears lastFloodTs — not sent to host |
-| 3020 | `localStorage.getItem(SESSION_KEY)` | raw read in `setup()` before `setSession` may arrive |
-| 3023 | `localStorage.setItem(SESSION_KEY, ...)` | weekStartTs written directly |
-| 3094 | `localStorage.setItem(SESSION_KEY, ...)` | death state written directly |
-| 4463 | `localStorage.setItem(SESSION_KEY, ...)` | flood trigger writes lastFloodTs directly |
-| 8342 | `localStorage.setItem(SESSION_KEY, ...)` | debug key shortcut writes lastFloodTs |
+### Issue 2 — Remove `drawGenBadge()` from Local Player
+**Status:** ⏳ Not done  
+**Cal's decision:** Generation identity is now shown via worm color and lives count color. The badge is visual clutter. Remove the call at line 6553 inside `drawWorms()`. Keep the `drawGenBadge` function itself — may be useful for other players later.  
+**Where:** `drawWorms()` line 6553 — delete the `drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation)` call.
 
-**Fix:** All session state mutations must go through `saveSession()` which already handles the dual-write. Replace raw calls with: load current data object → mutate the field → call `saveSession()`.
+### Issue 3 — Offline Death + Comment Post
+**Status:** ⏳ Partially implemented — gaps confirmed  
+**Cal's decision:** Worms should be able to die offline if starving/acidic/constipated long enough. When a worm dies offline, post a comment to the Reddit thread.  
+**What exists:** `applyOfflineDrain()` drains `pGut` based on elapsed time but `MAX_OFFLINE_DRAIN = 0.85` hardcap prevents death. Toast display works. Flood-while-offline detected.  
+**What's missing:**
+- Remove or raise `MAX_OFFLINE_DRAIN` cap so worm can actually die
+- Simulate offline acid buildup and constipation damage in `applyOfflineDrain()`
+- On offline death: `postToHost({ type: MSG_PLAYER_DIED, cause: 'offline_starvation', username })`
+- In `main.tsx`: on `MSG_PLAYER_DIED` with offline cause, call `context.reddit.submitComment()` to post to thread
+- Comment format: `💀 u/CalStarfur's worm starved while they were away...`  
+**Files:** `game.js` (`applyOfflineDrain`) + `main.tsx` (comment post handler)
 
----
+### Issue 4 — Sound / Audio
+**Status:** ⏳ Intentionally deferred — annoying during active development  
+**Cal's decision:** Return to this when gameplay is stable. Web Audio API available in Devvit webviews.  
+**Future sounds list:**
+- Crunch/munch on eating
+- Drip for tea drops entering sump
+- Valve open/close click
+- Weekly drain gurgle + Snoo cinematic fanfare
+- Cocoon hatch pop
+- Death screen ambient
 
-### 3. Devvit Platform Violations
+### Issue 5 — Live Weather Integration
+**Status:** ⏳ Not implemented — Nashville permanently hardcoded  
+**Cal's decision:** Integrate real live weather via Open-Meteo (free, no API key).  
+**What exists:** `weather` object and `getEvapRate()` reads it. Handler for `MSG_SET_WEATHER` exists in `game.js`. But `main.tsx` never fetches weather or sends the message.  
+**Plan:**
+1. In `main.tsx` on `MSG_READY`, call Open-Meteo: `https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,precipitation`
+2. Map real values to 0–1 range, send `MSG_SET_WEATHER`
+3. Cache result in KV for 1 hour so all viewers don't hammer the API
+4. Add visual feedback: rain shimmer overlay when `precip > 0.3`, warmth shift when `temp > 0.7`  
+**Files:** `main.tsx` (fetch + KV cache + send) + `game.js` (visual feedback)
 
-#### 3a. Raw String Message Types in `game.js`
-The audit found three message type strings used as raw literals instead of named constants:
+### Issue 6 — Trash Type Names
+**Status:** ✅ By design — no change needed  
+**Cal's decision:** Names like `pizza`, `banana_peel` are code-only identifiers. Not shown to players. Happy with this. Revisit later if hover/tooltip is wanted.
 
-```js
-// Found in game.js — should be named constants like in main.tsx
-'setPresence'      // used raw in message handler
-'setPlayerAvatar'  // used raw in message handler  
-'setSession'       // used raw in message handler
+### Issue 7 — Weekly Leaderboard as Pinned Reddit Comment
+**Status:** ⏳ Not implemented  
+**Cal's decision:** Post and pin a weekly leaderboard comment to the Reddit thread when weekly drain fires.  
+**What exists:** `weeklyContrib` tracked per player, broadcast via `MSG_WORLD_UPDATE`. `week:{postId}` KV key stores `{ weekStartTs, pot, contributors }` but contributor data never formatted or posted.  
+**Plan:**
+1. On `MSG_WORLD_UPDATE` with `weeklyContrib` in `main.tsx`, update `week:{postId}` KV: add/update `{ username, contrib, lastUpdate }`
+2. On weekly drain (`weeklyDrain: true`): sort contributors, format leaderboard, call `context.reddit.submitComment()`
+3. Pin via `context.reddit.distinguishComment()` if permissions allow
+4. Comment format:
 ```
+🌿 Weekly Worm Tea Harvest — Week of Jun 16
 
-`main.tsx` correctly uses `const MSG_SET_PRESENCE = 'setPresence'` etc. `game.js` should mirror this pattern. When a string is mistyped, there's no error — the message just silently fails.
+🥇 u/CalStarfur — 847 pts
+🥈 u/SoilKing42 — 612 pts  
+🥉 u/WiggleWorm — 391 pts
 
-**Fix:** Add a `MSG_*` constants block at the top of `game.js` matching `main.tsx` exactly.
-
-#### 3b. `DEBUG_PASSWORD` Hardcoded and Exposed
-```js
-var DEBUG_PASSWORD = 'wigglers2025';  // line 8185 — visible in shipped JS
+Total tea drained: 94% 🫗  Next harvest in 7 days.
 ```
-This password is plaintext in the production bundle. Anyone can open DevTools and read it, then unlock debug mode on Reddit.
+**Files:** `main.tsx` only
 
-**Fix:** Replace with a hash check, or strip the debug system entirely from production builds using a build flag.
+### Issue 8 — Saturation System
+**Status:** ⏳ Needs fixing  
+**Cal's concern:** Soil turns green (working, looks great ✅) but draining the tea doesn't relieve the saturation — it feels disconnected.  
+**What's confirmed from code read:**
+- `pooled` (0–1) = compost moisture. Gains from tea drops stalling in compost (+0.005 each). Loses only via evaporation of stalled drops (weather-driven).
+- `tLvl` (0–1) = sump tea level. Drains via weekly Snoo cinematic or manual valve tap.
+- **`triggerWeeklyDrain()` explicitly does NOT touch `pooled`** — comment says "compost saturation is independent of sump drain". This is the disconnect.
+- `window._moisture` lerps toward `pooled` → drives soil color via `getSoilGradStops(castingEnrichment, _moisture)` → green sheen overlay at `alpha = mw * 0.13`
+- Oversaturation: at `pooled > 0.6`, worm silently takes drowning damage in compost  
 
-#### 3c. Audit Tool Note — Message Handlers Are `if/else`, Not `switch`
-The automated audit flagged all message types as "unhandled." This is a **false positive** — `game.js` uses an `if/else` chain rather than a `switch` statement. All handlers are present and correct. However, this is worth noting because the `if/else` pattern is harder to scan. A future refactor to `switch(msg.type)` would make this more readable and eliminate false audit hits.
-
----
-
-## 🟠 SIGNIFICANT — Fix Soon
-
-### 4. Duplicate Variable Declarations (101)
-
-Most are `var` loop variables (`i`, `t`, `r`, `g`, `b`) in different functions — JavaScript hoisting makes these technically safe, but they pollute the global scope and make debugging confusing. The ones that matter most are variables declared at **both global scope and inside a function**, which can cause subtle override bugs:
-
-| Variable | Declared at Lines |
-|---|---|
-| `starving` | 3244, 6802 |
-| `head` | 3168, 7598 |
-| `now` | 52, 274, 3052, 6775, 7093, 7478, 7599, 7971, 8070 |
-| `msg` | 5, 207 |
-| `headR` | 1608, 2200, 4856 |
-| `SC` | 2105, 2199, 4858 |
-| `i` | 28 separate locations |
-| `g` (gradient) | 8 separate locations |
-| `r` (radius/red) | 9 separate locations |
-
-**Fix:** Immediate priority is the global/local shadows (`starving`, `head`, `now`). Loop variables can be addressed over time by converting to `let` scoping.
+**Fixes to make:**
+1. **Weekly drain bleeds `pooled`** — in `triggerWeeklyDrain()`, add: `pooled = Math.max(0, pooled - tLvl * 0.3)` (partial relief, compost retains some moisture)
+2. **Valve tap bleeds `pooled`** — in `closeDrainTap()`, add: `pooled = Math.max(0, pooled - window._valveDrainedTotal * 0.25)`
+3. **Oversaturation visual warning** — before the worm takes damage at `pooled > 0.6`, show intensifying blue-green sheen so player has warning to move
+4. **Evap rate tuning** — test whether `getEvapRate() * 10` multiplier is responsive enough or needs raising to `* 20`  
+**Files:** `game.js` (`triggerWeeklyDrain`, `closeDrainTap`, `updateFlood`)
 
 ---
 
-### 5. Copy-Paste Blocks (5)
+## ✅ Resolved Issues
 
-Lines **4865–4874** are a near-identical copy of lines **1779–1788** — the Snoo gradient and SVG helper setup. These are the same as the duplicate functions in issue #1 above. Resolving issue #1 eliminates all 5 copy-paste flags.
-
----
-
-### 6. Long Functions — Refactor Candidates
-
-Functions over 50 lines are hard to read and harder to debug. These are the worst offenders:
-
-| Function | Line | Length | Suggested Split |
-|---|---|---|---|
-| `drawSnooDrain()` | 2194 | 263 lines | Split into: `drawSnooDrainPipes()`, `drawSnooDrainWater()`, `drawSnooDrainUI()` |
-| `drawDebrisFragment()` | 1363 | 224 lines | Split by debris type |
-| `drawDeathScreen()` | 7310 | 164 lines | Split into: `drawDeathBg()`, `drawDeathText()`, `drawDeathButtons()` |
-| `spawnScraps()` | 2475 | 172 lines | Split into: `spawnFoodScraps()`, `spawnDebris()`, `spawnBugs()` |
-| `drawSnoo()` | 4851 | 145 lines | Split into: `drawSnooBody()`, `drawSnooFace()`, `drawSnooAccessories()` |
-| `setup()` | 2913 | 136 lines | Split into: `setupCanvas()`, `setupPlayer()`, `setupWorld()` |
-| `updateSnoo()` | 1922 | 128 lines | Split into `updateSnooState()` + `advanceSnooAnimation()` |
-| `drawPendingWorms()` | 7091 | 116 lines | Split into: `drawWormCard()`, `drawWormBadge()` |
-| `showDebugPrompt()` | 8193 | 111 lines | Extract: `buildDebugOverlayDOM()` |
-| `applyOfflineDrain()` | 2768 | 97 lines | Extract: `calculateOfflineDuration()`, `applyDrainToSession()` |
-| `updateSnooDrain()` | 2100 | 91 lines | Split by drain phase |
-| `drawQueueHUD()` | 7209 | 80 lines | Extract: `drawQueueSlot()` |
-| `tryPoop()` | 7702 | 67 lines | Extract: `resolvePoopTarget()`, `depositPoop()` |
-| `drawGenDebugPanel()` | 4628 | 54 lines | Dead code — remove instead |
-| `updateScrapsLevel()` | 2649 | 54 lines | Extract per-tier logic |
-| `respawnPlayer()` | 7541 | 53 lines | Extract: `applyCocoonRespawn()`, `applyNormalRespawn()` |
-| `drawPath()` | 4579 | 46 lines | Extract: `drawPathSegment()` |
-| `drawWorm()` | 4728 | 119 lines | Extract: `drawWormSegment()`, `drawWormHead()` |
-
-**Priority:** `drawDeathScreen`, `setup`, `applyOfflineDrain` — these are the ones most likely to be edited and most likely to introduce bugs when they are.
-
----
-
-### 7. Dead Code (5 functions)
-
-These functions are defined but **never called anywhere** in the codebase:
-
-| Function | Line | Notes |
+| # | Issue | Session |
 |---|---|---|
-| `onload` | 255 | Likely leftover from old HTML inline script pattern |
-| `_refreshBin()` | 580 | Looks like it was planned for cache invalidation — never wired up |
-| `nearestPathIdx(wx, wy, xTol, yTol)` | 605 | Tunnel-finding utility — may have been planned for NPC worms |
-| `drawGenDebugPanel()` | 4628 | Debug-only panel that's also never called — double candidate for removal |
-| `blendEnrichCol(br,bg,bb,er,eg,eb,e)` | 5030 | Color blend helper superseded by `blendWet()` |
-
-**Fix:** `nearestPathIdx` is worth keeping (it'll be needed for NPC worm pathfinding). The rest can be deleted. Tag `nearestPathIdx` with a comment: `// reserved for NPC worm pathfinding`.
-
----
-
-## 🟡 HOUSEKEEPING — Technical Debt
-
-### 8. Naming Convention Mismatches (17 functions)
-
-The project convention is `camelCase`. These functions use `_underscore` prefixes inconsistently:
-
-| Function | Line | Should Be |
-|---|---|---|
-| `_registerPendingWorm()` | 402 | `registerPendingWorm()` |
-| `_findPendingWorm()` | 424 | `findPendingWorm()` |
-| `_refreshBin()` | 580 | `refreshBin()` (if kept) |
-| `_snooEaseOut()` | 1953 | `snooEaseOut()` |
-| `_snooEaseIn()` | 1954 | `snooEaseIn()` |
-| `_dBoot()` | 2255 | `drawBoot()` or `dBoot()` |
-| `_svgX()` | 2331 | `svgX()` (resolves when duplicates fixed) |
-| `_svgY()` | 2332 | `svgY()` (resolves when duplicates fixed) |
-| `_mkSnooGrad()` | 2333 | `makeSnooGrad()` (resolves when duplicates fixed) |
-| `_mkIrisGrad()` | 2348 | `makeIrisGrad()` (resolves when duplicates fixed) |
-| `_smilePath()` | 2366 | `smilePath()` (resolves when duplicates fixed) |
-| `_dropSegStart()` | 3890 | `dropSegStart()` |
-| `_dropSegEnd()` | 3898 | `dropSegEnd()` |
-| `_toCanvas()` | 7774 | `toCanvas()` |
-| `_clickInBtn()` | 7858 | `clickInBtn()` |
-| `_cancelLP()` | 7928 | `cancelLP()` |
-| `_touchInBtn()` | 8014 | `touchInBtn()` |
-
-Note: 5 of these resolve automatically when the duplicate function issue is fixed.
+| 1 | Extract duplicate Snoo SVG helpers to shared module-level | Sess 2 |
+| 2 | Route all `localStorage.setItem` through `saveSession()` | Sess 2 |
+| 3 | Add `MSG_*` named constants to `game.js` | Sess 2 |
+| 4 | `DEBUG_PASSWORD` plaintext | ⏳ Deferred to pre-launch |
+| 5 | Global/local variable shadows (`starving`) | Sess 3 |
+| 6 | Dead code (`_refreshBin`, `drawGenDebugPanel`, `blendEnrichCol`) | Sess 3 |
+| 7 | `nearestPathIdx` comment corrected (reserved for otherPlayers) | Sess 4 |
+| 8 | `_underscore` → camelCase (11 functions) | Sess 4 |
+| 9 | Split `draw()`, `updatePhysics()`, `updatePlayer()` | Sess 5 |
+| 10 | Devvit upload README.md warning | Sess 6 |
+| — | `var` → `let` conversion | ⏳ Deferred — low payoff |
 
 ---
 
-### 9. Magic Numbers (20)
-
-Numbers used directly in code with no explanation. High-risk ones:
-
-| Value | Line | What It Is | Fix |
-|---|---|---|---|
-| `3600` | 53 | seconds in an hour | `const SECS_PER_HOUR = 3600` |
-| `60` | 53 | minutes in an hour | already implied by above |
-| `300` | 104 | `MAX_SCRAPS` cap | already has named var `MAX_SCRAPS` — use it |
-| `200` | 121 | `MAX_DROPS` cap | already has named var `MAX_DROPS` — use it |
-| `90000` | 314 | unknown — needs investigation | needs naming |
-| `400` | 416 | unknown — needs investigation | needs naming |
-| `70, 40, 50, 30, 60` | 452 | worm spawn coordinates? | needs naming |
-
----
-
-### 10. Single-Letter Variables (50)
-
-Scattered across the codebase. The loop-local ones (`i`, `r`, `g`, `b` for color math) are acceptable convention. The ones to fix are any that live outside a 3-line loop body. The audit caught 50 total — only the non-loop ones are worth addressing.
-
----
-
-## ✅ What's Already Working Well
-
-These are done right and should not be touched:
+## ✅ What's Working Well (Don't Touch)
 
 | System | Status |
 |---|---|
-| `main.tsx` message constants | ✅ All types are named constants |
-| `main.tsx` KV key namespacing | ✅ `worm:{username}`, `world:{postId}` etc. |
-| `main.tsx` anti-cheat clamps | ✅ score, karma, pSR, pSEG, cocoon timestamps |
-| `postToHost()` wrapper | ✅ Safe to call at any time, silently no-ops locally |
-| `saveSession()` dual-write | ✅ localStorage fallback + postToHost |
-| `setSession` handler | ✅ Receives server session, applies it before setup |
-| `setUsername` handler | ✅ Updates `username` variable before game starts |
-| `setWorldState` handler | ✅ Present and wired (lines 261-270) |
-| `setFlood` handler | ✅ Present and server-authoritative |
-| `setPresence` handler | ✅ Present and wired (line 273) |
-| `setPlayerAvatar` handler | ✅ Present (line 251) |
-| `ready` message on load | ✅ Fires at line 8384, triggers main.tsx init chain |
-| Offline drain logic | ✅ `applyOfflineDrain()` caps at 85%, worm never dies offline |
-| Cocoon persistence | ✅ `owner` field tied to `username`, survives cross-device |
-| Weekly drain server-auth | ✅ `weekStartTs` protected from client overwrite in main.tsx |
+| `main.tsx` message constants + KV namespacing | ✅ |
+| `main.tsx` anti-cheat clamps | ✅ |
+| `postToHost()` wrapper | ✅ Safe no-op in local dev |
+| `saveSession()` dual-write | ✅ |
+| All message handlers | ✅ Present and wired |
+| `applyOfflineDrain()` base gut drain | ✅ Works, needs expansion (Issue 3) |
+| Cocoon persistence + server clamps | ✅ |
+| `otherPlayers` real worm rendering | ✅ Real segs, gen color, HP, stale fade |
+| `draw()` / `updatePhysics()` / `updatePlayer()` decomposition | ✅ |
+| Poop enrichment depth bonus | ✅ |
+| Valve + weekly drain mutual exclusion (`drainOwner`) | ✅ |
+| `pooled` shared world state + Realtime sync | ✅ |
+| Soil color blending (`blendWet` → `getSoilGradStops`) | ✅ Looks great |
 
 ---
 
-## Recommended Fix Order
+## Full Session Checklist — Work Through In Order
 
-| Priority | Task | Effort | Impact |
+| # | Task | File(s) | Status |
 |---|---|---|---|
-| 1 | ~~Extract duplicate `svgX/svgY/makeSnooGrad/makeIrisGrad/smilePath` to shared helpers~~ | ✅ DONE | Added `snooSvgX`, `snooSvgY`, `snooHeadGrad`, `snooIrisGrad`, `snooSmilePath` as module-level helpers. All 3 inner copies removed. |
-| 2 | ~~Route all raw `localStorage.setItem` calls through `saveSession()`~~ | ✅ DONE | Fixed 6 locations (flood handler, offline drain, cocoon filter, death reset, 2x flood triggers). Only 2 intentional writes remain. |
-| 3 | ~~Add `MSG_*` named constants to `game.js` matching `main.tsx`~~ | ✅ DONE | 24 constants added. All inbound handler comparisons and outbound postToHost calls updated. Zero raw strings remain. |
-| 4 | Change `DEBUG_PASSWORD` to a hash or strip debug in prod build | Low | Security — plaintext password in shipped JS |
-| 5 | Fix global/local variable shadows: `starving`, `head`, `now` | Medium | Prevents subtle state bugs |
-| 6 | Delete confirmed dead code: `onload`, `_refreshBin`, `drawGenDebugPanel`, `blendEnrichCol` | Low | Reduce file size, reduce confusion |
-| 7 | ~~Tag `nearestPathIdx` as reserved for NPC worms~~ | ✅ DONE | Kept for `otherPlayers` path-following (not NPC worms — original design intent was always real multiplayer worms). Corrected comment added. |
-| 8 | ~~Rename `_underscore` functions to camelCase~~ | ✅ DONE | 11 functions renamed: `registerPendingWorm`, `findPendingWorm`, `toCanvas`, `cancelLP`, `snooEaseOut`, `snooEaseIn`, `dBoot`, `dropSegStart`, `dropSegEnd`, `clickInBtn`, `touchInBtn`. |
-| 9 | ~~Split the 5 longest functions~~ | ✅ DONE | `draw()` 2030→13 lines (8 subfuncs), `updatePhysics()` 815→6 lines (4 subfuncs), `updatePlayer()` 643→12 lines (6 subfuncs). `dropSegStart/End` promoted to module-level. |
-| 10 | Convert `var` loop variables to `let` | ⏳ DEFERRED | High change volume, low payoff. All meaningful shadows fixed in Priority 5. Revisit only if a scope bug surfaces. |
-
----
-
-## Files Scanned This Session
-
-| File | SHA | Status |
-|---|---|---|
-| `webroot/game.js` | `5a58c95` | ✅ Audited |
-| `webroot/index.html` | `660ea08` | ✅ Reviewed — clean |
-| `webroot/style.css` | `93bd130` | ✅ Reviewed — clean |
-| `src/main.tsx` | `209d0a9` | ✅ Reviewed — clean, no issues |
-
----
-
-## Session Log
-
-- **Session:** 2026-06-15
-- **What was done:** First GitHub pull + full automated audit of post-split repo
-- **Bugs found:** 228 total — 5 critical (duplicate functions), 3 Devvit violations, 101 dup vars, 5 dead code
-- **Audit tool note:** False-positive on message handlers — game.js uses `if/else` chain, tool scans for `switch/case`. All handlers are present.
-- **Tool fix applied:** Added missing `defaultdict` import to `generate_architecture.py`
-- **Next session:** Begin fixes in priority order — start with duplicate functions (#1) and raw localStorage calls (#2)
-
----
-
-### Session 2 — 2026-06-15
-- **What was done:** Applied Priority fixes 1, 2, and 3 to `webroot/game.js`
-- **Fix 1:** Extracted 5 duplicate inner Snoo SVG helper functions into 5 shared module-level helpers (`snooSvgX`, `snooSvgY`, `snooHeadGrad`, `snooIrisGrad`, `snooSmilePath`). Removed all inner copies from `drawFarmerSnoo`, `drawSnooDrain`, `drawSnoo`.
-- **Fix 2:** Routed 6 rogue `localStorage.setItem(SESSION_KEY)` calls through `data` object + `saveSession()`. Only 2 intentional writes remain (setSession mirror + saveSession body).
-- **Fix 3:** Added 24 `MSG_*` named constants block to `game.js` matching `main.tsx`. Replaced all raw string comparisons and all `postToHost` type strings.
-- **Skill update:** Added Rule 11 to lead-dev and Rule 7 to github-sync: PUSH ALL CHANGES BEFORE SESSION ENDS.
-- **Lines:** 8401 → 8432 (+31 from shared helpers + constants block)
-- **Next:** Priority 4 (DEBUG_PASSWORD hash), Priority 5 (global/local variable shadows), Priority 6 (dead code removal)
-
----
-
-### Session 3 — 2026-06-15
-- **What was done:** Applied Priority fixes 5 and 6 to `webroot/game.js`. Priority 4 (DEBUG_PASSWORD) deferred — debug mode still needed during active development.
-- **Fix 5:** Renamed `var starving` in HUD draw function to `var starvingHUD` — eliminates shadow of `updatePlayer`'s `starving`. Updated `hungerFlash` and gut color block to match. `head` and `now` shadows reviewed — all are function-local, no fix needed.
-- **Fix 6:** Deleted 3 confirmed dead functions: `_refreshBin` (1 line, never called), `drawGenDebugPanel` (55 lines, never called), `blendEnrichCol` (4 lines, superseded by `lerpCol`).
-- **Lines:** 8432 → 8371 (-61 lines)
-- **Commit:** `77c4fef`
-- **Remaining priorities:** Priority 7 (tag `nearestPathIdx` as NPC-reserved), Priority 8 (rename `_underscore` functions), Priority 9 (split long functions — defer until touching those systems), Priority 10 (`var` → `let` — low priority)
-
----
-
-### Session 4 — 2026-06-16
-- **What was done:** Priority 8 (underscore renames) + otherPlayers real worm rendering
-- **Priority 8:** Renamed 11 `_underscore` functions to camelCase across all call sites. `nearestPathIdx` audit note corrected — not for NPC worms, kept for `otherPlayers` path-following (original design intent).
-- **otherPlayers overhaul:** Presence broadcast now sends real `pSegs` (capped at 20 pts), `generation`, `hp`, `gut`. `main.tsx` relay updated to pass all new fields. Draw loop now calls `drawWorm(opp.segs, opp.size, getGenColor(opp.generation), opp.sleeping, 0, opp.hp)` — identical to local worm. History ring buffer kept as 2s fallback. Alpha raised from 0.55 to 1.0 — real worms, not ghosts.
-- **Commits:** `43fd1a2` (game.js), `37df5a4` (main.tsx)
-- **Lines:** 8371 → 8398
-- **Remaining:** Priority 9 (split long functions — defer), Priority 10 (var→let — low priority), DEBUG_PASSWORD hash (Priority 4 — deferred until pre-launch)
-
-### Session 5 — 2026-06-16
-- **What was done:** Priority 9 — split three monster functions
-- **`draw()`** 2030 → 13 lines: `drawSky`, `drawBinBg`, `drawTunnels`, `drawScraps`, `drawSump`, `drawBinLid`, `drawWorms`, `drawHUD`
-- **`updatePhysics()`** 815 → 6 lines: `updateTunnelDecay`, `updateDebris`, `updateDrops`, `updateFlood`; `dropSegStart`/`dropSegEnd` promoted from inner to module-level
-- **`updatePlayer()`** 643 → 12 lines: `updatePlayerDeath`, `updatePlayerSleep`, `updatePlayerVitals`, `updatePlayerEating`, `updatePlayerMovement`, `updatePlayerDrains`
-- **Priority 10** (`var`→`let`) deferred — high change volume, low payoff, all meaningful shadows already fixed
-- **Commit:** `69496a9`
-- **Lines:** 8398 → 8492 (+94 from new function headers and call sites)
-- **Remaining:** Priority 4 (DEBUG_PASSWORD hash — defer to pre-launch only)
-
-### Session 6 — 2026-06-16
-- **Issue fixed:** `devvit upload` warning "Couldn't find README.md, so not setting an 'about' for this app version"
-- **Root cause:** The Devvit CLI (`@devvit/cli`) uses `tiny-glob('*.md', { cwd: project.root })` to find README.md. `project.root` is resolved by walking up from `process.cwd()` looking for `devvit.yaml`. The README.md existed in the GitHub repo but was never present in the local Codespace clone because all Claude pushes go direct via the GitHub API — bypassing the normal git workflow. `git status` showed clean because git didn't know about the new files yet.
-- **Fix:** Run `git pull` in the Codespace before `devvit upload` whenever Claude has pushed changes. This brings all API-pushed files (README.md, GAME_ARCHITECTURE.md, WIGGLERS_AUDIT_V20.md etc.) into the local working tree.
-- **Rule added:** devvit-pipeline skill updated — always `git pull` in Codespace before `devvit upload` after a Claude session.
-- **Result:** Clean upload — "Building... done" with no warnings.
+| FIX-1 | Delete orphan Snoo block lines 1643–1685 | game.js | ⏳ |
+| FIX-2 | Rename `_svgX`/`_svgY` lines 2424–2425 | game.js | ⏳ |
+| FIX-3 | Delete `onload` dead code line 282 | game.js | ⏳ |
+| ISS-2 | Remove `drawGenBadge()` call line 6553 | game.js | ⏳ |
+| ISS-1 | Add `u/username` label above all worms | game.js | ⏳ |
+| ISS-8 | Saturation: weekly drain + valve bleed `pooled` + warning visual | game.js | ⏳ |
+| ISS-3 | Offline death: remove cap, acid/constipation sim, comment post | game.js + main.tsx | ⏳ |
+| ISS-5 | Live weather: Open-Meteo, KV cache, `MSG_SET_WEATHER`, visuals | main.tsx + game.js | ⏳ |
+| ISS-7 | Weekly leaderboard pinned comment | main.tsx | ⏳ |
 
 *Generated by Lead Dev skill — Wigglers Room V20 — Cal-Starfur/Wigglers_Room*
-
