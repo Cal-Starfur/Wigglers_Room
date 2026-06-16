@@ -163,14 +163,23 @@ var deathFade = 0;           // 0→1 fade-in alpha
 
 // ── Offline hunger drain ──────────────────────────────────────────────────
 // We record a timestamp on every session-save. On next load we compute
-// elapsed seconds and drain hunger accordingly (capped so the player
-// can't die offline, just arrive very hungry).
+// elapsed seconds and drain hunger accordingly. Worms CAN die offline
+// from starvation, acid buildup, or constipation if away long enough.
 var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live rate exactly
-var MAX_OFFLINE_DRAIN = 0.85;        // can arrive very hungry but never quite dead offline
+// No hard cap — worm can die offline. If pHP reaches 0 in applyOfflineDrain,
+// death is triggered and a comment is posted to the Reddit thread on next load.
+var OFFLINE_ACID_BUILDUP_PER_SEC  = 1 / (36 * 3600); // gut full → acid builds over ~36h
+var OFFLINE_CLOG_DAMAGE_PER_SEC   = 1 / (48 * 3600); // constipated → HP bleed over ~48h
 var SESSION_KEY = 'wigglers_session_v2';
 
 // ── Weather system ────────────────────────────────────────────────────────────
 // Nashville, TN defaults — real data injected via setWeather postMessage from Devvit host.
+// ── Weather visual state ──────────────────────────────────────────────────
+var _rainDrops     = [];       // [{x, y, vy, alpha}] — rain particles
+var _RAIN_MAX      = 60;       // max simultaneous drops
+var _heatWavePhase = 0;        // animates heat shimmer
+var _weatherReady  = false;    // true once MSG_SET_WEATHER received
+
 var weather = {
   humidity:  0.62,  // Nashville avg ~62% humidity
   temp:      0.56,  // ~18°C average
@@ -271,6 +280,7 @@ window.addEventListener('message', function(e) {
     if (msg.precip   != null) weather.precip   = Math.min(1, Math.max(0, msg.precip));
     if (msg.locName)          weather.locName  = msg.locName;
     weatherLocationSet = true;
+    _weatherReady = true; // real data received — visuals can activate
   }
 
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
@@ -2822,15 +2832,58 @@ function applyOfflineDrain(saved) {
     return;
   }
 
-  // Drain pGut — hunger is derived from gut fill, so this is the correct target.
-  // Draining pHunger directly was a bug: it got overwritten by the first updatePlayer tick.
-  var drain = Math.min(MAX_OFFLINE_DRAIN, elapsedSec * OFFLINE_DRAIN_PER_SEC);
+  // ── Offline hunger drain ──────────────────────────────────────────────────
+  // No cap — worms can die offline from starvation, acid, or constipation.
+  var drain = elapsedSec * OFFLINE_DRAIN_PER_SEC;
   if (generation >= 2) drain *= 0.85; // Gen 2+ perk: −15% offline drain
-  // drain is on a 0-1 scale matching the old pHunger range; convert to gut units
+  drain = Math.min(1, drain); // clamp to 0–1 fractional scale
   var gutDrain = drain * pGutMax;
-  pGut = Math.max(0, pGut - gutDrain); // clamp at 0 — never go negative
-  // If drain was severe, also tick HP down a little
-  if (drain > 0.5) pHP = Math.max(0.1, pHP - (drain - 0.5) * 0.4);
+  pGut = Math.max(0, pGut - gutDrain);
+
+  // ── Starvation HP bleed (matches live rate: HP bleeds when gut is empty) ─
+  if (pGut <= 0 && drain > 0) {
+    var starveSec   = Math.max(0, elapsedSec - (1 / OFFLINE_DRAIN_PER_SEC)); // seconds spent starving
+    var starveBleed = Math.min(1, starveSec * (0.0003 * 20)); // 0.0003/frame × ~20fps offline equiv
+    if (starveBleed > 0) {
+      if (pHP > 0) deathCause = 'starvation';
+      pHP = Math.max(0, pHP - starveBleed);
+    }
+  } else if (drain > 0.5) {
+    // Not dead yet but very hungry — small HP dip as preview
+    pHP = Math.max(0.05, pHP - (drain - 0.5) * 0.3);
+  }
+
+  // ── Offline acid buildup (gut full the whole time) ────────────────────────
+  var gutFrac = pGutMax > 0 ? (pGut / pGutMax) : 0;
+  if (gutFrac >= 0.9) {
+    var acidBuilt = Math.min(1, pAcid + elapsedSec * OFFLINE_ACID_BUILDUP_PER_SEC);
+    pAcid = acidBuilt;
+    if (pAcid > 0.5) {
+      var acidDmg = Math.min(pHP, (pAcid - 0.5) * 2 * elapsedSec * (0.0003 * 20));
+      if (pHP > 0) deathCause = 'acidity';
+      pHP = Math.max(0, pHP - acidDmg);
+    }
+  }
+
+  // ── Offline constipation damage (tunnel clogged) ──────────────────────────
+  var wasClogged = false;
+  for (var _oi = 0; _oi < pPath.length; _oi++) {
+    var _op = pPath[_oi];
+    if (_op && (_op.clog || 0) >= 0.8) { wasClogged = true; break; }
+  }
+  if (wasClogged) {
+    var clogDmg = Math.min(pHP, elapsedSec * OFFLINE_CLOG_DAMAGE_PER_SEC);
+    if (pHP > 0) deathCause = 'constipation';
+    pHP = Math.max(0, pHP - clogDmg);
+  }
+
+  // ── Offline death check ───────────────────────────────────────────────────
+  if (pHP <= 0) {
+    pHP = 0;
+    // Flag for setup() to handle death screen + postToHost after game init
+    window._offlineDeath     = true;
+    window._offlineDeathCause = deathCause || 'starvation';
+  }
 
   // Build an accurate return-status message from the actual restored state.
   // This runs after pGut, pHP, pSleeping, tLvl, cocoons etc. are all loaded —
@@ -3082,7 +3135,44 @@ function setup() {
   }
 
   initPlayer(saved);
-  applyOfflineDrain(saved);   // hunger penalty for time away
+  applyOfflineDrain(saved);   // hunger penalty for time away — may set window._offlineDeath
+
+  // ── Handle offline death ──────────────────────────────────────────────────
+  // applyOfflineDrain sets window._offlineDeath when pHP reaches 0.
+  // We post to host here (after game init so postToHost is wired) and show
+  // the death screen immediately on first draw.
+  if (window._offlineDeath) {
+    var _offlineCause = window._offlineDeathCause || 'starvation';
+    // Notify host — main.tsx will post a comment to the Reddit thread
+    postToHost({
+      type:       MSG_PLAYER_DIED,
+      cause:      _offlineCause,
+      karma:      Math.floor(karma),
+      generation: generation,
+      pEaten:     pEaten,
+      username:   username,
+      offline:    true    // flag so main.tsx formats the comment correctly
+    });
+    // Force death screen — set deathScreen flag so first draw shows it
+    deathScreen = true;
+    deathFade   = 0;
+    // Build offline-specific death message
+    var _causeStr = {
+      starvation:   'starved to death while away',
+      acidity:      'dissolved in their own acid while away',
+      constipation: 'died of constipation while away',
+      flood:        'drowned in a flood while away'
+    }[_offlineCause] || 'died while away';
+    window._offlineDrainMsg = '💀 Your worm ' + _causeStr + '...';
+    // Wipe pre-death progress so respawn starts fresh
+    try {
+      data.pHP = 1.0; data.pGut = 0;
+      data.pEaten = 0; data.pSR = 4; data.pSEG = 4;
+      saveSession();
+    } catch(e) {}
+    window._offlineDeath = false;
+  }
+
   spawnScraps();
 }
 
@@ -4470,7 +4560,7 @@ function updateDrops() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weeklyContrib: weeklyContrib });
   }
 
   // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
@@ -4651,7 +4741,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: MSG_WORLD_UPDATE, tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  postToHost({ type: MSG_WORLD_UPDATE, tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true, weeklyContrib: weeklyContrib });
 }
 
 function drawPath(path) {
@@ -5153,7 +5243,67 @@ function drawSky() {
 
   ctx.restore(); // end sun/moon clip
 
+  // ── Weather visuals — only when real data received from host ─────────────
+  if (_weatherReady) {
+    // ── Rain shimmer (precip > 0.1) ────────────────────────────────────────
+    if (weather.precip > 0.1) {
+      var rainAlpha = Math.min(0.7, (weather.precip - 0.1) / 0.9 * 0.7);
+      // Spawn new drops
+      while (_rainDrops.length < _RAIN_MAX * weather.precip) {
+        _rainDrops.push({
+          x:     Math.random() * W,
+          y:     Math.random() * H * 0.7,
+          vy:    6 + Math.random() * 4,
+          alpha: 0.3 + Math.random() * 0.4
+        });
+      }
+      // Update + draw drops
+      ctx.save();
+      ctx.strokeStyle = 'rgba(160,210,255,' + rainAlpha + ')';
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      for (var ri2 = _rainDrops.length - 1; ri2 >= 0; ri2--) {
+        var rd = _rainDrops[ri2];
+        rd.y += rd.vy;
+        ctx.moveTo(rd.x, rd.y);
+        ctx.lineTo(rd.x - 1, rd.y + 8);
+        if (rd.y > H * 0.7) { _rainDrops.splice(ri2, 1); } // despawn at lid level
+      }
+      ctx.stroke();
+      ctx.restore();
+      // Rain darkens sky slightly
+      ctx.save();
+      ctx.fillStyle = 'rgba(40,60,100,' + (rainAlpha * 0.4) + ')';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    } else if (_rainDrops.length > 0) {
+      _rainDrops = []; // clear when rain stops
+    }
 
+    // ── Heat haze (temp > 0.7, no rain) ────────────────────────────────────
+    if (weather.temp > 0.7 && weather.precip < 0.1) {
+      _heatWavePhase += 0.04;
+      var heatAlpha  = Math.min(0.18, (weather.temp - 0.7) / 0.3 * 0.18);
+      var horizY     = 3 * H - camY; // sump line in screen coords
+      var hazeTop    = Math.max(0, horizY - 30);
+      var hazeBot    = Math.min(H, horizY + 20);
+      if (hazeBot > hazeTop) {
+        ctx.save();
+        // Undulating shimmer strip along the horizon
+        ctx.globalAlpha = heatAlpha;
+        for (var hw = 0; hw < W; hw += 12) {
+          var waveY = hazeTop + Math.sin(_heatWavePhase + hw * 0.08) * 6;
+          var hg    = ctx.createLinearGradient(0, waveY, 0, hazeBot);
+          hg.addColorStop(0, 'rgba(255,200,80,0.6)');
+          hg.addColorStop(1, 'rgba(255,200,80,0)');
+          ctx.fillStyle = hg;
+          ctx.fillRect(hw, waveY, 12, hazeBot - waveY);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+  }
 
 }
 
@@ -7815,7 +7965,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+        postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weeklyContrib: weeklyContrib });
       }
     }
 
