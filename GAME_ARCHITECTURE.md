@@ -33,9 +33,11 @@ Wigglers_Room/
 
 ### Deploy Workflow (CRITICAL)
 - CI only runs `tsc + devvit build` — does NOT run `devvit upload`
-- **Deploy via Devvit skill bridge** — Claude can trigger `devvit upload` directly using the devvit-pipeline skill
-- Legacy manual path: `git pull` in Codespace, then `devvit upload` (no longer required when using the skill)
-- After any Claude session that pushes via API: the devvit skill handles the pull+upload in one step
+- **Claude handles the full deploy automatically via the devvit-pipeline skill bridge — no manual steps needed**
+- Full deploy command (runs via bridge3.js in Codespace):
+  `git pull && devvit upload --just-do-it && devvit install wigglers_room_dev`
+- `devvit install wigglers_room_dev` bumps r/wigglers_room_dev to the new version — no button click on the developer portal
+- **Never tell the user to manually upload or click the update button — Claude does it all**
 
 ---
 
@@ -172,7 +174,7 @@ Always check `nextAfterExit` to tell them apart.
 4. After edits, grep for changed function name to verify no duplicates
 5. All session writes through `saveSession()` only
 6. New message types: add `MSG_*` constant to BOTH `game.js` AND `main.tsx`
-7. After pushing: use the devvit-pipeline skill to deploy — or manually `git pull` + `devvit upload` in Codespace
+7. After pushing: Claude runs the full deploy via bridge — `devvit upload --just-do-it && devvit install wigglers_room_dev` — no manual steps
 
 ---
 
@@ -242,13 +244,20 @@ If the game breaks on Reddit and restoring one session back doesn't fix it:
 2. Identify the last commit from **before today** (different date)
 3. `gh.get_file('webroot/game.js', branch='<that_sha>')` to fetch it
 4. Stage + push via propose_commit.py
-5. Run `devvit upload` in Codespace to deploy
+5. Claude runs full deploy via bridge: `devvit upload --just-do-it && devvit install wigglers_room_dev`
 
-### V20 Session 10 — Next Session
-**Resume from June 15 baseline (ccef105). Sessions 3–9 changes are gone — redo carefully:**
-1. Re-apply Session 3 fixes (starvingHUD rename, dead function deletes) — low risk
-2. Re-apply Session 8 fixes ONE AT A TIME, test on Reddit after each
-3. Do NOT apply Session 4 (otherPlayers rewrite) or Session 5 (subfunction split) until root cause of movement bug is confirmed
-4. ISS-3, ISS-5, ISS-7 remain on backlog
+### V20 Session 10 — 2026-06-16
+- Restored game.js to Session 3 baseline (77c4fef, 8,371 lines) — Sessions 4+5 confirmed broken on Reddit
+- Discovered Session 4 (otherPlayers rewrite) and Session 5 (subfunction split) both introduced movement bug
+- Confirmed Session 3 is current stable baseline
+- Solved deploy friction: `devvit install wigglers_room_dev` added to deploy command — no more manual button click on developer portal
+- Updated GAME_ARCHITECTURE.md and devvit-pipeline SKILL.md to reflect full auto-deploy
+- Subreddit: r/wigglers_room_dev
+
+### V20 Session 11 — Next Session
+**Current baseline: Session 3 (bab2e46, 8,371 lines) — confirmed stable**
+- Sessions 4+5 are OFF LIMITS until root cause of movement bug is found
+- Safe next fixes (from audit checklist): FIX-1 (orphan Snoo block), FIX-2 (_svgX rename), FIX-3 (onload dead code), ISS-2 (remove drawGenBadge call)
+- Apply ONE fix at a time, deploy and test on Reddit after each
 
 *This file is maintained by the Lead Dev skill. Update every session.*
