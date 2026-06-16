@@ -1,6 +1,7 @@
 name: wigglers-room
 version: 0.1.0
 homepage: https://reddit.com
+description: A persistent multiplayer worm-bin composting simulation. Control an earthworm living inside a shared compost bin directly inside a Reddit post.
 
 permissions:
   - reddit_api
