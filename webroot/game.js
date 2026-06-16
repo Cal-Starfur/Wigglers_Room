@@ -171,12 +171,6 @@ var SESSION_KEY = 'wigglers_session_v2';
 
 // ── Weather system ────────────────────────────────────────────────────────────
 // Nashville, TN defaults — real data injected via setWeather postMessage from Devvit host.
-// ── Weather visual state ──────────────────────────────────────────────────
-var _rainDrops     = [];       // [{x, y, vy, alpha}] — rain particles
-var _RAIN_MAX      = 60;       // max simultaneous drops
-var _heatWavePhase = 0;        // animates heat shimmer
-var _weatherReady  = false;    // true once MSG_SET_WEATHER received
-
 var weather = {
   humidity:  0.62,  // Nashville avg ~62% humidity
   temp:      0.56,  // ~18°C average
@@ -277,7 +271,6 @@ window.addEventListener('message', function(e) {
     if (msg.precip   != null) weather.precip   = Math.min(1, Math.max(0, msg.precip));
     if (msg.locName)          weather.locName  = msg.locName;
     weatherLocationSet = true;
-    _weatherReady = true; // real data received — visuals can activate
   }
 
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
@@ -3090,7 +3083,6 @@ function setup() {
 
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
-
   spawnScraps();
 }
 
@@ -4478,7 +4470,7 @@ function updateDrops() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weeklyContrib: weeklyContrib });
+    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
   }
 
   // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
@@ -4659,7 +4651,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: MSG_WORLD_UPDATE, tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true, weeklyContrib: weeklyContrib });
+  postToHost({ type: MSG_WORLD_UPDATE, tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
 }
 
 function drawPath(path) {
@@ -5161,67 +5153,7 @@ function drawSky() {
 
   ctx.restore(); // end sun/moon clip
 
-  // ── Weather visuals — only when real data received from host ─────────────
-  if (_weatherReady) {
-    // ── Rain shimmer (precip > 0.1) ────────────────────────────────────────
-    if (weather.precip > 0.1) {
-      var rainAlpha = Math.min(0.7, (weather.precip - 0.1) / 0.9 * 0.7);
-      // Spawn new drops
-      while (_rainDrops.length < _RAIN_MAX * weather.precip) {
-        _rainDrops.push({
-          x:     Math.random() * W,
-          y:     Math.random() * H * 0.7,
-          vy:    6 + Math.random() * 4,
-          alpha: 0.3 + Math.random() * 0.4
-        });
-      }
-      // Update + draw drops
-      ctx.save();
-      ctx.strokeStyle = 'rgba(160,210,255,' + rainAlpha + ')';
-      ctx.lineWidth   = 1;
-      ctx.beginPath();
-      for (var ri2 = _rainDrops.length - 1; ri2 >= 0; ri2--) {
-        var rd = _rainDrops[ri2];
-        rd.y += rd.vy;
-        ctx.moveTo(rd.x, rd.y);
-        ctx.lineTo(rd.x - 1, rd.y + 8);
-        if (rd.y > H * 0.7) { _rainDrops.splice(ri2, 1); } // despawn at lid level
-      }
-      ctx.stroke();
-      ctx.restore();
-      // Rain darkens sky slightly
-      ctx.save();
-      ctx.fillStyle = 'rgba(40,60,100,' + (rainAlpha * 0.4) + ')';
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    } else if (_rainDrops.length > 0) {
-      _rainDrops = []; // clear when rain stops
-    }
 
-    // ── Heat haze (temp > 0.7, no rain) ────────────────────────────────────
-    if (weather.temp > 0.7 && weather.precip < 0.1) {
-      _heatWavePhase += 0.04;
-      var heatAlpha  = Math.min(0.18, (weather.temp - 0.7) / 0.3 * 0.18);
-      var horizY     = 3 * H - camY; // sump line in screen coords
-      var hazeTop    = Math.max(0, horizY - 30);
-      var hazeBot    = Math.min(H, horizY + 20);
-      if (hazeBot > hazeTop) {
-        ctx.save();
-        // Undulating shimmer strip along the horizon
-        ctx.globalAlpha = heatAlpha;
-        for (var hw = 0; hw < W; hw += 12) {
-          var waveY = hazeTop + Math.sin(_heatWavePhase + hw * 0.08) * 6;
-          var hg    = ctx.createLinearGradient(0, waveY, 0, hazeBot);
-          hg.addColorStop(0, 'rgba(255,200,80,0.6)');
-          hg.addColorStop(1, 'rgba(255,200,80,0)');
-          ctx.fillStyle = hg;
-          ctx.fillRect(hw, waveY, 12, hazeBot - waveY);
-        }
-        ctx.globalAlpha = 1;
-        ctx.restore();
-      }
-    }
-  }
 
 }
 
@@ -7883,7 +7815,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weeklyContrib: weeklyContrib });
+        postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
       }
     }
 
