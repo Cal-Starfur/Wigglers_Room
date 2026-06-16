@@ -372,10 +372,10 @@ Devvit.addCustomPostType({
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
-      <vstack width="100%" height="100%" alignment="center middle" gap="medium">
-        <image url="icon.png" imageWidth={80} imageHeight={80} />
-        <text size="xlarge" weight="bold">Wigglers Room 🪱</text>
-        <text size="small" color="neutral-content-weak">A living worm bin on Reddit</text>
+      <vstack width="100%" height="100%" alignment="center middle" gap="medium" backgroundColor="#3B1F0A">
+        <image url="icon.png" imageWidth={100} imageHeight={100} />
+        <text size="xlarge" weight="bold" color="#F5DEB3">Wigglers Room 🪱</text>
+        <text size="small" color="#C4A882">A living worm bin on Reddit</text>
         <button onPress={() => webView.mount()} appearance="primary">Enter the Bin</button>
       </vstack>
     );
