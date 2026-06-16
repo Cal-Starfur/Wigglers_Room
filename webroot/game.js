@@ -3143,7 +3143,7 @@ function updateCocoons() {
   }
 }
 
-function updatePlayerDeath() {
+function updatePlayer() {
   if (!pSegs.length) return;
 
   // Natural lifespan — worm dies gracefully at 300,000 eaten
@@ -3181,9 +3181,6 @@ function updatePlayerDeath() {
     return;
   }
 
-}
-
-function updatePlayerSleep() {
   // ── Sleeping — worm is locked in place ───────────────────────────────────
   if (pSleeping) {
     pSleepCurl = Math.min(1, pSleepCurl + 0.04);
@@ -3309,9 +3306,6 @@ function updatePlayerSleep() {
   }
   // else: Tier 1 open soil — full speed (0.40)
 
-}
-
-function updatePlayerVitals() {
   // ── Gut & Hunger ────────────────────────────────────────────────────────────────
   // Hunger is derived directly from gut fullness — one meter, two views.
   // pHunger = 1 - (pGut / pGutMax): full gut = satisfied, empty gut = starving.
@@ -3379,9 +3373,6 @@ function updatePlayerVitals() {
   }
 
   var tail0 = pSegs[pSegs.length - 1];
-}
-
-function updatePlayerEating() {
 
   // --- Nibble trash chunks (tier 0) ---
   if (headTier === 0 || (headTier === 1 && head.y < H + 80)) {
@@ -3521,9 +3512,6 @@ function updatePlayerEating() {
   // Bulk remove fired entries in a single pass
   if (_wqAnyFired) weatherQueue = weatherQueue.filter(function(e) { return !e._fired; });
 
-}
-
-function updatePlayerMovement() {
   // --- Eat tier 1 debris scraps (small fragments) ---
   for (var i = 0; i < scraps.length; i++) {
     var s = scraps[i];
@@ -3619,9 +3607,6 @@ function updatePlayerMovement() {
   var _hmoved = Math.sqrt(_hmx*_hmx + _hmy*_hmy);
   window._lastHeadX = head.x; window._lastHeadY = head.y;
 
-}
-
-function updatePlayerDrains() {
   // ── Sump boundary flag — must be declared BEFORE junction check which guards on it ──
   var _atSump = head.y >= 3*H - pSR - 2;
 
@@ -3802,18 +3787,6 @@ function updatePlayerDrains() {
   }
 }
 
-function updatePlayer() {
-  if (!pSegs.length) return;
-
-  updatePlayerDeath();
-  if (deathScreen) return;  // dead — remaining updates irrelevant
-  updatePlayerSleep();
-  updatePlayerVitals();
-  updatePlayerEating();
-  updatePlayerMovement();
-  updatePlayerDrains();
-}
-
 
 // Castings enrichment decays very slowly — rich soil degrades over ~30 min without feeding
 var ENRICH_DECAY = 0.000001; // ~16 min to lose 1.0 at 60fps
@@ -3824,21 +3797,7 @@ var _segConnBuf = new Uint8Array(512);
 var TUNNEL_DECAY = 0.0000167;        // base rate (~16 min for sump-connected)
 var TUNNEL_DECAY_UNCONNECTED = 0.0000535; // ~5 min for tubes with no sump link
 
-// drop path helpers — module-level (extracted from updatePhysics inner scope)
-function dropSegStart(idx) {
-  for (var _ss = idx - 1; _ss >= 0; _ss--) {
-    if (!pPath[_ss]) return _ss + 1;
-  }
-  return 0;
-}
-function dropSegEnd(idx) {
-  for (var _se = idx + 1; _se < pPath.length; _se++) {
-    if (!pPath[_se]) return _se;
-  }
-  return pPath.length;
-}
-
-function updateTunnelDecay() {
+function updatePhysics() {
   // Filter eaten scraps — only every 60 frames to avoid allocation pressure
   if (frame % 60 === 0) scraps = scraps.filter(function(s) { return !s.eaten; });
 
@@ -3971,9 +3930,6 @@ function updateTunnelDecay() {
   // Only run the filter when something actually went inactive — avoids allocation every frame
   if (_debrisDirty) { debris = debris.filter(function(db) { return db.active; }); _debrisDirty = false; }
 
-}
-
-function updateDebris() {
   // --- Bugs (tier 0 airspace gnats) ---
   var b_bin = getBinCached();
   var pileTopY = H * 0.95;
@@ -4003,15 +3959,27 @@ function updateDebris() {
     if (Math.random() < 0.003) bug.vay = (Math.random()-0.5)*0.14;
   }
 
-}
-
-function updateDrops() {
   // Drops — all drops fall freely through the compost, no coin flip or hard gate.
   // Speed through compost is governed by how saturated the soil already is.
   // Drops sitting in the compost ARE the saturation — pooled is derived from them.
 
+  // Helper: find the null-boundary index that starts the segment containing pPath[idx].
+  // Returns 0 if idx is in the first segment (no null before it).
+  // Used so stalled tea drops only re-scan their own segment, not cross into older tunnels.
+  function dropSegStart(idx) {
+    for (var _ss = idx - 1; _ss >= 0; _ss--) {
+      if (!pPath[_ss]) return _ss + 1;
+    }
+    return 0;
+  }
   // Helper: find the index one past the null boundary that ends the segment at idx.
   // Returns pPath.length if there is no trailing null (last segment).
+  function dropSegEnd(idx) {
+    for (var _se = idx + 1; _se < pPath.length; _se++) {
+      if (!pPath[_se]) return _se;
+    }
+    return pPath.length;
+  }
 
   // Returns the {x,y} where a drop should stall on the clog-facing side.
   // queueOffset (px) staggers multiple queued drops along the tube axis.
@@ -4564,9 +4532,6 @@ function updateDrops() {
   }
 
 
-}
-
-function updateFlood() {
   // ── Sump flood trigger — fires when tea level is critically high ────────
   // Simple threshold: sump genuinely full.
   if (!floodActive && tLvl >= 0.9) {
@@ -4646,13 +4611,6 @@ function updateFlood() {
     // The week timer keeps ticking; cinematic fires on next frame once the coast is clear.
     triggerSnooDrain();
   }
-}
-
-function updatePhysics() {
-  updateTunnelDecay();
-  updateDebris();
-  updateDrops();
-  updateFlood();
 }
 
 function triggerWeeklyDrain() {
@@ -5096,9 +5054,24 @@ var _starPos = [
 // Reusable scratch array for clog-clip segment point building — avoids per-point allocation.
 var _segPtsScratch = [];
 
-function drawSky() {
+function draw() {
+  if (!W || !H) return;
+  ctx.clearRect(0, 0, W, H);
   var b = getBinCached();
-  var horizScreenY = 3*H - camY;
+
+  // Compute pile top Y once — used by airspace, soil fill, blanket, bugs.
+  // Smoothed with a lerp so frame-to-frame nibble changes don't cause flicker.
+  var _rawPileTopY = H * 0.97 + 50;
+  for (var dpi = 0; dpi < trashChunks.length; dpi++) {
+    var dptc = trashChunks[dpi];
+    if (!dptc.gone) {
+      var dpTop = dptc.y - dptc.sz * dptc.hpFrac;
+      if (dpTop < _rawPileTopY) _rawPileTopY = dpTop;
+    }
+  }
+  if (window._smoothPileTopY == null) window._smoothPileTopY = _rawPileTopY;
+  window._smoothPileTopY += (_rawPileTopY - window._smoothPileTopY) * 0.08;
+  var drawPileTopY = window._smoothPileTopY;
 
   // ── Time-of-day sky — fills ENTIRE canvas as base layer ─────────────────
   // Horizon is fixed at world y = 3*H (the sump line) in screen space.
@@ -5197,20 +5170,6 @@ function drawSky() {
   ctx.restore(); // end sun/moon clip
 
 
-
-}
-
-function drawBinBg() {
-  var b = getBinCached();
-  var _rawPileTopY = H * 0.97 + 50;
-  for (var _pi = 0; _pi < trashChunks.length; _pi++) {
-    var _ptc = trashChunks[_pi];
-    if (!_ptc.gone) { var _ptop = _ptc.y - _ptc.sz * _ptc.hpFrac; if (_ptop < _rawPileTopY) _rawPileTopY = _ptop; }
-  }
-  if (window._smoothPileTopY == null) window._smoothPileTopY = _rawPileTopY;
-  window._smoothPileTopY += (_rawPileTopY - window._smoothPileTopY) * 0.08;
-  var drawPileTopY = window._smoothPileTopY;
-  var horizScreenY = 3*H - camY;
 
   // ── Background ground plane — drawn right after sky, before the bin ────
   // Horizon at world 3*H. Ground fills from horizScreenY to canvas bottom, full width.
@@ -5640,19 +5599,6 @@ function drawBinBg() {
     ctx.globalAlpha = 1;
   }
 
-}
-
-function drawTunnels() {
-  var b = getBinCached();
-  var _rawPileTopY = H * 0.97 + 50;
-  for (var _pi = 0; _pi < trashChunks.length; _pi++) {
-    var _ptc = trashChunks[_pi];
-    if (!_ptc.gone) { var _ptop = _ptc.y - _ptc.sz * _ptc.hpFrac; if (_ptop < _rawPileTopY) _rawPileTopY = _ptop; }
-  }
-  if (window._smoothPileTopY == null) window._smoothPileTopY = _rawPileTopY;
-  window._smoothPileTopY += (_rawPileTopY - window._smoothPileTopY) * 0.08;
-  var drawPileTopY = window._smoothPileTopY;
-
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
   {
     var bkb = getBinCached();
@@ -5767,11 +5713,6 @@ function drawTunnels() {
     }
   }
   ctx.restore(); // end bin-wall clip
-
-}
-
-function drawScraps() {
-  var b = getBinCached();
 
   // --- Acid glow pass — pulsing stroke outline on acidic chunks, matched to shape ---
   ctx.save();
@@ -5932,11 +5873,6 @@ function drawScraps() {
     ctx.globalAlpha = 1;
     ctx.restore();
   }
-
-}
-
-function drawSump() {
-  var b = getBinCached();
 
   // ── Open sump chamber — drawn BEFORE drops so tea drops fall visibly into it ──
   // Sump bg is now part of the combined tier1+compost+sump gradient rect — no separate fill needed.
@@ -6161,11 +6097,6 @@ function drawSump() {
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-
-}
-
-function drawBinLid() {
-  var b = getBinCached();
 
   // ── Vermicompost bin lid ──────────────────────────────────────────────────
   // Lid sits at world y = H*0.5 (halfway into tier 0, right above the rubbish heap).
@@ -6446,11 +6377,6 @@ function drawBinLid() {
   var wormCol = getGenColor(generation);
   drawWorm(pSegs, pSR, wormCol, pSleeping, pAcid, pHP);
 
-}
-
-function drawWorms() {
-  var b = getBinCached();
-
   // ── Ghost worms — other players received via Realtime presence ───────────
   // Lerp positions toward targetX/Y each frame for smooth movement.
   // Rendered at 55% opacity so the local player's worm always reads first.
@@ -6675,11 +6601,6 @@ function drawWorms() {
       ctx.fillText((co.gifted ? '🎁 ' : '') + co.owner, csx, csy - 8);
     }
   }
-
-}
-
-function drawHUD() {
-  var b = getBinCached();
 
   // --- Acid glow on tier 1 scraps ---
   for (var i = 0; i < scraps.length; i++) {
@@ -7162,20 +7083,6 @@ function drawHUD() {
   // Weather location UI — one-time setup overlay
   // Death screen drawn on top of everything
   drawDeathScreen();
-}
-
-function draw() {
-  if (!W || !H) return;
-  ctx.clearRect(0, 0, W, H);
-
-  drawSky();
-  drawBinBg();
-  drawTunnels();
-  drawScraps();
-  drawSump();
-  drawBinLid();
-  drawWorms();
-  drawHUD();
 }
 
 // ── Weather HUD ───────────────────────────────────────────────────────────
