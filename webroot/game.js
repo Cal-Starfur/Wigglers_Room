@@ -301,6 +301,7 @@ window.addEventListener('message', function(e) {
     var now = Date.now();
     msg.players.forEach(function(p) {
       if (!p || p.username === username) return; // skip self
+      if (p.x == null && p.y == null) return;   // skip queue entries — no position means not a live worm
       // Find existing entry or create one
       var existing = null;
       for (var i = 0; i < otherPlayers.length; i++) {
