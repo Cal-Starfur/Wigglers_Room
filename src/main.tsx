@@ -257,14 +257,10 @@ Devvit.addCustomPostType({
                 type: MSG_SET_PRESENCE,
                 player: {
                   username,
-                  x:          message.x,
-                  y:          message.y,
-                  sleeping:   message.sleeping,
-                  size:       message.size,
-                  segs:       message.segs       ?? null,
-                  generation: message.generation ?? 0,
-                  hp:         message.hp         ?? 1,
-                  gut:        message.gut         ?? 1,
+                  x:       message.x,
+                  y:       message.y,
+                  sleeping: message.sleeping,
+                  size:    message.size,
                 },
               }));
             } catch (e) {
