@@ -310,9 +310,14 @@ window.addEventListener('message', function(e) {
         // Smoothly interpolate toward new position — guard against falsy 0 coords
         if (p.x != null) existing.targetX = +p.x;
         if (p.y != null) existing.targetY = +p.y;
-        existing.sleeping  = !!p.sleeping;
-        existing.size      = Math.max(4, Math.min(7, +p.size || 5));
-        existing.lastSeen  = now;
+        existing.sleeping   = !!p.sleeping;
+        existing.size       = Math.max(4, Math.min(7, +p.size || 5));
+        existing.lastSeen   = now;
+        // Real worm data — use directly in draw loop
+        if (Array.isArray(p.segs))    existing.segs       = p.segs;
+        if (p.generation != null)     existing.generation = +p.generation;
+        if (p.hp != null)             existing.hp         = +p.hp;
+        if (p.gut != null)            existing.gut        = +p.gut;
         // Load avatar if URL changed or image not yet loaded
         if (p.avatarUrl && p.avatarUrl !== existing.avatarUrl) {
           existing.avatarUrl = p.avatarUrl;
@@ -323,17 +328,21 @@ window.addEventListener('message', function(e) {
         var _newImg = null;
         if (p.avatarUrl) { _newImg = new Image(); _newImg.src = p.avatarUrl; }
         otherPlayers.push({
-          username:  p.username,
-          x:         p.x != null ? +p.x : 0,
-          y:         p.y != null ? +p.y : 0,
-          targetX:   p.x != null ? +p.x : 0,
-          targetY:   p.y != null ? +p.y : 0,
-          sleeping:  !!p.sleeping,
-          size:      Math.max(4, Math.min(7, +p.size || 5)),
-          avatarUrl: p.avatarUrl || null,
-          avatarImg: _newImg,
-          hist:      null,  // initialised lazily in draw loop
-          lastSeen:  now
+          username:   p.username,
+          x:          p.x != null ? +p.x : 0,
+          y:          p.y != null ? +p.y : 0,
+          targetX:    p.x != null ? +p.x : 0,
+          targetY:    p.y != null ? +p.y : 0,
+          sleeping:   !!p.sleeping,
+          size:       Math.max(4, Math.min(7, +p.size || 5)),
+          segs:       Array.isArray(p.segs) ? p.segs : null,
+          generation: p.generation != null ? +p.generation : 0,
+          hp:         p.hp != null ? +p.hp : 1,
+          gut:        p.gut != null ? +p.gut : 1,
+          avatarUrl:  p.avatarUrl || null,
+          avatarImg:  _newImg,
+          hist:       null,  // fallback history ring buffer if segs not yet received
+          lastSeen:   now
         });
       }
     });
@@ -373,17 +382,17 @@ window.addEventListener('message', function(e) {
     queuePosition = msg.position || 0;
     queueTotal    = msg.total    || 0;
     if (queuePosition > 0) playerState = 'queued';
-    if (msg.pendingWorm) _registerPendingWorm(msg.pendingWorm);
+    if (msg.pendingWorm) registerPendingWorm(msg.pendingWorm);
   }
 
   // ── pendingWorm — broadcast to all when a death queues the next worm ──────
   if (msg.type === MSG_PENDING_WORM) {
-    _registerPendingWorm(msg);
+    registerPendingWorm(msg);
   }
 
   // ── wormHatched — cocoon bursts, uncontrolled worm is now live ───────────
   if (msg.type === MSG_WORM_HATCHED) {
-    var _hwp = _findPendingWorm(msg.username);
+    var _hwp = findPendingWorm(msg.username);
     if (_hwp) { _hwp.hatched = true; _hwp.gutFrac = msg.gutFrac != null ? msg.gutFrac : 1.0; }
     if (msg.username === username && playerState === 'queued') {
       window._claimPrompt = frame;
@@ -425,7 +434,7 @@ window.addEventListener('message', function(e) {
 });
 
 // Derived rates — called each frame from updatePhysics
-function _registerPendingWorm(pw) {
+function registerPendingWorm(pw) {
   if (!pw || !pw.username) return;
   for (var _ri = 0; _ri < pendingWorms.length; _ri++) {
     if (pendingWorms[_ri].username === pw.username) {
@@ -447,7 +456,7 @@ function _registerPendingWorm(pw) {
   });
 }
 
-function _findPendingWorm(uname) {
+function findPendingWorm(uname) {
   for (var _fi = 0; _fi < pendingWorms.length; _fi++) {
     if (pendingWorms[_fi].username === uname) return pendingWorms[_fi];
   }
@@ -627,6 +636,12 @@ function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / H)); }
 
 
 // Find the nearest pPath index at or below a given world-y, within xTol horizontally
+
+// Paths only exist in the compost layer (tier 2) — dense enough to hold a channel
+// Tiers 0 and 1 are too loose; movement leaves no trace there
+
+// Find the nearest pPath index at or below a given world-y, within xTol horizontally.
+// Used by otherPlayers worms to snap onto tunnel paths when rendered as real worms (not ghosts).
 function nearestPathIdx(wx, wy, xTol, yTol) {
   var best = -1, bestDist = 999999;
   for (var i = 0; i < pPath.length; i++) {
@@ -634,17 +649,14 @@ function nearestPathIdx(wx, wy, xTol, yTol) {
     if (!p) continue;
     var a = p.alpha != null ? p.alpha : 1;
     if (a <= 0) continue;
-    if (p.y < wy) continue; // must be at or below
-    if (yTol != null && p.y > wy + yTol) continue; // not too far below
+    if (p.y < wy) continue;
+    if (yTol != null && p.y > wy + yTol) continue;
     if (Math.abs(p.x - wx) > xTol) continue;
     var dist = Math.abs(p.y - wy);
     if (dist < bestDist) { bestDist = dist; best = i; }
   }
   return best;
 }
-
-// Paths only exist in the compost layer (tier 2) — dense enough to hold a channel
-// Tiers 0 and 1 are too loose; movement leaves no trace there
 
 function addPoint(path, x, y, r, lastX, lastY) {
   var dx = x - lastX, dy = y - lastY;
@@ -2031,14 +2043,14 @@ function updateSnoo() {
   snooBucketScreenX = elbowX + (-armLen3*0.40)*Math.cos(foreAng) - (armLen3*0.45)*Math.sin(foreAng);
   snooBucketScreenY = elbowY + (-armLen3*0.40)*Math.sin(foreAng) + (armLen3*0.45)*Math.cos(foreAng);
 
-  function _snooEaseOut(x) { return 1-(1-x)*(1-x); }
-  function _snooEaseIn(x)  { return x*x; }
+  function snooEaseOut(x) { return 1-(1-x)*(1-x); }
+  function snooEaseIn(x)  { return x*x; }
 
   switch(snooPhase) {
     case 'slidein':
       // Slide in from left at constant scale=1, just like drain Snoo
       snooScale = 1;
-      var slideInT = _snooEaseOut(Math.min(1, snooT / snooPhaseDur.slidein));
+      var slideInT = snooEaseOut(Math.min(1, snooT / snooPhaseDur.slidein));
       snooX = -W * 0.15 + (snooTargetX + W * 0.15) * slideInT;
       snooLidAngle = 0; snooBucketAngle = 0;
       if (snooT >= snooPhaseDur.slidein) { snooX = snooTargetX; snooPhase = 'bend'; snooT = 0; }
@@ -2086,7 +2098,7 @@ function updateSnoo() {
     case 'slideout':
       // Slide back off to the left — mirrors slidein, just like drain Snoo's floatout
       snooScale = 1;
-      var slideOutT = _snooEaseIn(Math.min(1, snooT / snooPhaseDur.slideout));
+      var slideOutT = snooEaseIn(Math.min(1, snooT / snooPhaseDur.slideout));
       snooX = snooTargetX + (-W * 0.15 - snooTargetX) * slideOutT;
       snooLidAngle = 0; snooBucketAngle = 0;
       if (snooT >= snooPhaseDur.slideout) {
@@ -2333,7 +2345,7 @@ function drawSnooDrain() {
   ctx.fillStyle = rg;
   ctx.beginPath(); ctx.roundRect(bodyW*0.08, torsoBot, bodyW*0.34, legH, [0,0,4,4]); ctx.fill();
   // Boots
-  function _dBoot(bx) {
+  function dBoot(bx) {
     var by = torsoBot + legH;
     ctx.fillStyle = '#6a3a18';
     ctx.beginPath(); ctx.ellipse(bx, by, bootW, bootH, 0, 0, Math.PI); ctx.fill();
@@ -2342,7 +2354,7 @@ function drawSnooDrain() {
     ctx.strokeStyle = '#3a1a06'; ctx.lineWidth = SC*0.008;
     ctx.beginPath(); ctx.ellipse(bx, by, bootW*1.04, bootH*1.08, 0, Math.PI, Math.PI*2); ctx.stroke();
   }
-  _dBoot(-bodyW*0.25); _dBoot(bodyW*0.25);
+  dBoot(-bodyW*0.25); dBoot(bodyW*0.25);
   ctx.restore();
 
   // ── Left upper arm behind body ────────────────────────────────────────────
@@ -2943,13 +2955,20 @@ setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 300
 // Throttled separately from saveSession to keep KV writes low.
 setInterval(function() {
   if (!pSegs.length || deathScreen) return;
+  // Send real segment data so other clients draw us as a full worm, not a ghost.
+  // Cap at 20 segs to keep the Realtime payload small — enough for any worm size.
+  var _broadcastSegs = pSegs.slice(0, 20).map(function(s) { return {x: s.x, y: s.y}; });
   postToHost({
-    type:     MSG_PRESENCE_UPDATE,
-    username: username,
-    x:        pSegs[0].x,
-    y:        pSegs[0].y,
-    sleeping: pSleeping,
-    size:     pSR
+    type:       MSG_PRESENCE_UPDATE,
+    username:   username,
+    x:          pSegs[0].x,
+    y:          pSegs[0].y,
+    sleeping:   pSleeping,
+    size:       pSR,
+    segs:       _broadcastSegs,
+    generation: generation,
+    hp:         pHP,
+    gut:        pGut / (pGutMax || 1)
   });
 }, 2000);
 
@@ -3947,7 +3966,7 @@ function updatePhysics() {
   // Helper: find the null-boundary index that starts the segment containing pPath[idx].
   // Returns 0 if idx is in the first segment (no null before it).
   // Used so stalled tea drops only re-scan their own segment, not cross into older tunnels.
-  function _dropSegStart(idx) {
+  function dropSegStart(idx) {
     for (var _ss = idx - 1; _ss >= 0; _ss--) {
       if (!pPath[_ss]) return _ss + 1;
     }
@@ -3955,7 +3974,7 @@ function updatePhysics() {
   }
   // Helper: find the index one past the null boundary that ends the segment at idx.
   // Returns pPath.length if there is no trailing null (last segment).
-  function _dropSegEnd(idx) {
+  function dropSegEnd(idx) {
     for (var _se = idx + 1; _se < pPath.length; _se++) {
       if (!pPath[_se]) return _se;
     }
@@ -3988,7 +4007,7 @@ function updatePhysics() {
         var pp = pPath[d.pathIdx];
         if (!pp || (pp.alpha != null && pp.alpha <= 0)) {
           // Target point deleted or faded — detach, free-fall from here
-          d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+          d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
           d.pathIdx = null;
         } else {
           // On pPath — tunnel acts as clear channel, speed governed by angle of segment
@@ -4047,8 +4066,8 @@ function updatePhysics() {
                   d.upDrain = true; // switch advance direction: poop now climbs toward shallower points
                   // Lock to this segment immediately — prevents the rescan from snapping
                   // the poop to a nearby down-drain if the up-drain advance stalls or detaches.
-                  d.lastSegStart = _dropSegStart(d.pathIdx);
-                  d.lastSegEnd   = _dropSegEnd(d.pathIdx);
+                  d.lastSegStart = dropSegStart(d.pathIdx);
+                  d.lastSegEnd   = dropSegEnd(d.pathIdx);
                   for (var _uae = d.pathIdx + 1; _uae < pPath.length; _uae++) {
                     var _uaep = pPath[_uae];
                     if (!_uaep) break;
@@ -4113,7 +4132,7 @@ function updatePhysics() {
                 }
               } else {
                 // Target segment gone — free-fall
-                d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
                 d.pathIdx = null;
                 d.vy = Math.max(0.08, d.vy);
               }
@@ -4164,7 +4183,7 @@ function updatePhysics() {
                     d.clogStalled = true;
                   } else {
                     // No clog — tea exits the top of the up-drain and free-falls from here
-                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                    d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
@@ -4215,7 +4234,7 @@ function updatePhysics() {
                 }
                 // If nothing ahead on the horizontal — detach and free-fall from here
                 if (!advanced) {
-                  d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                  d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
                   d.pathIdx = null;
                   d.vy = Math.max(0.05, d.vy);
                   advanced = true; // prevent backward scan re-attaching
@@ -4263,7 +4282,7 @@ function updatePhysics() {
                   // Check if any point in this segment is clogged
                   var _segHasClog = (pp.clog || 0) > 0;
                   if (!_segHasClog) {
-                    var _chkS = _dropSegStart(d.pathIdx), _chkE = _dropSegEnd(d.pathIdx);
+                    var _chkS = dropSegStart(d.pathIdx), _chkE = dropSegEnd(d.pathIdx);
                     for (var _chk = _chkS; _chk < _chkE; _chk++) {
                       var _chkP = pPath[_chk];
                       if (_chkP && (_chkP.clog || 0) >= 0.55) { _segHasClog = true; break; }
@@ -4276,7 +4295,7 @@ function updatePhysics() {
                     d.stalled     = true;
                     d.clogStalled = true;
                   } else {
-                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                    d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
@@ -6367,36 +6386,44 @@ function draw() {
     for (var op = 0; op < otherPlayers.length; op++) {
       var opp = otherPlayers[op];
 
-      // Lerp toward target position (host sends updates ~every 2s)
-      var _oppPrevX = opp.x, _oppPrevY = opp.y;
+      // Lerp head toward target (host sends updates ~2s) — keeps motion smooth between packets
       opp.x = opp.x + (opp.targetX - opp.x) * 0.08;
       opp.y = opp.y + (opp.targetY - opp.y) * 0.08;
 
-      // Push movement into history ring buffer (10 entries) for segment trail
+      // Maintain history ring buffer as fallback if segs haven't arrived yet
       if (!opp.hist) {
         opp.hist = [];
-        for (var _hi = 0; _hi < 10; _hi++) opp.hist.push({x: opp.x, y: opp.y});
+        for (var _hi = 0; _hi < 20; _hi++) opp.hist.push({x: opp.x, y: opp.y});
       }
       opp.hist.push({x: opp.x, y: opp.y});
-      if (opp.hist.length > 10) opp.hist.shift();
+      if (opp.hist.length > 20) opp.hist.shift();
 
       var osy = opp.y - camY;
       if (osy < -opp.size * 4 || osy > H + opp.size * 4) continue;
 
-      // Build segments from history so worm faces its direction of travel
-      var _nSeg = Math.max(4, opp.size - 1);
-      var ghostSegs = [];
-      for (var _gi = 0; _gi < _nSeg; _gi++) {
-        var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
-        ghostSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
+      // Use real broadcasted segments if available, else fall back to history trail
+      var drawSegs;
+      if (opp.segs && opp.segs.length >= 2) {
+        // Segs arrive in world coords — use directly
+        drawSegs = opp.segs;
+      } else {
+        // Fallback: build from history ring buffer
+        var _nSeg = Math.max(4, opp.size - 1);
+        drawSegs = [];
+        for (var _gi = 0; _gi < _nSeg; _gi++) {
+          var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
+          drawSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
+        }
       }
 
-      // Stale fade — ghosts dim as they age toward the 90s prune limit
+      // Stale fade — other worms dim as presence updates age toward the 90s prune limit
       var _staleSec = (nowOP - opp.lastSeen) / 1000;
       var _staleAlpha = _staleSec > 30 ? Math.max(0.1, 1 - (_staleSec - 30) / 60) : 1;
-      ctx.globalAlpha = 0.55 * _staleAlpha;
+      ctx.globalAlpha = _staleAlpha;
 
-      drawWorm(ghostSegs, opp.size, '#7ab8f5', opp.sleeping, 0);
+      // Draw exactly like the local worm — same function, real color, real HP
+      var _oppCol = getGenColor(opp.generation || 0);
+      drawWorm(drawSegs, opp.size, _oppCol, opp.sleeping, 0, opp.hp != null ? opp.hp : 1);
 
       // Avatar or username above head
       ctx.globalAlpha = 0.80 * _staleAlpha;
@@ -7180,7 +7207,7 @@ function drawPendingWorms() {
 function drawQueueHUD() {
   if (playerState !== 'queued') return;
   var _qnow = Date.now();
-  var _myPW = _findPendingWorm(username);
+  var _myPW = findPendingWorm(username);
   var _hH   = _myPW && _myPW.hatched;
   var _gFrc  = _myPW ? (_myPW.gutFrac != null ? _myPW.gutFrac : 1.0) : 0;
   var _msL2  = _myPW ? Math.max(0, _myPW.hatchTs - _qnow) : 0;
@@ -7742,7 +7769,7 @@ function tryPoop() {
 // Convert a CSS pixel position (relative to root) to logical canvas coordinates.
 // When the canvas is CSS-scaled to fill the viewport, clicks/touches arrive in
 // CSS pixels and must be divided by the scale factor to get game-world coords.
-function _toCanvas(cssX, cssY) {
+function toCanvas(cssX, cssY) {
   var sx = window._canvasScaleX || 1;
   var sy = window._canvasScaleY || 1;
   return { x: cssX / sx, y: cssY / sy };
@@ -7750,7 +7777,7 @@ function _toCanvas(cssX, cssY) {
 
 root.addEventListener('mousemove', function(e) {
   var r = root.getBoundingClientRect();
-  var p = _toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var p = toCanvas(e.clientX - r.left, e.clientY - r.top);
   mX = p.x;
   mY = p.y + camY;
 });
@@ -7763,7 +7790,7 @@ root.addEventListener('wheel', function(e) {
 }, { passive: false });
 root.addEventListener('click', function(e) {
   var r = root.getBoundingClientRect();
-  var _cp = _toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var _cp = toCanvas(e.clientX - r.left, e.clientY - r.top);
   var cx = _cp.x;
   var cy = _cp.y;
   if (!viewMode) { mX = cx; mY = cy + camY; } // don't steer worm while scrolling
@@ -7775,7 +7802,7 @@ root.addEventListener('click', function(e) {
   if (playerState === 'queued' && window._claimBtn) {
     var _cb = window._claimBtn;
     if (cx >= _cb.x && cx <= _cb.x+_cb.w && cy >= _cb.y && cy <= _cb.y+_cb.h) {
-      var _myPWC = _findPendingWorm(username);
+      var _myPWC = findPendingWorm(username);
       if (_myPWC && _myPWC.hatched) {
         postToHost({ type: MSG_CLAIM_WORM, username: username });
       }
@@ -7826,8 +7853,8 @@ root.addEventListener('click', function(e) {
     var _panelH2 = 240, _btnW2 = Math.min(W * 0.85 * 0.8, 260), _btnH2 = 44;
     var _py2 = H/2 - _panelH2/2;
     var _btn2 = {x: W/2 - _btnW2/2, y: _py2 + 126, w: _btnW2, h: _btnH2};
-    function _clickInBtn(b) { return cx >= b.x && cx <= b.x+b.w && cy >= b.y && cy <= b.y+b.h; }
-    if (_clickInBtn(_btn2)) {
+    function clickInBtn(b) { return cx >= b.x && cx <= b.x+b.w && cy >= b.y && cy <= b.y+b.h; }
+    if (clickInBtn(_btn2)) {
       var _binFull2 = cocoons.length >= COCOON_MAX * 4;
       if (_binFull2) {
         // Bin full — Join Queue (only if not already queued)
@@ -7896,7 +7923,7 @@ function drawLongPressRing() {
   ctx.restore();
 }
 
-function _cancelLP() {
+function cancelLP() {
   if (_gesture.lpTimer) { clearTimeout(_gesture.lpTimer); _gesture.lpTimer = null; }
   _gesture.lpActive = false;
 }
@@ -7904,7 +7931,7 @@ function _cancelLP() {
 root.addEventListener('touchmove', function(e) {
   e.preventDefault();
   var r = root.getBoundingClientRect();
-  var _tp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tp = toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
   var tx = _tp.x;
   var ty = _tp.y;
 
@@ -7918,7 +7945,7 @@ root.addEventListener('touchmove', function(e) {
     if (_gesture.lpActive) {
       var _vdx = tx - _gesture.lpStartX;
       var _vdy = ty - _gesture.lpStartY;
-      if (Math.sqrt(_vdx*_vdx + _vdy*_vdy) > 15) _cancelLP();
+      if (Math.sqrt(_vdx*_vdx + _vdy*_vdy) > 15) cancelLP();
     }
     return;
   }
@@ -7929,14 +7956,14 @@ root.addEventListener('touchmove', function(e) {
   if (_gesture.lpActive) {
     var dx3 = mX - _gesture.lpStartX;
     var dy3 = ty - _gesture.lpStartY;
-    if (Math.sqrt(dx3*dx3 + dy3*dy3) > 15) _cancelLP();
+    if (Math.sqrt(dx3*dx3 + dy3*dy3) > 15) cancelLP();
   }
 }, {passive: false});
 
 root.addEventListener('touchstart', function(e) {
   e.preventDefault();
   var r   = root.getBoundingClientRect();
-  var _tsp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tsp = toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
   var tx  = _tsp.x;
   var ty  = _tsp.y;
   var now = performance.now();
@@ -7952,7 +7979,7 @@ root.addEventListener('touchstart', function(e) {
   if (playerState === 'queued' && window._claimBtn) {
     var _cbt = window._claimBtn;
     if (tx >= _cbt.x && tx <= _cbt.x+_cbt.w && ty >= _cbt.y && ty <= _cbt.y+_cbt.h) {
-      var _myPWT = _findPendingWorm(username);
+      var _myPWT = findPendingWorm(username);
       if (_myPWT && _myPWT.hatched) {
         postToHost({ type: MSG_CLAIM_WORM, username: username });
       }
@@ -7969,10 +7996,10 @@ root.addEventListener('touchstart', function(e) {
     _gesture.lpStartX  = tx;
     _gesture.lpStartY  = ty;
     _gesture.lpStart   = now;
-    _cancelLP();
+    cancelLP();
     _gesture.lpActive  = true;
     _gesture.lpTimer   = setTimeout(function() {
-      if (_gesture.lpActive) { _cancelLP(); trySleep(); }
+      if (_gesture.lpActive) { cancelLP(); trySleep(); }
     }, _gesture.lpDur);
     return;
   }
@@ -7982,8 +8009,8 @@ root.addEventListener('touchstart', function(e) {
     var _panelH3 = 240, _btnW3 = Math.min(W * 0.85 * 0.8, 260), _btnH3 = 44;
     var _py3 = H/2 - _panelH3/2;
     var _btn3 = {x: W/2-_btnW3/2, y: _py3+126, w: _btnW3, h: _btnH3};
-    function _touchInBtn(b) { return tx>=b.x && tx<=b.x+b.w && ty>=b.y && ty<=b.y+b.h; }
-    if (_touchInBtn(_btn3)) {
+    function touchInBtn(b) { return tx>=b.x && tx<=b.x+b.w && ty>=b.y && ty<=b.y+b.h; }
+    if (touchInBtn(_btn3)) {
       var _binFull3 = cocoons.length >= COCOON_MAX * 4;
       if (_binFull3) {
         // Bin full — Join Queue (only if not already queued)
@@ -8013,7 +8040,7 @@ root.addEventListener('touchstart', function(e) {
     _gesture.lpStartX   = tx;
     _gesture.lpStartY   = ty;
     _gesture.lpStart    = now;
-    _cancelLP(); // clear any stale timer first
+    cancelLP(); // clear any stale timer first
     _gesture.lpActive   = true;
     _gesture.swipeStartX = tx;
     _gesture.swipeStartY = ty;
@@ -8021,7 +8048,7 @@ root.addEventListener('touchstart', function(e) {
     _gesture.swipeLive   = true;
     _gesture.lpTimer = setTimeout(function() {
       if (_gesture.lpActive) {
-        _cancelLP();
+        cancelLP();
         trySleep();
         // Mark that sleep was just triggered by long-press — the finger-lift
         // that immediately follows must not wake the worm again.
@@ -8031,7 +8058,7 @@ root.addEventListener('touchstart', function(e) {
   }
 
   // Cancel long-press the moment a second finger lands
-  if (n >= 2) _cancelLP();
+  if (n >= 2) cancelLP();
 
 }, {passive: false});
 
@@ -8041,7 +8068,7 @@ root.addEventListener('touchend', function(e) {
   var now = performance.now();
   var remaining = e.touches.length; // fingers still down after this lift
 
-  _cancelLP();
+  cancelLP();
 
   // ── View mode — resolve tap-to-wake or end of scroll drag ───────────────
   if (viewMode && pSleeping && remaining === 0) {
@@ -8067,7 +8094,7 @@ root.addEventListener('touchend', function(e) {
     // Single short tap on drain button (not a swipe, not sleeping)
     if (peak === 1 && _gesture.swipeLive) {
       // swipeLive is still true here for short taps — check travel distance
-      var _te0 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te0 = toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
       var ex0  = _te0.x;
       var ey0  = _te0.y;
       var dyT  = Math.abs(_gesture.swipeStartY - ey0);
@@ -8103,7 +8130,7 @@ root.addEventListener('touchend', function(e) {
 
     } else if (peak === 1 && _gesture.swipeLive) {
       // ── Single finger — check for swipe-up (cocoon) ───────────────────────
-      var _te1 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te1 = toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
       var ex  = _te1.x;
       var ey  = _te1.y;
       var dyS = _gesture.swipeStartY - ey;
@@ -8118,7 +8145,7 @@ root.addEventListener('touchend', function(e) {
 }, {passive: false});
 
 root.addEventListener('touchcancel', function() {
-  _cancelLP();
+  cancelLP();
   _gesture._justSlept = false;
   _gesture.peakCount = 0;
   _gesture.swipeLive = false;
