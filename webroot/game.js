@@ -603,7 +603,6 @@ function getBin() {
 // Cached bin geometry — recomputed only when W changes (resizeCanvas).
 // Hot paths call _bin instead of getBin() to avoid per-frame recalculation.
 var _bin = null;
-function _refreshBin() { _bin = getBin(); }
 // Override getBin to return the cache when available — safe because W never
 // changes mid-frame. Falls back to live if cache is stale (W changed since last resize).
 var _binCacheW = -1;
@@ -4686,62 +4685,6 @@ function drawPath(path) {
 }
 
 // ── Generation debug panel (DEBUG_MODE only) ─────────────────────────────
-function drawGenDebugPanel() {
-  var pw = 180, ph = 148;
-  var px = W - pw - 8, py2 = 110;
-  // Panel bg
-  ctx.fillStyle = 'rgba(10,5,20,0.88)';
-  ctx.strokeStyle = 'rgba(180,100,255,0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(px, py2, pw, ph, 8); ctx.fill(); ctx.stroke();
-
-  ctx.textAlign = 'left';
-
-  // Title
-  ctx.fillStyle = 'rgba(220,180,255,0.9)';
-  ctx.font = 'bold 9px monospace';
-  ctx.fillText('⚙ GEN DEBUG', px + 8, py2 + 13);
-
-  // Color swatch + gen info
-  var col = getGenColor(generation);
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.roundRect(px + 8, py2 + 20, 14, 14, 3); ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '9px monospace';
-  ctx.fillText('G' + generation + ' — ' + getGenName(generation), px + 26, py2 + 31);
-
-  // pEaten progress bar
-  var barW = pw - 16, barH = 7;
-  var bx = px + 8, barY = py2 + 42;
-  var prog = Math.min(1, pEaten / 300000);
-  ctx.fillStyle = 'rgba(80,40,120,0.8)';
-  ctx.beginPath(); ctx.roundRect(bx, barY, barW, barH, 3); ctx.fill();
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.roundRect(bx, barY, barW * prog, barH, 3); ctx.fill();
-  ctx.fillStyle = '#ccc';
-  ctx.font = '8px monospace';
-  ctx.fillText(pEaten + ' / 300000', bx, barY + barH + 10);
-
-  // Active perks
-  var perks = [
-    { gen: 1, label: '+10% gut cap' },
-    { gen: 2, label: '−15% offline drain' },
-    { gen: 3, label: '×2 sleep regen' },
-    { gen: 4, label: 'cocoon 5d (not 7)' },
-    { gen: 5, label: '+20% bite rate' },
-  ];
-  ctx.font = '8px monospace';
-  for (var pi = 0; pi < perks.length; pi++) {
-    var active = generation >= perks[pi].gen;
-    ctx.fillStyle = active ? '#80ff80' : 'rgba(120,120,120,0.6)';
-    ctx.fillText((active ? '✓ ' : '○ ') + 'G' + perks[pi].gen + ': ' + perks[pi].label, px + 8, py2 + 74 + pi * 13);
-  }
-
-  // Acid state
-  ctx.fillStyle = pAcid > 0.1 ? '#a8d898' : 'rgba(120,120,120,0.6)';
-  ctx.fillText('acid: ' + pAcid.toFixed(2) + (pAcid > 0.1 ? ' ◀ active' : ''), px + 8, py2 + 140);
-}
-
 // ── Generation color palette ──────────────────────────────────────────────
 var GEN_COLORS = [
   '#e8a882', // Gen 0 — Hatchling    (soft pink-peach)
@@ -5059,10 +5002,6 @@ function getSoilGradStops(e, mw) {
   return _soilGradCache;
 }
 
-function blendEnrichCol(br, bg, bb, er, eg, eb, e) {
-  var r = Math.round(br + (er-br)*e), g = Math.round(bg + (eg-bg)*e), b2 = Math.round(bb + (eb-bb)*e);
-  return '#'+('0'+r.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+b2.toString(16)).slice(-2);
-}
 function lerpCol(a, c, t) {
   function h(s,i){ return parseInt(s.slice(i,i+2),16); }
   var r  = Math.round(h(a,1) + (h(c,1)-h(a,1))*t);
@@ -6831,8 +6770,8 @@ function draw() {
   // Two stacked pill bars: HP on top, gut fill below — clean rounded design
   var gutFracHUD  = Math.min(1, pGut / pGutMax);
   var gutIsFullHUD = gutFracHUD >= 0.98;
-  var starving     = pHunger > 0.8;
-  var hungerFlash  = starving && (frame % 30 < 15);
+  var starvingHUD  = pHunger > 0.8;  // renamed: avoids shadow of updatePlayer's starving
+  var hungerFlash  = starvingHUD && (frame % 30 < 15);
 
   var _barX = 10, _barY = 50, _barW = 170, _barH = 10, _barR = 4, _barGap = 4;
 
@@ -6885,7 +6824,7 @@ function draw() {
   if (gutIsFullHUD) {
     _gutR = hungerFlash ? 255 : 220; _gutG = hungerFlash ? 30 : 20; _gutB = 10;
     _gutAlpha = 1.0;
-  } else if (starving) {
+  } else if (starvingHUD) {
     _gutR = hungerFlash ? 255 : 200; _gutG = hungerFlash ? 30 : 20; _gutB = 10;
     _gutAlpha = 1.0;
   } else {
