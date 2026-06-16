@@ -163,13 +163,10 @@ var deathFade = 0;           // 0→1 fade-in alpha
 
 // ── Offline hunger drain ──────────────────────────────────────────────────
 // We record a timestamp on every session-save. On next load we compute
-// elapsed seconds and drain hunger accordingly. Worms CAN die offline
-// from starvation, acid buildup, or constipation if away long enough.
+// elapsed seconds and drain hunger accordingly (capped so the player
+// can't die offline, just arrive very hungry).
 var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live rate exactly
-// No hard cap — worm can die offline. If pHP reaches 0 in applyOfflineDrain,
-// death is triggered and a comment is posted to the Reddit thread on next load.
-var OFFLINE_ACID_BUILDUP_PER_SEC  = 1 / (36 * 3600); // gut full → acid builds over ~36h
-var OFFLINE_CLOG_DAMAGE_PER_SEC   = 1 / (48 * 3600); // constipated → HP bleed over ~48h
+var MAX_OFFLINE_DRAIN = 0.85;        // can arrive very hungry but never quite dead offline
 var SESSION_KEY = 'wigglers_session_v2';
 
 // ── Weather system ────────────────────────────────────────────────────────────
@@ -2832,58 +2829,15 @@ function applyOfflineDrain(saved) {
     return;
   }
 
-  // ── Offline hunger drain ──────────────────────────────────────────────────
-  // No cap — worms can die offline from starvation, acid, or constipation.
-  var drain = elapsedSec * OFFLINE_DRAIN_PER_SEC;
+  // Drain pGut — hunger is derived from gut fill, so this is the correct target.
+  // Draining pHunger directly was a bug: it got overwritten by the first updatePlayer tick.
+  var drain = Math.min(MAX_OFFLINE_DRAIN, elapsedSec * OFFLINE_DRAIN_PER_SEC);
   if (generation >= 2) drain *= 0.85; // Gen 2+ perk: −15% offline drain
-  drain = Math.min(1, drain); // clamp to 0–1 fractional scale
+  // drain is on a 0-1 scale matching the old pHunger range; convert to gut units
   var gutDrain = drain * pGutMax;
-  pGut = Math.max(0, pGut - gutDrain);
-
-  // ── Starvation HP bleed (matches live rate: HP bleeds when gut is empty) ─
-  if (pGut <= 0 && drain > 0) {
-    var starveSec   = Math.max(0, elapsedSec - (1 / OFFLINE_DRAIN_PER_SEC)); // seconds spent starving
-    var starveBleed = Math.min(1, starveSec * (0.0003 * 20)); // 0.0003/frame × ~20fps offline equiv
-    if (starveBleed > 0) {
-      if (pHP > 0) deathCause = 'starvation';
-      pHP = Math.max(0, pHP - starveBleed);
-    }
-  } else if (drain > 0.5) {
-    // Not dead yet but very hungry — small HP dip as preview
-    pHP = Math.max(0.05, pHP - (drain - 0.5) * 0.3);
-  }
-
-  // ── Offline acid buildup (gut full the whole time) ────────────────────────
-  var gutFrac = pGutMax > 0 ? (pGut / pGutMax) : 0;
-  if (gutFrac >= 0.9) {
-    var acidBuilt = Math.min(1, pAcid + elapsedSec * OFFLINE_ACID_BUILDUP_PER_SEC);
-    pAcid = acidBuilt;
-    if (pAcid > 0.5) {
-      var acidDmg = Math.min(pHP, (pAcid - 0.5) * 2 * elapsedSec * (0.0003 * 20));
-      if (pHP > 0) deathCause = 'acidity';
-      pHP = Math.max(0, pHP - acidDmg);
-    }
-  }
-
-  // ── Offline constipation damage (tunnel clogged) ──────────────────────────
-  var wasClogged = false;
-  for (var _oi = 0; _oi < pPath.length; _oi++) {
-    var _op = pPath[_oi];
-    if (_op && (_op.clog || 0) >= 0.8) { wasClogged = true; break; }
-  }
-  if (wasClogged) {
-    var clogDmg = Math.min(pHP, elapsedSec * OFFLINE_CLOG_DAMAGE_PER_SEC);
-    if (pHP > 0) deathCause = 'constipation';
-    pHP = Math.max(0, pHP - clogDmg);
-  }
-
-  // ── Offline death check ───────────────────────────────────────────────────
-  if (pHP <= 0) {
-    pHP = 0;
-    // Flag for setup() to handle death screen + postToHost after game init
-    window._offlineDeath     = true;
-    window._offlineDeathCause = deathCause || 'starvation';
-  }
+  pGut = Math.max(0, pGut - gutDrain); // clamp at 0 — never go negative
+  // If drain was severe, also tick HP down a little
+  if (drain > 0.5) pHP = Math.max(0.1, pHP - (drain - 0.5) * 0.4);
 
   // Build an accurate return-status message from the actual restored state.
   // This runs after pGut, pHP, pSleeping, tLvl, cocoons etc. are all loaded —
@@ -3135,43 +3089,7 @@ function setup() {
   }
 
   initPlayer(saved);
-  applyOfflineDrain(saved);   // hunger penalty for time away — may set window._offlineDeath
-
-  // ── Handle offline death ──────────────────────────────────────────────────
-  // applyOfflineDrain sets window._offlineDeath when pHP reaches 0.
-  // We post to host here (after game init so postToHost is wired) and show
-  // the death screen immediately on first draw.
-  if (window._offlineDeath) {
-    var _offlineCause = window._offlineDeathCause || 'starvation';
-    // Notify host — main.tsx will post a comment to the Reddit thread
-    postToHost({
-      type:       MSG_PLAYER_DIED,
-      cause:      _offlineCause,
-      karma:      Math.floor(karma),
-      generation: generation,
-      pEaten:     pEaten,
-      username:   username,
-      offline:    true    // flag so main.tsx formats the comment correctly
-    });
-    // Force death screen — set deathScreen flag so first draw shows it
-    deathScreen = true;
-    deathFade   = 0;
-    // Build offline-specific death message
-    var _causeStr = {
-      starvation:   'starved to death while away',
-      acidity:      'dissolved in their own acid while away',
-      constipation: 'died of constipation while away',
-      flood:        'drowned in a flood while away'
-    }[_offlineCause] || 'died while away';
-    window._offlineDrainMsg = '💀 Your worm ' + _causeStr + '...';
-    // Wipe pre-death progress so respawn starts fresh
-    try {
-      data.pHP = 1.0; data.pGut = 0;
-      data.pEaten = 0; data.pSR = 4; data.pSEG = 4;
-      saveSession();
-    } catch(e) {}
-    window._offlineDeath = false;
-  }
+  applyOfflineDrain(saved);   // hunger penalty for time away
 
   spawnScraps();
 }
