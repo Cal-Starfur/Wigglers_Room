@@ -51,6 +51,8 @@ const KV_WORLD         = (postId: string)   => `world:${postId}`;
 const KV_COCOONS       = (postId: string)   => `cocoons:${postId}`;
 const KV_QUEUE         = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
+const KV_WEATHER       = (postId: string)   => `weather:${postId}`;
+const WEATHER_TTL_MS   = 60 * 60 * 1000; // re-fetch Open-Meteo once per hour
 
 // ─── Realtime channel helpers ─────────────────────────────────────────────────
 const RT_WORLD    = (postId: string) => `world:${postId}`;
@@ -192,6 +194,57 @@ Devvit.addCustomPostType({
             } catch (e) {
               console.warn('[main] Queue load failed:', e);
             }
+
+            // ── Live weather via Open-Meteo (Nashville fallback) ─────────────
+            // Cached in KV for WEATHER_TTL_MS to avoid hammering the API.
+            // Free API, no key needed. Nashville coords as default.
+            try {
+              const LAT = 36.1627; const LON = -86.7816; // Nashville, TN
+              const LOC_NAME = 'Nashville, TN';
+              let weatherData: any = null;
+              const cachedWeatherRaw = await kvStore.get(KV_WEATHER(roomId));
+              if (cachedWeatherRaw) {
+                const cached = typeof cachedWeatherRaw === 'string'
+                  ? JSON.parse(cachedWeatherRaw) : cachedWeatherRaw;
+                if (serverNow - (cached.fetchedAt ?? 0) < WEATHER_TTL_MS) {
+                  weatherData = cached;
+                }
+              }
+              if (!weatherData) {
+                const weatherRes = await fetch(
+                  `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+                  `&current=temperature_2m,relative_humidity_2m,precipitation`
+                );
+                if (weatherRes.ok) {
+                  const raw = await weatherRes.json();
+                  const cur = raw?.current ?? {};
+                  // Normalize to 0–1 ranges
+                  // temp: -10°C → 0, 40°C → 1
+                  const tempRaw = cur.temperature_2m ?? 18;
+                  const humidRaw = cur.relative_humidity_2m ?? 62;
+                  const precipRaw = cur.precipitation ?? 0;
+                  weatherData = {
+                    temp:     Math.max(0, Math.min(1, (tempRaw + 10) / 50)),
+                    humidity: Math.max(0, Math.min(1, humidRaw / 100)),
+                    precip:   Math.max(0, Math.min(1, precipRaw / 10)), // 10mm/h = max
+                    locName:  LOC_NAME,
+                    fetchedAt: serverNow,
+                  };
+                  await kvStore.put(KV_WEATHER(roomId), JSON.stringify(weatherData));
+                }
+              }
+              if (weatherData) {
+                webView.postMessage({
+                  type:     MSG_SET_WEATHER,
+                  humidity: weatherData.humidity,
+                  temp:     weatherData.temp,
+                  precip:   weatherData.precip,
+                  locName:  weatherData.locName ?? LOC_NAME,
+                });
+              }
+            } catch (e) {
+              console.warn('[main] Weather fetch failed (using game default):', e);
+            }
             break;
           }
 
@@ -244,6 +297,73 @@ Devvit.addCustomPostType({
             } catch (e) {
               console.warn('[main] World update failed:', e);
             }
+
+            // ── Track weekly contributor ──────────────────────────────────────
+            // Each player's weeklyContrib is included in worldUpdate so we can
+            // accumulate a server-side leaderboard over the week.
+            try {
+              const contribUser = await context.reddit.getCurrentUser();
+              const contribName = contribUser ? `u/${contribUser.username}` : null;
+              if (contribName && typeof message.weeklyContrib === 'number' && message.weeklyContrib > 0) {
+                const weekRaw = await kvStore.get(KV_WEEK(roomId));
+                const weekData = weekRaw
+                  ? (typeof weekRaw === 'string' ? JSON.parse(weekRaw) : weekRaw)
+                  : { weekStartTs: serverNow, contributors: {} };
+                weekData.contributors = weekData.contributors ?? {};
+                // Update this player's contribution (take max seen this week)
+                const prev = weekData.contributors[contribName] ?? 0;
+                weekData.contributors[contribName] = Math.max(prev, message.weeklyContrib);
+                await kvStore.put(KV_WEEK(roomId), JSON.stringify(weekData));
+              }
+            } catch (e) {
+              console.warn('[main] Weekly contrib update failed:', e);
+            }
+
+            // ── Weekly leaderboard comment (fires when client sends weeklyDrain: true) ─
+            if (message.weeklyDrain === true) {
+              try {
+                const weekRaw = await kvStore.get(KV_WEEK(roomId));
+                const weekData = weekRaw
+                  ? (typeof weekRaw === 'string' ? JSON.parse(weekRaw) : weekRaw)
+                  : { weekStartTs: serverNow, contributors: {} };
+
+                const contributors: Record<string, number> = weekData.contributors ?? {};
+                const sorted = Object.entries(contributors)
+                  .sort(([, a], [, b]) => b - a)
+                  .slice(0, 10);
+
+                if (sorted.length > 0) {
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const weekDate = new Date(weekData.weekStartTs ?? serverNow)
+                    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  const tLvlPct  = Math.round((message.tLvl ?? 0) * 100);
+
+                  let leaderboard = `🌿 **Weekly Worm Tea Harvest — Week of ${weekDate}**
+
+`;
+                  sorted.forEach(([name, contrib], i) => {
+                    const medal  = medals[i] ?? `${i + 1}.`;
+                    const pts    = Math.round(contrib * 1000);
+                    leaderboard += `${medal} ${name} — ${pts} pts
+`;
+                  });
+                  leaderboard +=
+                    `
+Total tea drained: ${tLvlPct}% 🫗  Next harvest in 7 days.
+
+` +
+                    `*Join the bin to grow your worm and earn tea karma!*`;
+
+                  await context.reddit.submitComment({ id: roomId, text: leaderboard });
+                }
+
+                // Reset contributors for next week
+                const newWeek = { weekStartTs: serverNow, contributors: {} };
+                await kvStore.put(KV_WEEK(roomId), JSON.stringify(newWeek));
+              } catch (e) {
+                console.warn('[main] Weekly leaderboard post failed:', e);
+              }
+            }
             break;
           }
 
@@ -278,6 +398,7 @@ Devvit.addCustomPostType({
             const user = await context.reddit.getCurrentUser();
             const username = user ? `u/${user.username}` : null;
             if (!username) break;
+            // Save death state to KV
             try {
               const raw = await kvStore.get(KV_WORM_SESSION(username));
               if (raw) {
@@ -289,6 +410,46 @@ Devvit.addCustomPostType({
               }
             } catch (e) {
               console.warn('[main] playerDied save failed:', e);
+            }
+            // Post a death comment to the Reddit thread
+            try {
+              const causeEmoji: Record<string, string> = {
+                starvation:   '🥺',
+                acidity:      '🧪',
+                constipation: '💩',
+                flood:        '🌊',
+                natural:      '🌿',
+                drowning:     '🌊',
+              };
+              const causePhrase: Record<string, string> = {
+                starvation:   'starved to death',
+                acidity:      'dissolved in their own acid',
+                constipation: 'died of constipation',
+                flood:        'was swept away in a flood',
+                natural:      'lived a full and enriching life',
+                drowning:     'drowned in the sump',
+              };
+              const cause    = message.cause ?? 'unknown';
+              const isOffline = message.offline === true;
+              const emoji    = causeEmoji[cause]  ?? '💀';
+              const phrase   = causePhrase[cause] ?? 'met their end';
+              const gen      = message.generation ?? 0;
+              const eaten    = message.pEaten     ?? 0;
+              const karma    = message.karma      ?? 0;
+              const genStr   = gen > 0 ? ` (Gen ${gen})` : '';
+              const offlineStr = isOffline ? ' while they were away' : '';
+              const commentBody =
+                `${emoji} **${username}'s worm${genStr} ${phrase}${offlineStr}!**
+
+` +
+                `🍂 Scraps eaten: ${eaten.toLocaleString()} · ` +
+                `🌿 Karma: ${karma.toLocaleString()}
+
+` +
+                `*Their worm will be reborn next time they visit the bin.*`;
+              await context.reddit.submitComment({ id: roomId, text: commentBody });
+            } catch (e) {
+              console.warn('[main] Death comment post failed:', e);
             }
             break;
           }
