@@ -180,9 +180,18 @@ Devvit.addCustomPostType({
               console.warn('[main] World state load failed:', e);
             }
 
-            // NOTE: pending worm queue is intentionally NOT sent here.
-            // The game client sends MSG_REQUEST_PRESENCE separately which handles queue delivery.
-            // Sending it here too caused queue entries (no x/y) to be treated as live players.
+            // Load and send pending worm queue
+            try {
+              const queueRaw = await kvStore.get(KV_QUEUE(roomId));
+              const queue = queueRaw
+                ? (typeof queueRaw === 'string' ? JSON.parse(queueRaw) : queueRaw)
+                : [];
+              if (queue.length > 0) {
+                webView.postMessage({ type: MSG_SET_PRESENCE, players: queue });
+              }
+            } catch (e) {
+              console.warn('[main] Queue load failed:', e);
+            }
             break;
           }
 
@@ -246,7 +255,7 @@ Devvit.addCustomPostType({
               if (!username) break;
               await realtime.send(RT_PRESENCE(roomId), JSON.stringify({
                 type: MSG_SET_PRESENCE,
-                players: [{
+                player: {
                   username,
                   x:          message.x,
                   y:          message.y,
@@ -256,7 +265,7 @@ Devvit.addCustomPostType({
                   generation: message.generation ?? 0,
                   hp:         message.hp         ?? 1,
                   gut:        message.gut         ?? 1,
-                }],
+                },
               }));
             } catch (e) {
               // Presence updates are fire-and-forget — don't warn on failure
