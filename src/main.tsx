@@ -372,14 +372,9 @@ Devvit.addCustomPostType({
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
-      <zstack width="100%" height="100%" alignment="center middle" backgroundColor="#3B1F0A">
-        <vstack width="100%" height="100%" alignment="center middle">
-          <image url="icon.png" imageWidth={512} imageHeight={512} resizeMode="fit" onPress={() => webView.mount()} />
-        </vstack>
-        <vstack width="100%" height="100%" alignment="center bottom" padding="medium">
-          <text size="xlarge" weight="bold" color="#F5DEB3">Enter the Bin</text>
-        </vstack>
-      </zstack>
+      <vstack width="100%" height="100%" alignment="center middle" backgroundColor="#3B1F0A">
+        <image url="icon.png" imageWidth={512} imageHeight={512} resizeMode="fit" onPress={() => webView.mount()} />
+      </vstack>
     );
   },
 });
