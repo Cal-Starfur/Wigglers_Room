@@ -33,8 +33,9 @@ Wigglers_Room/
 
 ### Deploy Workflow (CRITICAL)
 - CI only runs `tsc + devvit build` — does NOT run `devvit upload`
-- Upload is always manual: `git pull` in Codespace first, then `devvit upload`
-- After any Claude session that pushes via API: always `git pull` before `devvit upload` (Session 6 fix)
+- **Deploy via Devvit skill bridge** — Claude can trigger `devvit upload` directly using the devvit-pipeline skill
+- Legacy manual path: `git pull` in Codespace, then `devvit upload` (no longer required when using the skill)
+- After any Claude session that pushes via API: the devvit skill handles the pull+upload in one step
 
 ---
 
@@ -171,7 +172,7 @@ Always check `nextAfterExit` to tell them apart.
 4. After edits, grep for changed function name to verify no duplicates
 5. All session writes through `saveSession()` only
 6. New message types: add `MSG_*` constant to BOTH `game.js` AND `main.tsx`
-7. After pushing: user must `git pull` in Codespace before `devvit upload`
+7. After pushing: use the devvit-pipeline skill to deploy — or manually `git pull` + `devvit upload` in Codespace
 
 ---
 
@@ -202,6 +203,7 @@ Always check `nextAfterExit` to tell them apart.
 
 ### V20 Session 6 — 2026-06-16
 - Fixed `devvit upload` README.md warning. Rule: always `git pull` in Codespace after Claude API pushes.
+- (Superseded by Session 8: devvit-pipeline skill bridge now handles deploy directly)
 
 ### V20 Session 7 — 2026-06-16
 - Full game.js re-read (SHA `8d4064c`). Lead-dev audit run: 230 issues.
@@ -216,16 +218,20 @@ Always check `nextAfterExit` to tell them apart.
 - Session notes were incorrectly going into WIGGLERS_AUDIT_V20.md — corrected. Session log belongs here.
 - github-sync SKILL.md updated: STEP 2 added — auto-run lead-dev every session, never wait to be asked.
 
-### V20 Session 8 — Next Session
+### V20 Session 8 — 2026-06-16
+- FIX-1: Deleted orphan duplicate Snoo helper block (lines 1682–1725). One canonical block remains.
+- FIX-2: Renamed `_svgX`/`_svgY` → `svgX`/`svgY` inside `drawSnooDrain`. No underscore locals remain.
+- FIX-3: Already cleaned in prior session — no action needed.
+- ISS-2: Removed `drawGenBadge()` call from `drawWorms()`. Function retained for future use.
+- ISS-1: Local player label now shows real Reddit `username`. Hidden in local dev (`u/You`).
+- ISS-8: Saturation system — weekly drain bleeds `pooled * 0.3`, valve close bleeds `drained * 0.25`, oversaturation warning visual (blue-green sheen intensifies above 0.5).
+- Deploy: GAME_ARCHITECTURE.md updated — devvit-pipeline skill bridge now handles deploy.
+- Commit: `ca9ee0b`. Lines: 8,491 → 8,459
+
+### V20 Session 9 — Next Session
 **Work through checklist in order (see WIGGLERS_AUDIT_V20.md):**
-1. FIX-1: Delete orphan Snoo block lines 1643–1685 — game.js
-2. FIX-2: Rename `_svgX`/`_svgY` lines 2424–2425 — game.js
-3. FIX-3: Delete `onload` dead code line 282 — game.js
-4. ISS-2: Remove `drawGenBadge()` call line 6553 — game.js
-5. ISS-1: Add `u/username` label above all worms — game.js
-6. ISS-8: Saturation fixes — game.js
-7. ISS-3: Offline death + comment post — game.js + main.tsx
-8. ISS-5: Live weather — main.tsx + game.js
-9. ISS-7: Weekly leaderboard pinned comment — main.tsx
+1. ISS-3: Offline death + comment post — game.js + main.tsx
+2. ISS-5: Live weather — main.tsx + game.js
+3. ISS-7: Weekly leaderboard pinned comment — main.tsx
 
 *This file is maintained by the Lead Dev skill. Update every session.*
