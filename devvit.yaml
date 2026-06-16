@@ -10,3 +10,4 @@ permissions:
   - realtime
 
 webroot: webroot
+assets: assets
