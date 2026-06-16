@@ -255,7 +255,7 @@ Devvit.addCustomPostType({
               if (!username) break;
               await realtime.send(RT_PRESENCE(roomId), JSON.stringify({
                 type: MSG_SET_PRESENCE,
-                player: {
+                players: [{
                   username,
                   x:          message.x,
                   y:          message.y,
@@ -265,7 +265,7 @@ Devvit.addCustomPostType({
                   generation: message.generation ?? 0,
                   hp:         message.hp         ?? 1,
                   gut:        message.gut         ?? 1,
-                },
+                }],
               }));
             } catch (e) {
               // Presence updates are fire-and-forget — don't warn on failure
