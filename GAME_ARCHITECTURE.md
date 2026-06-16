@@ -254,10 +254,18 @@ If the game breaks on Reddit and restoring one session back doesn't fix it:
 - Updated GAME_ARCHITECTURE.md and devvit-pipeline SKILL.md to reflect full auto-deploy
 - Subreddit: r/wigglers_room_dev
 
-### V20 Session 11 — Next Session
-**Current baseline: Session 3 (bab2e46, 8,371 lines) — confirmed stable**
-- Sessions 4+5 are OFF LIMITS until root cause of movement bug is found
-- Safe next fixes (from audit checklist): FIX-1 (orphan Snoo block), FIX-2 (_svgX rename), FIX-3 (onload dead code), ISS-2 (remove drawGenBadge call)
-- Apply ONE fix at a time, deploy and test on Reddit after each
+### V20 Session 11 — 2026-06-16
+**Commit A: game.js (211a919) + main.tsx (a40636a) — 8,371 → 8,396 lines**
+- Full forensic diff of Session 3 vs Session 4 — root cause identified: `_dropSegStart`/`_dropSegEnd` renames in Session 4 had missed call sites; `try/catch` in game loop silently swallowed the `ReferenceError`, freezing physics
+- FIX: All 11 `_underscore` → camelCase renames with full call-site audit before each edit
+- otherPlayers now draw as real worms: gen color, real HP paleness, full alpha, real seg data when available
+- Pre-existing bug fixed: `main.tsx` was sending `player:{}` not `players:[...]` — other worms were invisible to all clients
+- hist buffer 10 → 20 entries
+- **Next: deploy to Reddit, test movement. If stable → remaining checklist items**
+
+### V20 Session 12 — Next Session
+**Current baseline: Session 11 Commit A (211a919 / a40636a, 8,396 lines)**
+- Deploy and verify movement still works on Reddit
+- If stable: continue checklist — FIX-2 (_svgX rename), FIX-3 (onload dead code), ISS-2 (drawGenBadge call), ISS-1 (username labels), ISS-8 (saturation bleed)
 
 *This file is maintained by the Lead Dev skill. Update every session.*
