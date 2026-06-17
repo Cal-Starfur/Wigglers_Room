@@ -3009,29 +3009,30 @@ setInterval(function() {
   });
 }, 2000);
 
-// Logical world width — bin is sized for this. On narrow screens the canvas
-// CSS-scales down; on wide screens it fills naturally. camX scrolls horizontally.
-var MAX_LOGICAL_W = 1024;
+// Fixed logical resolution — iPad landscape. Every device renders at this size;
+// CSS scaling zooms it to fill the viewport. Mobile side-scrolls via camX.
+var LOGICAL_W = 1024;
+var LOGICAL_H = 768;
 
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
   if (!W || !H) {
-    // First call — clamp logical width so bin is consistent across devices.
-    // Height scales proportionally so aspect ratio matches the viewport.
-    var logicalW = Math.min(vw, MAX_LOGICAL_W);
-    var logicalH = Math.round(vh * (logicalW / vw));
-    W = logicalW;
-    H = logicalH;
+    W = LOGICAL_W;
+    H = LOGICAL_H;
     canvas.width  = W;
     canvas.height = H;
   }
-  // Scale canvas CSS to fill the full viewport — logical coords stay locked.
-  var scaleX = vw / W;
-  var scaleY = vh / H;
-  canvas.style.transform = 'scale(' + scaleX + ',' + scaleY + ')';
-  window._canvasScaleX = scaleX;
-  window._canvasScaleY = scaleY;
+  // Fit to viewport — preserve aspect ratio, letterbox if needed.
+  // Use the smaller scale so nothing is ever clipped.
+  var scale = Math.min(vw / W, vh / H);
+  canvas.style.transform = 'scale(' + scale + ')';
+  canvas.style.transformOrigin = 'top left';
+  // Center in viewport
+  canvas.style.left = Math.round((vw - W * scale) / 2) + 'px';
+  canvas.style.top  = Math.round((vh - H * scale) / 2) + 'px';
+  window._canvasScaleX = scale;
+  window._canvasScaleY = scale;
 }
 
 function setup() {
