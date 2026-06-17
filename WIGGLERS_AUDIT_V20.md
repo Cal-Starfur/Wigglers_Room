@@ -14,12 +14,85 @@
 
 ---
 
+## 🔥 HIGH PRIORITY — Live World Architecture
+
+> **Cal's directive (Session 12):** Getting the world to run 24/7 — independent of any player's tab — is the #1 priority. No gameplay bugs are touched until this is solved.
+
+### ARC-1 — World Freezes When Tab Is Hidden ⚡ TOP PRIORITY
+
+**Root cause:** The entire game loop runs inside `requestAnimationFrame`. Browsers throttle rAF to ~1fps or pause it completely when a tab is hidden. There is no `visibilitychange` listener, no fallback timer, no delta-time system. If a player switches tabs, their worm stops receiving physics ticks entirely — no HP drain, no gut digestion, no physics at all.
+
+**Scope of what stops:**
+- `pHP` drain (starvation, acid, flood damage) — all per-frame subtractions
+- `pGut` digestion rate — frame-counted
+- Tunnel decay, poop physics, acid decay, drop simulation — all frame-counted
+- The entire `updatePlayer()` and `updatePhysics()` call chain
+
+**What already survives tab switching (setInterval-based):**
+- `saveSession()` auto-save every 30s — continues ✅
+- `presenceUpdate` broadcast every 2s — continues ✅
+- `applyOfflineDrain()` — runs once on re-open, retroactively, capped at 0.85 ✅
+
+**What does NOT exist yet:**
+- No Devvit `Scheduler` job in `main.tsx`
+- No server-side world simulation of any kind
+- No `visibilitychange` event listener in `game.js`
+- No delta-time system (physics assumes fixed 60fps)
+
+---
+
+### ARC-1A — Client fix: Tab-hidden fallback loop (Step 1)
+
+**What it does:** When the player hides the tab, switch from `requestAnimationFrame` to a `setInterval` fallback at ~2fps. Physics continues at reduced rate. On tab restore, switch back to rAF.
+
+**Files:** `game.js` only  
+**Complexity:** Medium — requires delta-time refactor of `updatePlayer()` drain rates  
+**Risk:** All per-frame drain constants (`pHP -= 0.0003`, digest rates, etc.) are tuned for 60fps. Need `dt` multiplier on every drain to stay equivalent across tick rates.  
+**Approach:**
+1. Add `var lastTickMs = performance.now();` at loop start
+2. Compute `var dt = (now - lastTickMs) / (1000/60);` each tick — normalizes to "how many 60fps frames worth of time passed"
+3. Multiply every drain/rate by `dt` in `updatePlayer()` and `updatePhysics()`
+4. Add `visibilitychange` listener: `hidden → clearRaf, startInterval(500ms)` / `visible → clearInterval, startRaf`
+5. The setInterval tick calls the same `updatePlayer()` + `updatePhysics()` — draw() can be skipped when hidden (no canvas needed)
+
+**Status:** ⏳ NEXT — implement before any other work
+
+---
+
+### ARC-1B — Server fix: Devvit Scheduler world ticks (Step 2)
+
+**What it does:** Add a `Devvit.addSchedulerJob()` in `main.tsx` that fires every 60 seconds. The job reads world state from KV, advances it (tLvl decay, pooled evaporation, scraps level), writes back, broadcasts via Realtime. The shared world evolves 24/7 with zero players open.
+
+**Files:** `main.tsx` (+ world physics constants need to be mirrored from `game.js`)  
+**Complexity:** High — world physics currently lives only in `game.js`. Need to:
+1. Add `scheduler: true` to `Devvit.configure()`
+2. Extract world-tick formulas from `updatePhysics()` into a pure function in `main.tsx`
+3. Register a `Devvit.addSchedulerJob('world-tick', ...)` job
+4. Job reads `world:{postId}`, advances state, writes back, broadcasts `RT_WORLD`
+5. Webview receives Realtime update, applies it to local `tLvl`/`pooled`/`castingEnrichment`
+
+**Risk:** World state currently written by the active client. With server ticks, need to handle race conditions — server tick vs client MSG_WORLD_UPDATE arriving at same time. Server wins on world state; client's local version is overwritten by next Realtime broadcast.
+
+**Status:** ⏳ Backlog — implement after ARC-1A is stable
+
+---
+
+### ARC-1C — Per-worm offline death (Step 3 — builds on ISS-3)
+
+**What it does:** Once ARC-1B exists, the server can also simulate worm hunger drain during absence. Remove `MAX_OFFLINE_DRAIN = 0.85` cap. Server-side job checks worm session KV, applies drain formula, marks worm dead if HP → 0, posts Reddit comment.
+
+**Files:** `main.tsx` + `game.js`  
+**Dependency:** ARC-1B must exist first  
+**Status:** ⏳ Backlog
+
+---
+
 ## 🔴 Code Quality Fixes (game.js only)
 
 ### FIX-2 — `_svgX` / `_svgY` Still Underscore Named
 **Where:** `drawSnooDrain` — lines 2422–2423  
 **Detail:** Two local shorthands inside `drawSnooDrain` still use `_underscore` prefix. Only underscore functions left in the file. Rename to `svgX` / `svgY` — purely local scope, zero collision risk.  
-**Status:** ⏳ Next
+**Status:** ⏳ Deferred — do after ARC-1A
 
 ### FIX-3 — `onload` Dead Code
 **Where:** Line 282  
@@ -30,6 +103,7 @@
 
 ## 🎮 Gameplay Issues & Feature Backlog
 
+> All items below are LOWER PRIORITY than ARC-1A and ARC-1B.
 
 ### ISS-9 — T-Key Drain Cinematic: Snoo Invisible on Mobile / Short Viewports
 **Where:** `updateSnooDrain()` — `drainCamTarget` formula + `drawSnooDrain()` coordinate system  
@@ -44,12 +118,12 @@
 ### ISS-2 — Remove `drawGenBadge()` from Local Player
 **Where:** Line 6478 — `drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation)`  
 **Cal's decision:** Gen identity shown via worm color. Badge is clutter. Remove the call. Keep the function — used elsewhere.  
-**Status:** ⏳ Next
+**Status:** ⏳ Deferred — do after ARC-1A
 
 ### ISS-1 — Username Labels Above All Worms
 **Where:** Local player draw (avatarMode === 1 currently shows 'u/You' placeholder). otherPlayers already show username.  
 **Cal's decision:** Show real `u/username` above every worm. In local dev (`username === 'u/You'`) show nothing.  
-**Status:** ⏳ Next — local player label needs fixing (currently hardcoded 'u/You' not real username)
+**Status:** ⏳ Deferred — do after ARC-1A
 
 ### ISS-8 — Saturation System
 **Cal's concern:** Draining tea doesn't relieve saturation — disconnected feeling.  
@@ -58,16 +132,17 @@
 1. Weekly drain bleeds `pooled`: in `triggerWeeklyDrain()` add `pooled = Math.max(0, pooled - tLvl * 0.3)`
 2. Valve tap bleeds `pooled`: in `closeDrainTap()` add `pooled = Math.max(0, pooled - window._valveDrainedTotal * 0.25)`
 3. Oversaturation warning visual before damage kicks in at `pooled > 0.6`  
-**Status:** ⏳ Next
+**Status:** ⏳ Deferred — do after ARC-1A
 
 ### ISS-3 — Offline Death + Comment Post
 **Cal's decision:** Worms can die offline. Post a Reddit comment when they do.  
 **What exists:** `applyOfflineDrain()` drains gut but `MAX_OFFLINE_DRAIN = 0.85` hardcap prevents death.  
 **Missing:** Remove cap, simulate acid/constipation offline, `MSG_PLAYER_DIED` → `main.tsx` posts comment.  
-**Status:** ⏳ Backlog
+**Note:** This becomes ARC-1C once ARC-1B (server scheduler) exists.  
+**Status:** ⏳ Backlog — blocked on ARC-1B
 
 ### ISS-4 — Sound / Audio
-**Status:** ⏳ Intentionally deferred — return when gameplay stable
+**Status:** ⏳ Intentionally deferred — return when live world is stable
 
 ### ISS-5 — Live Weather Integration
 **Cal's decision:** Real weather via Open-Meteo (free, no key). `main.tsx` on MSG_READY fetches, caches in KV 1hr, sends `MSG_SET_WEATHER`.  
@@ -92,7 +167,7 @@
 | `postToHost()` wrapper | ✅ Safe no-op in local dev |
 | `saveSession()` dual-write | ✅ |
 | All message handlers | ✅ Present and wired |
-| `applyOfflineDrain()` base gut drain | ✅ Works, needs expansion (ISS-3) |
+| `applyOfflineDrain()` base gut drain | ✅ Works, needs expansion (ISS-3/ARC-1C) |
 | Cocoon persistence + server clamps | ✅ |
 | `otherPlayers` real worm rendering | ✅ Real segs, gen color, HP, stale fade — fixed Session 11 |
 | Presence relay `players: [{}]` array shape | ✅ Fixed Session 11 |
@@ -132,16 +207,19 @@
 
 ## Session Checklist — Work Through In Order
 
-| # | Task | File(s) | Status |
-|---|---|---|---|
-| ISS-9 | Snoo drain invisible — needs debug overlay first, do not attempt blind | game.js | ⏳ Pinned |
-| FIX-2 | Rename `_svgX`/`_svgY` inside `drawSnooDrain` | game.js | ⏳ Next |
-| FIX-3 | Re-examine `onload` line 282 — is it actually dead? | game.js | 🔍 Next |
-| ISS-2 | Remove `drawGenBadge()` call line 6478 | game.js | ⏳ Next |
-| ISS-1 | Fix local player username label (real username, not 'u/You') | game.js | ⏳ Next |
-| ISS-8 | Saturation: weekly drain + valve bleed `pooled` + warning visual | game.js | ⏳ Next |
-| ISS-3 | Offline death: remove cap, simulate damage, comment post | game.js + main.tsx | ⏳ Backlog |
-| ISS-5 | Live weather: Open-Meteo, KV cache, `MSG_SET_WEATHER` | main.tsx + game.js | ⏳ Backlog |
-| ISS-7 | Weekly leaderboard pinned comment | main.tsx | ⏳ Backlog |
+| # | Task | File(s) | Priority | Status |
+|---|---|---|---|---|
+| ARC-1A | Delta-time + visibilitychange fallback loop | game.js | 🔥 TOP | ⏳ Next |
+| ARC-1B | Devvit Scheduler server-side world tick | main.tsx | 🔥 HIGH | ⏳ After ARC-1A |
+| ARC-1C | Per-worm offline death via server | main.tsx + game.js | 🔥 HIGH | ⏳ After ARC-1B |
+| ISS-9 | Snoo drain invisible — debug overlay first | game.js | 🟡 Med | ⏳ Pinned |
+| FIX-2 | Rename `_svgX`/`_svgY` inside `drawSnooDrain` | game.js | 🟢 Low | ⏳ Deferred |
+| FIX-3 | Re-examine `onload` line 282 | game.js | 🟢 Low | 🔍 Deferred |
+| ISS-2 | Remove `drawGenBadge()` call line 6478 | game.js | 🟢 Low | ⏳ Deferred |
+| ISS-1 | Fix local player username label | game.js | 🟢 Low | ⏳ Deferred |
+| ISS-8 | Saturation: weekly drain + valve bleed `pooled` | game.js | 🟢 Low | ⏳ Deferred |
+| ISS-3 | Offline death — blocked on ARC-1B | game.js + main.tsx | 🟡 Med | ⏳ Backlog |
+| ISS-5 | Live weather: Open-Meteo | main.tsx + game.js | 🟢 Low | ⏳ Backlog |
+| ISS-7 | Weekly leaderboard pinned comment | main.tsx | 🟢 Low | ⏳ Backlog |
 
-*Wigglers Room V20 — Cal-Starfur/Wigglers_Room — Session 12 — Snoo drain pinned (ISS-9)*
+*Wigglers Room V20 — Cal-Starfur/Wigglers_Room — Session 12 — ARC-1 live world is #1 priority*
