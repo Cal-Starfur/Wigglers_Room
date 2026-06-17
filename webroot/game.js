@@ -2831,7 +2831,7 @@ function initPlayer(saved) {
   var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
   for (var i = 0; i < 20; i++) pHist.push({x: startX, y: startY});
   for (var i = 0; i < Math.max(4, Math.min(8, pSEG)); i++) pSegs.push({x: startX - i * pSR * 2, y: startY});
-  mX = startX; mY = startY; camY = startY - H/2; // camera starts at worm position
+  mX = startX; mY = startY; camY = startY - H/2; camX = startX - W/2; // camera starts at worm position
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
@@ -3838,14 +3838,14 @@ function updatePlayer() {
   if (!viewMode) {
     var tc = head.y - H/2;
     camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
-    // Horizontal camera — clamp so we never scroll past the bin walls
+    // Horizontal camera — follow worm X, clamp to bin walls
     var _b0 = getBinCached();
-    var _tcx = head.x - W/2;
-    var _camXMin = _b0.cx - _b0.bw2 - (W/2 - _b0.bw2);
-    var _camXMax = _b0.cx + _b0.bw2 - W/2 + (W/2 - _b0.bw2);
-    var _camXMin2 = Math.min(0, _b0.cx - _b0.bw2 - 10);
-    var _camXMax2 = Math.max(0, _b0.cx + _b0.bw2 + 10 - W);
-    camX += (Math.max(_camXMin2, Math.min(_camXMax2, _tcx)) - camX) * 0.04;
+    var _binLeft  = _b0.cx - _b0.bw2;   // left wall world X
+    var _binRight = _b0.cx + _b0.bw2;   // right wall world X
+    var _camXTarget = head.x - W/2;     // keep worm centered
+    var _camXMin = _binLeft;             // don't scroll left of bin
+    var _camXMax = Math.max(_binLeft, _binRight - W); // don't scroll right of bin
+    camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
     camX = Math.round(camX);
   }
 }
@@ -7755,6 +7755,7 @@ function respawnPlayer(usedKarma) {
   for (var ri = 0; ri < 20; ri++) pHist.push({x: respawnX, y: respawnY});
   for (var ri = 0; ri < Math.max(4, pSEG); ri++) pSegs.push({x: respawnX - ri * pSR * 2, y: respawnY});
   mX = respawnX; mY = respawnY;
+  camX = respawnX - W/2; // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
   saveSession();
   postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
