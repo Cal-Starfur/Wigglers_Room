@@ -262,8 +262,14 @@ window.addEventListener('message', function(e) {
   if (msg.type === 'setPlayerAvatar' && msg.url) {
     var img = new Image();
     img.crossOrigin = 'anonymous';
-    img.src = msg.url;
     img.onload = function() { playerAvatarImg = img; };
+    img.onerror = function() {
+      // CORS block on styles.redd.it — retry without crossOrigin
+      var img2 = new Image();
+      img2.onload = function() { playerAvatarImg = img2; };
+      img2.src = msg.url;
+    };
+    img.src = msg.url;
   }
 
   // ── setWorldState — authoritative shared world from KV store ──────────────
