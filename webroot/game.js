@@ -7622,6 +7622,10 @@ function hiddenTick() {
 function onTabHidden() {
   if (tabHidden) return;
   tabHidden = true;
+  // Save current state to KV immediately — so the server has the real pGut/pHP
+  // when the player returns. Without this, server KV has stale data and
+  // applyOfflineDrain gets the old healthy gut value, not the drained one.
+  if (!deathScreen && pSegs.length) saveSession();
   if (loopRafId) { cancelAnimationFrame(loopRafId); loopRafId = null; }
   if (!loopIntId) { lastTickMs = performance.now(); loopIntId = setInterval(hiddenTick, 16); }
 }
@@ -7634,10 +7638,14 @@ function onTabVisible() {
   if (!loopRafId) { loopRafId = requestAnimationFrame(loop); }
 }
 
-window.addEventListener('blur',     onTabHidden);
-window.addEventListener('focus',    onTabVisible);
-window.addEventListener('pagehide', onTabHidden);
-window.addEventListener('pageshow', onTabVisible);
+window.addEventListener('blur',        onTabHidden);
+window.addEventListener('focus',       onTabVisible);
+window.addEventListener('pagehide',    onTabHidden);
+window.addEventListener('pageshow',    onTabVisible);
+window.addEventListener('beforeunload', function() {
+  // Save on tab close — ensures KV has current pGut/pHP for offline drain calc
+  if (!deathScreen && pSegs.length) saveSession();
+});
 document.addEventListener('visibilitychange', function() {
   if (document.hidden) { onTabHidden(); } else { onTabVisible(); }
 });
