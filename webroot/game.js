@@ -8396,13 +8396,14 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     postToHost({ type: 'requestPresence' });
     // Set the pending flag so the message handler can kick off setup()
     window._devvitSetupPending = true;
-    // Fallback: if no session arrives within 400ms, start anyway
+    // Fallback: if no session arrives within 2000ms, start anyway.
+    // 400ms was too short — getCurrentUser() + KV reads can take 1-2s on cold load.
     window._devvitSetupTimer = setTimeout(function() {
       if (window._devvitSetupPending) {
         window._devvitSetupPending = false;
         setup(); loop();
       }
-    }, 400);
+    }, 2000);
   } else {
     // Not in an iframe — local dev or standalone. Start immediately.
     setTimeout(function() { setup(); loop(); }, 100);
