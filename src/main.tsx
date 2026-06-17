@@ -287,6 +287,65 @@ Devvit.addCustomPostType({
             } catch (e) {
               console.warn('[main] playerDied save failed:', e);
             }
+
+            // ── Post headstone comment to the thread ───────────────────────
+            try {
+              const cause  = message.cause ?? 'unknown';
+              const karma  = Math.floor(message.karma ?? 0);
+              const gen    = message.generation ?? 0;
+              const eaten  = Math.min(300000, Math.max(0, message.pEaten ?? 0));
+              const uname  = message.username ?? username;
+
+              // Headstone years — map pEaten (0–300,000) onto 1920–1999
+              const BIRTH_YEAR = 1920;
+              const deathYear  = BIRTH_YEAR + Math.round((eaten / 300000) * 79);
+              const yearsStr   = eaten < 1000
+                ? `${BIRTH_YEAR} — ${BIRTH_YEAR}`
+                : `${BIRTH_YEAR} — ${deathYear}`;
+
+              // Generation roman numeral + ordinal life label
+              const roman    = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+              const genLabel = roman[gen] ?? String(gen + 1);
+              const lifeOrd  = gen === 0 ? '1st' : gen === 1 ? '2nd' : gen === 2 ? '3rd' : `${gen + 1}th`;
+
+              // Cause → epitaph
+              const causeLines: Record<string, [string, string]> = {
+                starvation:   ['Starved to death',                '"The gut ran dry."'],
+                hunger:       ['Slowly starved',                  '"Hunger wore the worm down."'],
+                constipation: ['Died of constipation',           '"Too full to move."'],
+                acidity:      ['Dissolved by acid',              '"Too many acidic scraps."'],
+                flood:        ['Drowned in the flood',           '"The worm tea overflowed."'],
+                drowning:     ['Suffocated in waterlogged soil', '"The compost was too saturated."'],
+                natural:      ['Completed a full natural life',  '"A life well lived in the bin."'],
+              };
+              const [causeText, epitaph] = causeLines[cause] ?? ['HP depleted', '"Something wore the worm down."'];
+
+              const pct      = Math.round((eaten / 300000) * 100);
+              const biteStr  = eaten.toLocaleString();
+
+              const comment =
+`⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛
+
+🪦
+
+**HERE LIES**
+**${uname}'s worm**
+*Gen ${genLabel} · ${lifeOrd} life*
+
+🌱 ${yearsStr} 🌱
+
+*${causeText}*
+*${epitaph}*
+
+☯ **${karma} karma** earned in life
+*Ate ${biteStr} / 300,000 bites · ${pct}% of a full life*
+
+⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛`;
+
+              await context.reddit.submitComment({ id: roomId, text: comment });
+            } catch (commentErr) {
+              console.warn('[main] death headstone comment failed:', commentErr);
+            }
             break;
           }
 
