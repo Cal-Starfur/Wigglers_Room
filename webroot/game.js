@@ -1,3 +1,5 @@
+[Fresh from GitHub: 00bca93]
+
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
@@ -1677,50 +1679,6 @@ function snooSmilePath(ctx, topSvgY, botSvgY, halfWSvg, scale, headCY) {
   ctx.closePath();
 }
 
-// ── Shared Snoo SVG helpers ───────────────────────────────────────────────
-// Used by drawFarmerSnoo, drawSnooDrain, and drawSnoo.
-// Source: Reddit_Icon_FullColor.svg viewBox="0 0 256 256", head ellipse cx=128.1 cy=149.3
-var SNOO_OX = 128.1, SNOO_OY = 149.3;
-
-function snooSvgX(v, scale) { return (v - SNOO_OX) * scale; }
-function snooSvgY(v, scale, headCY) { return (v - SNOO_OY) * scale + (headCY || 0); }
-
-function snooHeadGrad(ctx, gcx, gcy, gr) {
-  var g = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr * 1.4);
-  g.addColorStop(0,    '#FEFFFF');
-  g.addColorStop(0.4,  '#FEFFFF');
-  g.addColorStop(0.51, '#F9FCFC');
-  g.addColorStop(0.62, '#EDF3F5');
-  g.addColorStop(0.72, '#D8E4E8');
-  g.addColorStop(0.8,  '#C8D5DD');
-  g.addColorStop(0.9,  '#FFEBEF');
-  return g;
-}
-
-function snooIrisGrad(ctx, icx, icy, scale) {
-  var g = ctx.createRadialGradient(icx, icy - 3*scale, 0, icx, icy + 2*scale, 17*scale);
-  g.addColorStop(0,    '#FF6600');
-  g.addColorStop(0.5,  '#FF4500');
-  g.addColorStop(0.7,  '#FC4301');
-  g.addColorStop(0.82, '#F43F07');
-  g.addColorStop(0.92, '#E53812');
-  g.addColorStop(1,    '#D4301F');
-  return g;
-}
-
-function snooSmilePath(ctx, topSvgY, botSvgY, halfWSvg, scale, headCY) {
-  var tx  = snooSvgX(128.1, scale);
-  var ty  = snooSvgY(topSvgY, scale, headCY);
-  var hw  = halfWSvg * scale;
-  var dep = (botSvgY - topSvgY) * scale;
-  ctx.beginPath();
-  ctx.moveTo(tx - hw, ty);
-  ctx.lineTo(tx + hw, ty);
-  ctx.bezierCurveTo(tx+hw, ty+dep*0.4, tx+hw*0.80, ty+dep, tx, ty+dep);
-  ctx.bezierCurveTo(tx-hw*0.80, ty+dep, tx-hw, ty+dep*0.4, tx-hw, ty);
-  ctx.closePath();
-}
-
 // ── Farmer Snoo draw function ─────────────────────────────────────────────
 // sx, sy = anchor (torso top). lidAng = lid open angle. buckAng = bucket tip angle.
 function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
@@ -2275,8 +2233,11 @@ function updateSnooDrain() {
       break;
   }
 
-  // Camera eases down to show sump tier and the below-bin space where Snoo stands
-  var drainCamTarget = 3*H + H*0.25 - H * 0.72;
+  // Camera eases so the locked Snoo position sits comfortably in view.
+  // Derived from drainSnooStopY (world-Y) instead of a fixed multiple of H so
+  // the Snoo stays on screen at any canvas height — the old fixed target
+  // (~2.53*H) pushed him off the bottom edge on short / mobile viewports.
+  var drainCamTarget = drainSnooStopY - H * 0.58;
   camY += (drainCamTarget - camY) * 0.06;
   camY = Math.round(camY);
 }
@@ -8426,4 +8387,5 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     setTimeout(function() { setup(); loop(); }, 100);
   }
 })();
+
 
