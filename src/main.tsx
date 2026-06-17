@@ -450,6 +450,7 @@ Devvit.addCustomPostType({
 Devvit.addMenuItem({
   label: '🪱 Create Wigglers Room',
   location: 'subreddit',
+  forUserType: 'moderator',
   onPress: async (_event: any, context: any) => {
     const { reddit, ui } = context;
     const subreddit = await reddit.getCurrentSubreddit();
