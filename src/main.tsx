@@ -437,12 +437,14 @@ Devvit.addCustomPostType({
       },
     });
 
-    // ── Mount webview immediately — loading screen runs inside index.html ──────
-    // webView.mount() takes over the full screen. The Blocks render function
-    // must still return valid JSX, so we return a transparent placeholder.
-    webView.mount();
+    // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
-      <vstack width="100%" height="100%" backgroundColor="#1a1008" />
+      <zstack width="100%" height="100%" alignment="center middle">
+        <image url="loading-bg.gif" imageWidth={512} imageHeight={512} resizeMode="cover" />
+        <vstack width="100%" height="100%" alignment="center middle">
+          <image url="icon.png" imageWidth={220} imageHeight={220} resizeMode="fit" onPress={() => webView.mount()} />
+        </vstack>
+      </zstack>
     );
   },
 });
