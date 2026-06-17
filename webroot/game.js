@@ -3141,6 +3141,18 @@ function setup() {
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
 
+  // DEBUG: show what applyOfflineDrain computed on every load — remove before launch
+  if (saved && saved.ts) {
+    var _dbgElapsed = ((Date.now() - saved.ts) / 1000).toFixed(1);
+    var _dbgMsg = 'OFFLINE DEBUG | away=' + _dbgElapsed + 's'
+      + ' | saved.pGut=' + (saved.pGut || 0).toFixed(2)
+      + ' | pGut now=' + pGut.toFixed(2)
+      + ' | pHP now=' + pHP.toFixed(3)
+      + ' | pSleeping=' + pSleeping;
+    console.log(_dbgMsg);
+    window._offlineDrainMsg = _dbgMsg;
+  }
+
   // ── Offline death check — must run here, not in updatePlayer() ───────────
   // applyOfflineDrain() can set pHP = 0. We can't rely on updatePlayer() to
   // catch it because: (a) setup() already reset deathScreen = false above,
