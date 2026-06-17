@@ -205,7 +205,15 @@ function postToHost(msg) {
 window.addEventListener('message', function(e) {
   // Accept messages from the Reddit host or same origin (localhost dev)
   if (e.origin !== 'https://www.reddit.com' && e.origin !== window.location.origin) return;
+
+  // Devvit wraps webView.postMessage() in { type: 'devvit-message', data: { message: ... } }
+  // Unwrap it so all handlers below can work with the raw message object.
   var msg = e.data;
+  if (msg && msg.type === 'devvit-message' && msg.data && msg.data.message) {
+    msg = typeof msg.data.message === 'string'
+      ? JSON.parse(msg.data.message)
+      : msg.data.message;
+  }
   if (!msg || !msg.type) return;
 
   // ── setUsername — Reddit auth identity ───────────────────────────────────
