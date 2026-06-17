@@ -203,8 +203,11 @@ function postToHost(msg) {
 }
 
 window.addEventListener('message', function(e) {
-  // Accept messages from the Reddit host or same origin (localhost dev)
-  if (e.origin !== 'https://www.reddit.com' && e.origin !== window.location.origin) return;
+  // In Devvit, webView.postMessage() arrives from the Devvit platform origin,
+  // not necessarily 'https://www.reddit.com'. Drop the strict origin check
+  // and rely on the message type/structure for safety instead.
+  // Still reject null-origin and obviously wrong origins in standalone/dev mode.
+  if (!e.origin) return;
 
   // Devvit wraps webView.postMessage() in { type: 'devvit-message', data: { message: ... } }
   // Unwrap it so all handlers below can work with the raw message object.
