@@ -138,40 +138,12 @@ Devvit.addCustomPostType({
             // Send username first so game knows who it is
             webView.postMessage({ type: MSG_SET_USERNAME, username });
 
-            // Fetch avatar — try every known Devvit user field
+            // Fetch avatar — use Devvit's getSnoovatarUrl() method
             try {
               if (user) {
-                const u = user as any;
-                // Log all keys so we can see what Devvit actually provides
-                const userKeys = Object.keys(u).join(',');
-                console.log('[main] user keys:', userKeys);
-                console.log('[main] user JSON:', JSON.stringify({
-                  iconImg: u.iconImg,
-                  icon_img: u.icon_img,
-                  snoovatarUrl: u.snoovatarUrl,
-                  snoovatar_img: u.snoovatar_img,
-                  profileIconUrl: u.profileIconUrl,
-                  profile_icon_url: u.profile_icon_url,
-                  avatar: u.avatar,
-                  avatarUrl: u.avatarUrl,
-                }));
-
-                const avatarUrl: string = (
-                  u.snoovatarUrl ||
-                  u.iconImg ||
-                  u.profileIconUrl ||
-                  u.icon_img ||
-                  u.snoovatar_img ||
-                  u.avatar ||
-                  u.avatarUrl ||
-                  ''
-                ).replace(/&amp;/g, '&');
-
+                const avatarUrl = await user.getSnoovatarUrl();
                 if (avatarUrl) {
-                  console.log('[main] Sending avatar:', avatarUrl.slice(0, 80));
                   webView.postMessage({ type: MSG_SET_PLAYER_AVATAR, url: avatarUrl });
-                } else {
-                  console.warn('[main] No avatar URL found on user object');
                 }
               }
             } catch (e) {
