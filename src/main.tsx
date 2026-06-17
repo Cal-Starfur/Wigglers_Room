@@ -180,9 +180,18 @@ Devvit.addCustomPostType({
               console.warn('[main] World state load failed:', e);
             }
 
-            // NOTE: pending worm queue is intentionally NOT sent here.
-            // The game client sends MSG_REQUEST_PRESENCE separately which handles queue delivery.
-            // Sending it here too caused queue entries (no x/y) to be treated as live players.
+            // Load and send pending worm queue
+            try {
+              const queueRaw = await kvStore.get(KV_QUEUE(roomId));
+              const queue = queueRaw
+                ? (typeof queueRaw === 'string' ? JSON.parse(queueRaw) : queueRaw)
+                : [];
+              if (queue.length > 0) {
+                webView.postMessage({ type: MSG_SET_PRESENCE, players: queue });
+              }
+            } catch (e) {
+              console.warn('[main] Queue load failed:', e);
+            }
             break;
           }
 
@@ -246,17 +255,13 @@ Devvit.addCustomPostType({
               if (!username) break;
               await realtime.send(RT_PRESENCE(roomId), JSON.stringify({
                 type: MSG_SET_PRESENCE,
-                players: [{
+                player: {
                   username,
-                  x:          message.x,
-                  y:          message.y,
-                  sleeping:   message.sleeping,
-                  size:       message.size,
-                  segs:       message.segs       ?? null,
-                  generation: message.generation ?? 0,
-                  hp:         message.hp         ?? 1,
-                  gut:        message.gut         ?? 1,
-                }],
+                  x:       message.x,
+                  y:       message.y,
+                  sleeping: message.sleeping,
+                  size:    message.size,
+                },
               }));
             } catch (e) {
               // Presence updates are fire-and-forget — don't warn on failure
@@ -372,8 +377,11 @@ Devvit.addCustomPostType({
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
-      <vstack width="100%" height="100%" alignment="center middle" backgroundColor="#3B1F0A">
-        <image url="icon.png" imageWidth={512} imageHeight={512} resizeMode="fit" onPress={() => webView.mount()} />
+      <vstack width="100%" height="100%" alignment="center middle" gap="medium">
+        <image url="icon.png" imageWidth={80} imageHeight={80} />
+        <text size="xlarge" weight="bold">Wigglers Room 🪱</text>
+        <text size="small" color="neutral-content-weak">A living worm bin on Reddit</text>
+        <button onPress={() => webView.mount()} appearance="primary">Enter the Bin</button>
       </vstack>
     );
   },
