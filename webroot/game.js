@@ -3009,31 +3009,33 @@ setInterval(function() {
   });
 }, 2000);
 
-// Fixed logical resolution — iPad landscape aspect.
-// Canvas always renders at 1024px wide. Height fills the viewport.
-// On mobile the canvas is wider than the screen — camX scrolls it.
-// On iPad/desktop it fits naturally.
-var LOGICAL_W = 1024;
+// Logical resolution locked to iPad Pro 11" landscape — 1194×834.
+// This is the canonical game size. All screens scale to fit this.
+// On mobile: scales down and camX pans if needed.
+// On iPad Pro 11" landscape: renders 1:1, perfect fit.
+var LOGICAL_W = 1194;
+var LOGICAL_H = 834;
 
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
   if (!W || !H) {
-    W = LOGICAL_W;       // always 1024 logical pixels wide
-    H = vh;              // full viewport height
+    W = LOGICAL_W;
+    H = LOGICAL_H;
     canvas.width  = W;
     canvas.height = H;
   }
-  // Scale height to always fill the viewport vertically.
-  // Width may overflow on narrow screens — that's intentional, camX scrolls it.
+  // Scale to fill viewport height, let width overflow on narrow screens.
   var scale = vh / H;
+  var offsetX = 0;
+  var offsetY = 0;
   canvas.style.transform = 'scale(' + scale + ')';
   canvas.style.transformOrigin = 'top left';
-  canvas.style.left = '0px';
-  canvas.style.top  = '0px';
+  canvas.style.left = offsetX + 'px';
+  canvas.style.top  = offsetY + 'px';
   window._canvasScale   = scale;
-  window._canvasOffsetX = 0;
-  window._canvasOffsetY = 0;
+  window._canvasOffsetX = offsetX;
+  window._canvasOffsetY = offsetY;
   window._canvasScaleX  = scale;
   window._canvasScaleY  = scale;
 }
