@@ -260,13 +260,21 @@ window.addEventListener('message', function(e) {
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
   // { type: 'setPlayerAvatar', url: 'https://...' }
   if (msg.type === 'setPlayerAvatar' && msg.url) {
+    console.log('[game] setPlayerAvatar received:', msg.url.slice(0, 80));
     var img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = function() { playerAvatarImg = img; };
+    img.onload = function() {
+      playerAvatarImg = img;
+      console.log('[game] avatar loaded OK, size:', img.width, 'x', img.height);
+    };
     img.onerror = function() {
-      // CORS block on styles.redd.it — retry without crossOrigin
+      console.warn('[game] avatar CORS error, retrying without crossOrigin...');
       var img2 = new Image();
-      img2.onload = function() { playerAvatarImg = img2; };
+      img2.onload = function() {
+        playerAvatarImg = img2;
+        console.log('[game] avatar loaded (no-cors), size:', img2.width, 'x', img2.height);
+      };
+      img2.onerror = function() { console.error('[game] avatar failed both ways'); };
       img2.src = msg.url;
     };
     img.src = msg.url;
