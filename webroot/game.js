@@ -688,8 +688,11 @@ var UNCLAIMED_GUT_BURN = 3.0;     // multiplier on gut drain when worm uncontrol
 var OFFLINE_DRAIN_PER_SEC_Q = 1 / (24 * 3600); // local copy for queue calc
 
 function getBin() {
-  var bw = Math.min(W * 0.88, W - 32);
-  return { cx: W/2, bw: bw, bw2: bw/2, lw: Math.floor(W * 0.04) };
+  // Bin is always sized to WORLD_W, centered in the world.
+  // camX scrolls the world within the viewport (W).
+  var bw = Math.min(WORLD_W * 0.88, WORLD_W - 32);
+  var cx = WORLD_W / 2;
+  return { cx: cx, bw: bw, bw2: bw/2, lw: Math.floor(WORLD_W * 0.04) };
 }
 // Cached bin geometry — recomputed only when W changes (resizeCanvas).
 // Hot paths call _bin instead of getBin() to avoid per-frame recalculation.
@@ -2831,7 +2834,7 @@ function initPlayer(saved) {
   var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
   for (var i = 0; i < 20; i++) pHist.push({x: startX, y: startY});
   for (var i = 0; i < Math.max(4, Math.min(8, pSEG)); i++) pSegs.push({x: startX - i * pSR * 2, y: startY});
-  mX = startX; mY = startY; camY = startY - H/2; camX = startX - W/2; // camera starts at worm position
+  mX = startX; mY = startY; camY = startY - H/2; camX = startX - W/2; // snap camera to worm at spawn
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
@@ -3009,35 +3012,29 @@ setInterval(function() {
   });
 }, 2000);
 
-// Logical resolution locked to iPad Pro 11" landscape — 1194×834.
-// This is the canonical game size. All screens scale to fit this.
-// On mobile: scales down and camX pans if needed.
-// On iPad Pro 11" landscape: renders 1:1, perfect fit.
-var LOGICAL_W = 1194;
-var LOGICAL_H = 834;
+// W = viewport width (what the player sees).
+// WORLD_W = full world/bin width — always iPad Pro 11" landscape width.
+// On iPad: W ≈ WORLD_W, no horizontal scroll. On mobile: W < WORLD_W, camX pans.
+var WORLD_W = 1194;
 
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
   if (!W || !H) {
-    W = LOGICAL_W;
-    H = LOGICAL_H;
+    W = vw;   // logical viewport width — varies per device
+    H = vh;   // logical viewport height
     canvas.width  = W;
     canvas.height = H;
   }
-  // Scale to fill viewport height, let width overflow on narrow screens.
-  var scale = vh / H;
-  var offsetX = 0;
-  var offsetY = 0;
-  canvas.style.transform = 'scale(' + scale + ')';
-  canvas.style.transformOrigin = 'top left';
-  canvas.style.left = offsetX + 'px';
-  canvas.style.top  = offsetY + 'px';
-  window._canvasScale   = scale;
-  window._canvasOffsetX = offsetX;
-  window._canvasOffsetY = offsetY;
-  window._canvasScaleX  = scale;
-  window._canvasScaleY  = scale;
+  // No CSS scaling needed — canvas always matches the viewport exactly.
+  canvas.style.transform = '';
+  canvas.style.left = '0px';
+  canvas.style.top  = '0px';
+  window._canvasScale   = 1;
+  window._canvasOffsetX = 0;
+  window._canvasOffsetY = 0;
+  window._canvasScaleX  = 1;
+  window._canvasScaleY  = 1;
 }
 
 function setup() {
@@ -3838,13 +3835,13 @@ function updatePlayer() {
   if (!viewMode) {
     var tc = head.y - H/2;
     camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
-    // Horizontal camera — follow worm X, clamp to bin walls
+    // Horizontal camera — follow worm, scroll world within viewport
     var _b0 = getBinCached();
-    var _binLeft  = _b0.cx - _b0.bw2;   // left wall world X
-    var _binRight = _b0.cx + _b0.bw2;   // right wall world X
-    var _camXTarget = head.x - W/2;     // keep worm centered
-    var _camXMin = _binLeft;             // don't scroll left of bin
-    var _camXMax = Math.max(_binLeft, _binRight - W); // don't scroll right of bin
+    var _binLeft  = _b0.cx - _b0.bw2;
+    var _binRight = _b0.cx + _b0.bw2;
+    var _camXTarget = head.x - W/2;          // center worm in viewport
+    var _camXMin = _binLeft - 20;             // left clamp: don't show beyond bin left
+    var _camXMax = Math.max(_camXMin, _binRight - W + 20); // right clamp
     camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
     camX = Math.round(camX);
   }
@@ -7755,7 +7752,7 @@ function respawnPlayer(usedKarma) {
   for (var ri = 0; ri < 20; ri++) pHist.push({x: respawnX, y: respawnY});
   for (var ri = 0; ri < Math.max(4, pSEG); ri++) pSegs.push({x: respawnX - ri * pSR * 2, y: respawnY});
   mX = respawnX; mY = respawnY;
-  camX = respawnX - W/2; // snap camera to worm on respawn
+  camX = Math.max(0, respawnX - W/2); // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
   saveSession();
   postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
