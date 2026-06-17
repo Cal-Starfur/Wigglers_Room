@@ -260,15 +260,34 @@ window.addEventListener('message', function(e) {
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
   // { type: 'setPlayerAvatar', url: 'https://...' }
   if (msg.type === 'setPlayerAvatar' && msg.url) {
-    var img = new Image();
-    img.onload = function() { playerAvatarImg = img; };
-    img.onerror = function() {
-      // Retry without crossOrigin (snoovatar CDN doesn't need it)
-      var img2 = new Image();
-      img2.onload = function() { playerAvatarImg = img2; };
-      img2.src = msg.url;
+    var _loadAvatar = function(src) {
+      var img = new Image();
+      img.onload = function() {
+        // Pre-render to offscreen canvas at display size — eliminates per-frame scaling flicker
+        var _ah = 44;
+        var _aw = Math.round(_ah * (img.naturalWidth / img.naturalHeight));
+        var _oc = document.createElement('canvas');
+        _oc.width = _aw; _oc.height = _ah;
+        var _ox = _oc.getContext('2d');
+        _ox.imageSmoothingEnabled = true;
+        _ox.imageSmoothingQuality = 'high';
+        _ox.drawImage(img, 0, 0, _aw, _ah);
+        playerAvatarImg = _oc;
+      };
+      img.onerror = function() {
+        if (img.crossOrigin) {
+          // Retry without crossOrigin
+          _loadAvatar._noCors = true;
+          var img2 = new Image();
+          img2.onload = img.onload;
+          img2.onerror = function() {};
+          img2.src = src;
+        }
+      };
+      if (!_loadAvatar._noCors) img.crossOrigin = 'anonymous';
+      img.src = src;
     };
-    img.src = msg.url;
+    _loadAvatar(msg.url);
   }
 
   // ── setWorldState — authoritative shared world from KV store ──────────────
@@ -6490,18 +6509,11 @@ function draw() {
     if (avatarMode === 0) {
       // Snoo mode — use real Reddit avatar if loaded, else drawn Snoo
       if (playerAvatarImg) {
-        // Snoovatar is a full-body portrait PNG — draw it upright above the worm
-        // Scale to ~44px tall, keep aspect ratio, center on worm head X, feet at worm head
-        var _iw = playerAvatarImg.naturalWidth  || playerAvatarImg.width  || 1;
-        var _ih = playerAvatarImg.naturalHeight || playerAvatarImg.height || 1;
-        var _ah = 44;                         // target height in px
-        var _aw = _ah * (_iw / _ih);          // maintain aspect ratio
-        var _ax = pSegs[0].x - _aw / 2;      // center horizontally
-        var _ay = phsy - pSR - _ah - 2;       // feet sit just above worm head
-        ctx.save();
-        ctx.globalAlpha = 0.95;
-        ctx.drawImage(playerAvatarImg, _ax, _ay, _aw, _ah);
-        ctx.restore();
+        // Snoovatar — pre-rendered offscreen canvas, draw 1:1, no scaling flicker
+        var _aw = playerAvatarImg.width, _ah = playerAvatarImg.height;
+        var _ax = pSegs[0].x - _aw / 2;   // center on worm head
+        var _ay = phsy - pSR - _ah - 2;    // feet just above worm head
+        ctx.drawImage(playerAvatarImg, _ax, _ay);
       } else {
         drawSnoo(ctx, pSegs[0].x, phsy - pSR - 20, 1.4, pSleeping);
       }
