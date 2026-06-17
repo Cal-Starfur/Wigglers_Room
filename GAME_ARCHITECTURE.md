@@ -1,6 +1,6 @@
 # GAME_ARCHITECTURE.md
 *Source of truth. Updated every session. Never delete entries — only add or mark deprecated.*
-*Last updated: 2026-06-16 Session 12 — ARC-1 live world is #1 priority*
+*Last updated: 2026-06-16 Session 13 — Sleep contract documented, ARC-1A coded*
 
 ---
 
@@ -10,6 +10,28 @@
 - **Game Type:** Persistent multiplayer worm bin composting simulation
 - **Current Version:** V20
 - **Stable Baseline:** Session 11 — SHA `34e941e` (game.js) / `fda110c` (main.tsx) — 8,397 lines
+- **ARC-1A branch:** Session 13 — game.js modified locally, not yet pushed
+
+---
+
+## Core Design Philosophy
+
+### The Sleep Contract
+The worm bin is a living world. It runs whether you are watching or not.
+
+**The only safe way to leave is to put your worm to sleep in deep compost (tier 2).**
+
+- Sleeping worm: HP recovers slowly, gut digests at reduced rate. Safe indefinitely.
+- Any other state when you close the tab:
+  - **Starving** → HP bleeds to 0 → worm dies
+  - **Constipated** → HP bleeds to 0 → worm dies  
+  - **Acid buildup > 0.5** → HP bleeds to 0 → worm dies
+  - **Flooding active** → worm drowns → worm dies
+- Death posts a Reddit comment: username, cause, karma, generation
+- Death opens a queue slot for the next waiting worm
+- Offline death is real and intentional — `MAX_OFFLINE_DRAIN` cap removed
+
+This is not a bug to fix. It is the game.
 
 ---
 
@@ -52,7 +74,7 @@ Devvit KV Store                     Canvas 2D rendering
 Realtime broadcast                  Physics / game loop
 Anti-cheat clamping                 Player input
 Reddit auth + avatar                localStorage fallback (dev mode)
-Weather fetch (planned)
+Scheduler jobs (ARC-1B, planned)
           │   postMessage bridge    │
           └────────────────────────┘
 ```
@@ -84,15 +106,15 @@ Y increases downward. `H` = viewport height in pixels.
 
 ```
 y = 0    .. H*0.5   Sky / outside bin (above lid)
-y = H*0.5           Lid — world Y = H*0.5, screen Y = H*0.5 - camY
+y = H*0.5           Lid — world Y = H*0.5
 y = H*0.5 .. H      Tier 0 — Scraps & blanket (food, no tunnels)
 y = H    .. 2H      Tier 1 — Active soil (main worm zone)
-y = 2H   .. 3H      Tier 2 — Castings/compost (tunnels live here)
+y = 2H   .. 3H      Tier 2 — Castings/compost (tunnels live here) ← SLEEP ZONE
 y = 3H              cSurf() — compost floor / sump top
 y = 3H+             Sump — worm tea reservoir
 ```
 
-camY starts at 0. Default view shows lid at screen centre.
+**Sleep zone:** Tier 2 (deep compost) is where sleeping is safe. Surface sleeping (tiers 0–1) provides no protection.
 
 ---
 
@@ -109,18 +131,38 @@ var floodActive = false;   // server-authoritative
 
 ### Player Worm
 ```js
-var pHP = 1.0;             // health 0–1
+var pHP = 1.0;             // health 0–1 — reaches 0 → worm dies, Reddit comment posted
 var pGut = 0;              // current gut fill 0..pGutMax
 var pGutMax = 8;
-var pSR = 4;               // worm radius
+var pSR = 4;               // worm radius — locked at 4
 var pSEG = 4;              // segment count 4–20
 var karma = 0;
 var generation = 0;        // increments on natural death
 var pSegs = [];            // [{x,y}] body — head = index 0
-var pAcid = 0;             // 0–1 acid buildup
-var pSleeping = false;
+var pAcid = 0;             // 0–1 acid buildup — >0.5 causes HP drain
+var pSleeping = false;     // TRUE = safe to leave; FALSE = worm at risk offline
 var playerState = 'playing'; // 'playing'|'dead'|'queued'|'claiming'
 var username = 'u/You';    // set by MSG_SET_USERNAME from Devvit auth
+```
+
+### Offline Drain Constants
+```js
+var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live drain rate exactly
+// MAX_OFFLINE_DRAIN cap REMOVED (was 0.85) — real death is intentional
+// Gen 2+ perk: drain *= 0.85 (−15% offline drain rate)
+```
+
+### Tab-Hidden Loop (ARC-1A — coded, pending deploy)
+```js
+var lastTickMs = 0;    // timestamp of previous tick — for delta-time
+var loopRafId  = null; // rAF handle — cancelled when switching to interval
+var loopIntId  = null; // setInterval handle — cancelled when returning to rAF
+var tabHidden  = false;
+
+// visibilitychange: hidden → clearRaf, startInterval(16ms)
+//                  visible → clearInterval, startRaf
+// hiddenTick() runs at 16ms — full-speed physics, no draw()
+// dt = elapsed / (1000/60) — all drain rates multiplied by dt
 ```
 
 ### Multiplayer
@@ -128,36 +170,64 @@ var username = 'u/You';    // set by MSG_SET_USERNAME from Devvit auth
 var otherPlayers = [];
 // { username, x, y, targetX, targetY, sleeping, size, segs, generation, hp, gut,
 //   avatarUrl, avatarImg, hist, lastSeen }
-// Pruned after 90s. Real worm rendering — gen color, real HP, real segs when available.
+// Pruned after 90s. Real worm rendering — gen color, real HP, real segs.
 // Queue entries (no x/y) filtered out in setPresence handler.
 ```
-
----
-
-## Naming Conventions
-
-- `camelCase` — all functions and variables
-- `ALL_CAPS_SNAKE_CASE` — constants
-- `p` prefix — player vars (`pHP`, `pGut`, `pSEG`, `pSR`, `pPath`, `pSegs`)
-- `MSG_` prefix — all message type constants (both files)
-- `KV_` / `RT_` — KV key and Realtime channel helpers (main.tsx only)
-- No `_underscore` prefix on functions — except `_svgX`/`_svgY` in `drawSnooDrain` (FIX-2 pending)
-- Segment boundary = `null` in `pPath`
 
 ---
 
 ## Game Loop (Monolithic — Do Not Split)
 
 ```
-loop() each frame:
+startLoop() → requestAnimationFrame(loop)
+
+loop() each frame (tab visible):
+  physicsTick(dt)    — all physics + player updates
+  viewMode camera
+  draw()             — full canvas render
+
+hiddenTick() each 16ms (tab hidden):
+  physicsTick(dt)    — all physics + player updates
+  [no draw()]        — canvas not visible
+
+physicsTick(dt):
+  updateCocoons()
   updateSnoo()
   updateSnooDrain()
-  updatePlayer()       — movement, vitals, eating, drains, death
-  updatePhysics()      — drops, tea, flood, pPath decay
-  draw()               — sky, bin bg, tiers, tunnels, scraps, sump, lid, worms, HUD
+  updatePendingWorms()
+  updatePlayer(dt)   — movement, vitals, eating, drains, death
+  updatePhysics(dt)  — drops, tea, flood, pPath decay
 ```
 
-⚠️ **Session 5 split these into subfunctions — broke movement on Reddit. Root cause never isolated. Do not attempt again.**
+⚠️ **Session 5 split draw/updatePhysics/updatePlayer into subfunctions — broke movement on Reddit. Root cause never isolated. Do not attempt again.**
+
+⚠️ **ARC-1A added physicsTick(dt) as a shared wrapper — this is NOT a split of the internal functions. updatePlayer() and updatePhysics() remain monolithic internally.**
+
+---
+
+## Death System
+
+```
+pHP → 0 (any cause: starvation, constipation, acid, flood, natural)
+  ↓
+updatePlayer() fires deathScreen = true
+  ↓
+postToHost({ type: 'playerDied', cause, karma, generation, pEaten, username })
+  ↓
+main.tsx posts Reddit comment: "u/username's worm died of [cause] after earning [karma] karma (gen [N])"
+  ↓
+main.tsx opens queue slot, broadcasts pendingWorm to waiting players
+```
+
+**Offline path (tab never opened):**
+```
+applyOfflineDrain() on next load:
+  - Computes elapsed seconds since last save
+  - Drains pGut proportionally (no cap)
+  - If pGut → 0, bleeds pHP
+  - If pHP → 0, death screen fires on first updatePlayer() tick
+  - Reddit comment posts via same postToHost() path
+```
 
 ---
 
@@ -175,36 +245,13 @@ loop() each frame:
 
 ---
 
-## 🔥 Live World Architecture — ARC-1 (TOP PRIORITY)
-
-**Cal's directive:** The world must run 24/7 independent of any player's open tab. This is the #1 goal. No gameplay bugs are worked on until ARC-1A + ARC-1B are shipped.
-
-### Current problem
-The game loop runs entirely on `requestAnimationFrame`. Browsers pause/throttle rAF when a tab is hidden. Result: worm physics, HP drain, gut digestion, and all world physics freeze when the player switches tabs. There is no server-side simulation.
-
-### Three-phase plan
+## 🔥 Live World Architecture — ARC-1 Plan
 
 | Phase | What | File(s) | Status |
 |---|---|---|---|
-| ARC-1A | Delta-time refactor + `visibilitychange` fallback to `setInterval` | game.js | ⏳ Next |
+| ARC-1A | Delta-time + `visibilitychange` fallback to `setInterval(16ms)` | game.js | ⏳ Coded, push next |
 | ARC-1B | Devvit Scheduler server-side world tick every 60s | main.tsx | ⏳ After ARC-1A |
-| ARC-1C | Per-worm offline death via server (replaces applyOfflineDrain cap) | main.tsx + game.js | ⏳ After ARC-1B |
-
-### ARC-1A — Client-side tab fallback
-When tab hidden: switch from rAF → `setInterval(tick, 500)` (~2fps equivalent).  
-Requires: `var dt = (now - lastTickMs) / (1000/60)` multiplier on ALL drain rates in `updatePlayer()` and `updatePhysics()`.  
-`draw()` is skipped when tab is hidden (no canvas needed). Only physics ticks.  
-On tab restore: clear interval, restart rAF.
-
-### ARC-1B — Devvit Scheduler
-Add `scheduler: true` to `Devvit.configure()`.  
-Register `Devvit.addSchedulerJob('world-tick', ...)` — runs every 60s on Devvit servers.  
-Job: read `world:{postId}` from KV → advance tLvl/pooled/castingEnrichment/scrapsLevel → write back → broadcast via `RT_WORLD`.  
-World state evolves with zero players open.  
-**Race condition rule:** Server tick wins. Client `MSG_WORLD_UPDATE` is still accepted but next server broadcast overwrites client drift.
-
-### ARC-1C — Server-side worm drain
-Once ARC-1B exists: scheduler job also reads `worm:{username}` KVs, applies hunger drain formula, marks dead if HP → 0, posts Reddit comment via `MSG_PLAYER_DIED`. Removes `MAX_OFFLINE_DRAIN = 0.85` cap in `game.js`.
+| ARC-1C | Per-worm offline death fully server-authoritative | main.tsx + game.js | ⏳ After ARC-1B |
 
 ---
 
@@ -220,6 +267,18 @@ Once ARC-1B exists: scheduler job also reads `worm:{username}` KVs, applies hung
 
 ---
 
+## Naming Conventions
+
+- `camelCase` — all functions and variables
+- `ALL_CAPS_SNAKE_CASE` — constants
+- `p` prefix — player vars (`pHP`, `pGut`, `pSEG`, `pSR`, `pPath`, `pSegs`)
+- `MSG_` prefix — all message type constants (both files)
+- `KV_` / `RT_` — KV key and Realtime channel helpers (main.tsx only)
+- No `_underscore` prefix on functions — except `_svgX`/`_svgY` in `drawSnooDrain` (FIX-2 pending)
+- Segment boundary = `null` in `pPath`
+
+---
+
 ## Changelog
 
 ### V20 Session 1 — 2026-06-15
@@ -229,7 +288,6 @@ First GitHub pull + full automated audit. 228 issues found.
 - 5 duplicate Snoo helpers extracted to module-level
 - 6 rogue `localStorage.setItem` calls routed through `saveSession()`
 - 24 `MSG_*` constants added. All raw strings replaced.
-- Lines: 8,401 → 8,432
 
 ### V20 Session 3 — 2026-06-15
 - `var starvingHUD` shadow rename
@@ -237,38 +295,39 @@ First GitHub pull + full automated audit. 228 issues found.
 - Lines: 8,432 → 8,371. Commit: `77c4fef`
 
 ### V20 Session 4 — 2026-06-16
-- 11 `_underscore` → camelCase renames attempted
-- `otherPlayers` overhaul attempted
-- **BROKE MOVEMENT on Reddit** — missed call sites on `_dropSegStart`/`_dropSegEnd`; `try/catch` swallowed the `ReferenceError` silently
+- 11 `_underscore` → camelCase renames attempted — **BROKE MOVEMENT on Reddit**
 - Reverted
 
 ### V20 Session 5 — 2026-06-16
-- Split `draw()`, `updatePhysics()`, `updatePlayer()` into subfunctions
-- **BROKE MOVEMENT on Reddit** — root cause never fully isolated
+- Split `draw()`, `updatePhysics()`, `updatePlayer()` into subfunctions — **BROKE MOVEMENT on Reddit**
 - Reverted
 
 ### V20 Sessions 6–10 — 2026-06-16
-- Various fixes attempted then reverted
+- Various fixes attempted/reverted
 - Session 10: confirmed Session 3 (`bab2e46`) as stable baseline
-- Session 10: solved deploy friction — `devvit install wigglers_room_dev` added, no more manual portal click
+- Solved deploy friction — `devvit install wigglers_room_dev` added
 
 ### V20 Session 11 — 2026-06-16
-- **Root cause of Session 4 movement bug found:** `_dropSegStart`/`_dropSegEnd` had 7 call sites — missed 2 during rename. Error caught silently by `try/catch` in game loop.
-- All 11 underscore renames applied with full call-site audit — confirmed clean
-- `otherPlayers` real worm rendering restored: gen color, real segs, real HP
-- `main.tsx` bug fixed: `player:{}` → `players:[{}]` — other worms were invisible since launch
-- Queue entries filtered from `otherPlayers` (had no x/y, rendered as phantom worms at origin)
-- **LESSON LEARNED:** Always hard-refresh Reddit after deploy. Stale cache caused phantom "duplicate bin" bug chase — code was fine, Reddit was serving old version.
+- Root cause of Session 4 movement bug found: 7 call sites on `_dropSegStart`/`_dropSegEnd`, missed 2
+- All 11 underscore renames applied cleanly with full call-site audit
+- `otherPlayers` real worm rendering restored
+- `main.tsx` bug: `player:{}` → `players:[{}]` — other worms invisible since launch fixed
+- Queue entries filtered from `otherPlayers`
 - Commits: `34e941e` (game.js) / `fda110c` (main.tsx) — 8,397 lines
 
 ### V20 Session 12 — 2026-06-16
-**Current baseline: `34e941e` / `fda110c` — 8,397 lines — confirmed working on Reddit**
-- Hard-refresh confirmed: no duplicate bin, movement works
-- Full live-world architecture audit conducted (Session 12)
-- **ARC-1 identified as #1 priority** — world freezes when tab is hidden (rAF stops in background tabs)
-- Three-phase plan documented: ARC-1A (client fallback) → ARC-1B (Devvit Scheduler) → ARC-1C (server worm drain)
-- All gameplay bug fixes deferred until ARC-1A + ARC-1B shipped
-- WIGGLERS_AUDIT_V20.md + GAME_ARCHITECTURE.md updated with full ARC-1 spec
+- Hard-refresh confirmed clean: no duplicate bin, movement works
+- ARC-1 identified as #1 priority — world freezes when tab hidden
+- Three-phase plan documented: ARC-1A → ARC-1B → ARC-1C
+
+### V20 Session 13 — 2026-06-16
+- **Design intent clarified:** sleep contract documented as core mechanic
+- **ARC-1A coded in game.js** (not yet pushed):
+  - `physicsTick(dt)`, `hiddenTick()`, `startLoop()`, `visibilitychange` listener
+  - All drain rates multiplied by `dt` — full-speed physics when hidden
+  - `setInterval(16ms)` fallback — NOT throttled to 2fps (would break sleep contract)
+- **`MAX_OFFLINE_DRAIN` cap removed** — real offline death is intentional
+- Both .md docs rewritten to reflect correct design goals
+- Lines: 8,397 → 8,459
 
 *Wigglers Room V20 — Cal-Starfur/Wigglers_Room*
-
