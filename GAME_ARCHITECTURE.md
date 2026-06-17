@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-17 after Session 14 (post-V60 revert + fixes)
+> Last updated: 2026-06-17 end of day (Session 14)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -8,98 +8,119 @@
 
 ```
 Wigglers_Room/
-├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) — ~415 lines
+├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~420 lines
 ├── webroot/
-│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8410 lines
-│   ├── index.html            — Webview shell (loads game.js + style.css)
-│   └── style.css             — Minimal reset + canvas positioning
+│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8420 lines
+│   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
+│   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
-│   └── icon.png              — 512px worm icon (also used as loading screen button)
+│   ├── icon.png              — 500x500 worm icon (preview card tap target)
+│   └── preview-bg.png        — 512x512 trash wallpaper (all 27 items, rendered from game code)
 ├── .github/workflows/
-│   └── deploy.yml            — Build check (tsc + devvit build) on every push — NO auto-upload
+│   └── deploy.yml            — tsc + devvit build check on every push — NO auto-upload
 ├── GAME_ARCHITECTURE.md      — This file
-├── WIGGLERS_AUDIT_V20.md     — Bug log and priority queue
+├── WIGGLERS_AUDIT_V20.md     — Bug log, lessons learned, priority queue
 ├── devvit.yaml               — App config (redis, realtime, redditAPI, kvStore)
 └── README.md
 ```
 
-### Deploy Workflow (CRITICAL)
-- CI only runs `tsc + devvit build` — does NOT run `devvit upload`
-- Upload is always manual: `git pull` in Codespace first, then `devvit upload`
-- **Always `git pull` before `devvit upload`** or files will be missing
+### Deploy Workflow (CRITICAL — read every session)
+```
+1. Claude pushes to GitHub
+2. git pull in Codespace        ← ALWAYS before upload
+3. devvit upload --just-do-it
+4. devvit install <subreddit>
+5. Create new post to test      ← old posts go read-only after re-upload
+```
+
+**Never skip step 2.** Divergent branches = broken upload.
+**Set once:** `git config pull.rebase true` — prevents MERGE_MSG dialog.
 
 ---
 
 ## Architecture: Two-Process Split
 
 ```
-Reddit Host (main.tsx)              Webview (game.js)
-────────────────────────────        ─────────────────────────────
-Devvit KV Store                     Canvas 2D rendering
-Realtime broadcast                  Physics / game loop
-Anti-cheat clamping                 Player input
-Reddit auth + avatar                localStorage fallback (dev mode)
-Death comment posting               bornTs / diedTs tracking
-Weather fetch (Open-Meteo)
-          │   postMessage bridge    │
-          └───────────────────────-─┘
+Reddit Host (main.tsx)                 Webview iframe (game.js)
+──────────────────────────────         ────────────────────────────
+Devvit KV Store (persistence)          Canvas 2D rendering
+Realtime broadcast (multiplayer)       Physics / game loop (requestAnimationFrame)
+Anti-cheat session clamping            Player input (touch/mouse/keyboard)
+Reddit auth + avatar fetch             localStorage fallback (dev/standalone mode)
+Death headstone comment posting        bornTs / diedTs tracking
+Weather fetch (Open-Meteo API)         saveSession() → postToHost on state change
+Post creation (mod-only)
+        │         postMessage bridge          │
+        └──────────────────────────────────--─┘
 ```
 
 ---
 
-## Message Constants
+## Preview Card (Devvit Blocks)
 
-All `MSG_*` constants are defined in `main.tsx`. **game.js currently uses raw strings** (S2 dedup work was reverted — re-applying is a known priority).
+Shown before user taps to enter. Lives entirely in `main.tsx` render function.
+
+```tsx
+<zstack width="100%" height="100%" alignment="center middle">
+  <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
+  <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit"
+         onPress={() => webView.mount()} />
+</zstack>
+```
+
+**Rules:**
+- Devvit Blocks = declarative native UI. No HTML, CSS, canvas, z-index.
+- `<zstack>` for layering. `<image onPress>` for tap targets.
+- `webView.mount()` only inside `onPress` — never in render body (fires every render).
+- Assets must be PNG. GIF and JPG rejected by Devvit uploader.
+- Push binary assets via direct GitHub API with `base64.b64encode(bytes)` — sync script corrupts binaries.
+
+---
+
+## Message Constants (main.tsx)
 
 **Host → Webview:** `MSG_SET_USERNAME`, `MSG_SET_SESSION`, `MSG_SET_WEATHER`, `MSG_SET_PLAYER_AVATAR`, `MSG_SET_WORLD_STATE`, `MSG_SET_PRESENCE`, `MSG_SET_FLOOD`, `MSG_WORM_CLAIMED`
 
 **Webview → Host:** `MSG_READY`, `MSG_SAVE_SESSION`, `MSG_WORLD_UPDATE`, `MSG_PRESENCE_UPDATE`, `MSG_PLAYER_DIED`, `MSG_REQUEST_PRESENCE`, `MSG_CLAIM_WORM`, `MSG_JOIN_QUEUE`, `MSG_FLOOD_ACK`, `MSG_UNCLAIMED_WORM_DIED`
 
+⚠️ **game.js uses raw strings** — `MSG_*` constants not yet applied (S2 work reverted). Re-applying is P2.
+
 ---
 
-## KV Store Keys
+## KV Store Keys (main.tsx)
 
 ```
-worm:{username}     — per-player session (position, HP, gut, cocoons, score, karma, bornTs)
-world:{postId}      — shared bin state (tLvl, pooled, castingEnrichment, scrapsLevel)
-cocoons:{postId}    — all players' cocoons in this bin
-week:{postId}       — { weekStartTs, pot, contributors }  ← DEFINED but NOT YET READ/SENT TO CLIENT
-queue:{postId}      — pending worm queue
+KV_WORM_SESSION(username)  — per-player session (position, HP, gut, karma, bornTs, weekStartTs...)
+KV_WORLD(postId)           — shared bin state (tLvl, pooled, castingEnrichment, scrapsLevel)
+KV_COCOONS(postId)         — all players' cocoons
+KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← DEFINED, NEVER READ (ISS-2)
+KV_QUEUE(postId)           — pending worm queue
 ```
 
 ---
 
 ## Session Persistence
 
-`saveSession()` dual-writes localStorage + postToHost on every meaningful state change.
-Fields saved: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pSleeping, pSleepX, pSleepY, cocoons, lastCocoonLaid, weekStartTs, weeklyContrib, emergencyKarmaPot, emergencyRequested, tLvl, pooled, castingEnrichment, drops`
+`saveSession()` dual-writes localStorage + `postToHost(MSG_SAVE_SESSION)` on every meaningful change.
 
-`bornTs` — timestamp when the current worm life began. Stamped on:
-- Baby respawn (`respawnPlayer` with `pEaten = 0`)
-- First load if no saved session (falls back to `Date.now()` in `loadSession`)
+Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pSleeping, pSleepX, pSleepY, cocoons, lastCocoonLaid, weekStartTs, weeklyContrib, emergencyKarmaPot, emergencyRequested, tLvl, pooled, castingEnrichment, drops`
+
+**`bornTs`** — real wall-clock ms when the current worm life began. Stamped on:
+- `respawnPlayer()` — baby respawn or first ever spawn
+- `loadSession()` fallback — if no saved session, defaults to `Date.now()`
 
 ---
 
 ## World Layout — The Bin
 
-Y increases downward. `H` = tier height in pixels (from `resizeCanvas()`).
+Y increases downward. `H` = canvas height / number of tiers.
 
 ```
-y = 0   ..  H     Tier 0 — Scraps & blanket  (food, no tunnels)
-y = H   ..  2H    Tier 1 — Active soil        (main worm zone)
-y = 2H  ..  3H    Tier 2 — Castings/compost   (tunnels live here)
-y = 3H            cSurf() — compost floor / sump top
-y = 3H+ ..        Sump   — worm tea reservoir (tLvl drives fill height)
-```
-
-**Geometry helpers:**
-```js
-getTier(wy)       // 0–3
-cSurf()           // 3*H
-tSurf()           // liquid surface Y in sump
-inCompost(wy)     // true if 2H <= wy < 3H
-compostDepth(wy)  // 0.0 at compost top, 1.0 at bottom
-getBinCached()    // {cx, bw, bw2, lw} — cached bin dims
+y = 0   .. H     Tier 0 — Scraps & blanket   (food drops here)
+y = H   .. 2H    Tier 1 — Active soil         (main worm zone)
+y = 2H  .. 3H    Tier 2 — Castings/compost    (tunnel zone)
+y = 3H           cSurf() — compost floor / sump top
+y = 3H+          Sump    — worm tea reservoir (tLvl 0–1)
 ```
 
 ---
@@ -109,81 +130,36 @@ getBinCached()    // {cx, bw, bw2, lw} — cached bin dims
 ### World / Shared
 ```js
 var tLvl = 0;              // 0–1 sump tea fill — shared all players
-var pooled = 0;            // 0–1 compost moisture saturation
+var pooled = 0;            // 0–1 compost moisture
 var castingEnrichment = 0; // 0–1 compost richness
-var scrapsLevel = 1.0;     // 0–1 trash density in tier 0
-var floodActive = false;   // flood event — server-authoritative
+var scrapsLevel = 1.0;     // 0–1 trash density tier 0
+var floodActive = false;   // server-authoritative flood event
 ```
 
 ### Player Worm
 ```js
 var pHP = 1.0;             // health 0–1
-var pGut = 0;              // current gut fill 0..pGutMax
-var pGutMax = 8;           // always 4 currently (pSR locked at 4)
-var pEaten = 0;            // lifetime items eaten (0–300,000)
-var pSR = 4;               // worm radius — LOCKED at 4
-var pSEG = 4;              // segment count 4–20 max
+var pGut = 0;              // gut fill 0..pGutMax
+var pEaten = 0;            // lifetime bites (0–300,000 = full life)
+var pSEG = 4;              // segment count 4–20
 var karma = 0;
 var generation = 0;        // increments on natural death
-var bornTs = 0;            // wall-clock ms when this worm life began
-var pSegs = [];            // [{x,y}] body — head = index 0
-var pHist = [];            // position history for segment trailing
-var pAcid = 0;             // 0–1 acid buildup
-var pSleeping = false;
-var playerState = 'playing'; // 'playing'|'dead'|'queued'|'claiming'
+var bornTs = 0;            // ms when this worm life began
 var deathCause = '';       // 'starvation'|'hunger'|'constipation'|'acidity'|'flood'|'drowning'|'natural'
+var playerState = 'playing'; // 'playing'|'dead'|'queued'|'claiming'
 ```
-
-### Tunnel System
-```js
-var pPath = [];      // flat array: path point objects + null segment separators
-var MAX_PPATH = 2000;
-```
-
-**pPath point properties:** `x, y, r, ti, alpha, clog, clogTs, sumpExit, junctionTarget`
-
----
-
-## Drain System
-
-### Weekly Drain (Snoo Cinematic)
-Fires when `nowW - weekStartTs >= WEEK_DRAIN_MS` inside `updatePhysics()`.
-Triggers `triggerSnooDrain()` → Snoo slides in, opens valve, tea drains, slides out.
-
-**⚠️ KNOWN BUG:** `weekStartTs` is per-player in session KV, not shared world state.
-`KV_WEEK` exists but is never read or sent to the game. Weekly drain only fires for
-players who have been logged in for 7 real days — not a true shared world event.
-Fix planned: read `KV_WEEK` on load, include `weekStartTs` in `setWorldState`.
-
-### Drain Cinematic State Machine
-Phases: `floatin → pause → openvalve → draining → closevalve → floatout`
-
-**Camera:** Snapped to `drainSnooStopY - H * 0.58` instantly at trigger time (`triggerSnooDrain`).
-`STOP_Y` is hardcoded to `H * 0.58` in screen space — never re-derived from world coords during scene.
-This prevents the push-down/push-up jitter caused by per-frame camera easing.
-
-### Down/Up Drain (Player Tap)
-- Down: worm digs tier 2 → sump (y=3H), holds still → stamps `sumpExit:true`
-- Up: requires `_sumpHadDown`, returns to sump → digs upward → +100 karma bonus
-
-**⚠️ NAMING GOTCHA:** `sumpExit: true` marks y=3H for BOTH drain types.
-Down-drain: `!nextAfterExit` → tea flows to sump.
-Up-drain: `nextAfterExit` → sets `d.upDrain = true`.
 
 ---
 
 ## Death System
 
-When `pHP <= 0`, game sends `MSG_PLAYER_DIED` to host with:
-```js
-{ type, cause, karma, generation, pEaten, username, bornTs, diedTs }
-```
+Game sends `MSG_PLAYER_DIED` with `{ cause, karma, generation, pEaten, username, bornTs, diedTs }`.
 
 `main.tsx` handler:
-1. Saves `pHP = 0` + `deathCause` to `KV_WORM_SESSION`
-2. Posts a headstone comment to the Reddit thread via `context.reddit.submitComment()`
+1. Saves `pHP=0` + `deathCause` to `KV_WORM_SESSION`
+2. Posts headstone comment to Reddit thread via `context.reddit.submitComment({ id: roomId, text })`
 
-**Headstone format:**
+**Headstone format** (`M/YY` real dates from `bornTs`/`diedTs`):
 ```
 ⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛
 🪦
@@ -198,66 +174,84 @@ Ate 11,240 / 300,000 bites · 4% of a full life
 ⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛
 ```
 
-Dates are real wall-clock: `bornTs` (when worm spawned) → `diedTs` (moment of death), formatted as `M/YY`.
+---
+
+## Drain System
+
+### Weekly Drain (Snoo Cinematic)
+Fires in `updatePhysics()` when `nowW - weekStartTs >= WEEK_DRAIN_MS`.
+
+**Camera fix (S14):** Snapped instantly to `drainSnooStopY - H * 0.58` at trigger time in `triggerSnooDrain()`.
+`STOP_Y = H * 0.58` hardcoded in screen space inside `updateSnooDrain()` — never re-derived from world coords.
+This prevents push-down/push-up jitter from per-frame camera easing lag.
+
+**⚠️ ISS-1:** `weekStartTs` is per-player session, not shared. `KV_WEEK` never read/sent. Weekly drain
+only fires for players who've been logged in 7 real days — not a true shared world event. Fix is P1.
+
+### Drain Cinematic Phases
+`floatin → pause → openvalve → draining → closevalve → floatout`
+Durations: `{floatin:55, pause:30, openvalve:35, draining:0, closevalve:30, floatout:60}` frames
 
 ---
 
-## Loading Screen
+## Game Loop Structure (current — monolith state post-revert)
 
-`main.tsx` preview block (shown before webview mounts):
-```tsx
-<vstack width="100%" height="100%" alignment="center middle" backgroundColor="#3B1F0A">
-  <image url="icon.png" imageWidth={512} imageHeight={512} resizeMode="fit"
-         onPress={() => webView.mount()} />
-</vstack>
-```
-Full-bleed soil-brown background. The 512px worm icon IS the button — tap anywhere to enter.
-
----
-
-## Game Loop
-
-`draw()` — 2,022 lines (monolith — S5 split was reverted, re-split is a known priority)
-`updatePhysics()` — 815 lines (monolith)
-`updatePlayer()` — 646 lines (monolith)
+| Function | Lines | Notes |
+|----------|-------|-------|
+| `draw()` | 2,022 | Monolith — S5 split reverted, P2 to re-split |
+| `updatePhysics()` | 815 | Monolith — S5 split reverted |
+| `updatePlayer()` | 646 | Monolith — S5 split reverted |
+| `drawTrashChunk()` | 698 | 27 trash item renderers — used for wallpaper too |
 
 ---
 
 ## Naming Conventions
 
-- `camelCase` for all functions and variables
-- `ALL_CAPS_SNAKE_CASE` for constants
-- `p` prefix = player vars (`pHP`, `pGut`, `pSEG`, `pSR`, `pPath`, `pSegs`)
-- `MSG_` prefix = all message type constants (main.tsx only — game.js uses raw strings, known debt)
-- `KV_` / `RT_` prefix = KV key and Realtime channel helpers (main.tsx only)
-- Segment boundary = `null` in `pPath`
+- `camelCase` — all functions and variables
+- `ALL_CAPS` — constants
+- `p` prefix — player vars (`pHP`, `pGut`, `pSEG`, `pEaten`, `pPath`, `pSegs`)
+- `MSG_` / `KV_` / `RT_` — message/key/channel constants (main.tsx only)
+- `null` in `pPath` — segment boundary marker
 
-**⚠️ _underscore functions still present** (17 functions — S4 rename was reverted):
-`_cancelLP, _clickInBtn, _dBoot, _dropSegEnd, _dropSegStart, _findPendingWorm, _mkIrisGrad, _mkSnooGrad, _refreshBin, _registerPendingWorm, _smilePath, _snooEaseIn, _snooEaseOut, _svgX, _svgY, _toCanvas, _touchInBtn`
+⚠️ 17 `_underscore` functions still present (S4 rename reverted — P2)
 
 ---
 
 ## Multiplayer
 
 ```js
-var otherPlayers = [];
-// Shape: {username, x, y, targetX, targetY, sleeping, size, segs, generation, hp, gut, avatarUrl, avatarImg, hist, lastSeen}
+var otherPlayers = []; 
+// {username, x, y, targetX, targetY, sleeping, size, segs, generation,
+//  hp, gut, avatarUrl, avatarImg, hist, lastSeen}
 // Pruned after 90s without presence update
 ```
 
 ---
 
-## Debug Keys (requires DEBUG_MODE = true via localStorage)
+## Debug Keys (requires `DEBUG_MODE = true` via localStorage `'wigglers_debug' = '1'`)
 
 | Key | Action |
 |-----|--------|
-| `` ` `` | Open debug password prompt |
-| T | Trigger drain cinematic (sets tLvl=0.8) |
+| `` ` `` | Open debug password prompt (`wigglers2025`) |
+| T | Trigger drain cinematic |
 | W | Trigger feed cinematic |
 | G | Trigger emergency cinematic |
-| K | Force natural death (pEaten = 300,000) |
+| K | Force natural death |
 | F | Force flood |
 | D | Force clogged drain flood |
 | A | Toggle acid at 0.8 |
 | `]` / `[` | Increment / decrement generation |
 | Shift+C | Wipe session and reload |
+
+---
+
+## Asset Generation
+
+`preview-bg.png` was generated by:
+1. Extracting `drawTrashChunk()` verbatim from `game.js`
+2. Writing an HTML page that places all 27 items in a deterministic grid-with-jitter layout
+3. Rendering via Playwright + Chromium headless (`playwright.sync_api`)
+4. Capturing canvas as `toDataURL('image/png')`
+5. Pushing raw bytes via GitHub API `PUT /contents` with `base64.b64encode(bytes)`
+
+Regenerate whenever trash item visuals change in game.
