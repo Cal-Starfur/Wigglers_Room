@@ -2139,10 +2139,13 @@ function triggerSnooDrain() {
   // Lock Snoo's standing position at trigger time so camY drift can't move him mid-scene
   var _b    = getBin();
   var _SC   = H * 0.16;
-  var _bsy  = 3*H + H*0.25 - camY;
-  var _gY   = _bsy + 80;
-  drainSnooStopX = _b.cx - _SC * 0.127;                              // screen X (bin never scrolls horizontally)
-  drainSnooStopY = (_gY - _SC*0.225 - _SC*0.270 - _SC*0.058 + 100) + camY;  // store as world-Y
+  // Snoo stands just below the drain tap (world-Y = 3H + H*0.25).
+  // torso-top = tap_worldY - bodyH - legH - bootH*0.5  so his feet land at tap level.
+  // The old formula used a raw _gY+100 offset which buried him ~150px below the bin
+  // floor at every canvas size — invisible on any viewport.
+  var _tapWorldY = 3*H + H*0.25;
+  drainSnooStopX = _b.cx - _SC * 0.127;
+  drainSnooStopY = _tapWorldY - _SC*0.270 - _SC*0.225 - _SC*0.058 * 0.5;  // world-Y, feet at tap
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2233,11 +2236,9 @@ function updateSnooDrain() {
       break;
   }
 
-  // Camera eases so the locked Snoo position sits comfortably in view.
-  // Derived from drainSnooStopY (world-Y) instead of a fixed multiple of H so
-  // the Snoo stays on screen at any canvas height — the old fixed target
-  // (~2.53*H) pushed him off the bottom edge on short / mobile viewports.
-  var drainCamTarget = drainSnooStopY - H * 0.58;
+  // Camera targets the tap world-Y at ~25% down the viewport so both the tap
+  // (top) and Snoo's body (below) are visible together at any canvas height.
+  var drainCamTarget = (3*H + H*0.25) - H * 0.25;
   camY += (drainCamTarget - camY) * 0.06;
   camY = Math.round(camY);
 }
