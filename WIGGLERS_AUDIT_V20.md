@@ -3,7 +3,7 @@
 **Repo:** `Cal-Starfur/Wigglers_Room` (branch: `main`)  
 **Current stable baseline:** Session 11 — SHA `34e941e`, 8,397 lines  
 **Platform:** Devvit / Vanilla Canvas  
-**Deploy:** `devvit upload --just-do-it && devvit install wigglers_room_dev` — via bridge3.js in Codespace. Always hard-refresh Reddit after deploy (close and reopen post).
+**Deploy:** `devvit upload --just-do-it && devvit install wigglers_room_dev` — via bridge3.js in Codespace. Always hard-refresh Reddit after deploy (close and reopen post).\
 
 ---
 
@@ -14,90 +14,89 @@
 
 ---
 
-## 🔥 HIGH PRIORITY — Live World Architecture
+## 🎮 Core Design Intent (Cal's Vision — DO NOT CONTRADICT)
 
-> **Cal's directive (Session 12):** Getting the world to run 24/7 — independent of any player's tab — is the #1 priority. No gameplay bugs are touched until this is solved.
+> The worm bin is a living world. It runs whether you're watching or not.
+> Your worm lives and dies on its own terms. Leaving is a real decision.
 
-### ARC-1 — World Freezes When Tab Is Hidden ⚡ TOP PRIORITY
+### The Sleep Contract
+- **Sleeping in deep compost (tier 2) = the only safe way to leave.**
+- If you log off with a healthy sleeping worm, it rests safely. HP recovers slowly. Gut digests at reduced rate.
+- **If you leave in any other state, your worm keeps dying in real time:**
+  - Starving → HP bleeds to 0
+  - Constipated → HP bleeds to 0
+  - Acid buildup → HP bleeds to 0
+  - Flooding → drowns
+- **Death while offline posts a Reddit comment** referencing the player by username, stating cause of death, karma earned, generation. This opens a queue slot for the next waiting worm.
+- `applyOfflineDrain()` cap of 0.85 has been **removed**. Worms can and do die offline.
+- Gen 2+ perk: −15% offline drain rate (slight survival advantage for veteran worms)
 
-**Root cause:** The entire game loop runs inside `requestAnimationFrame`. Browsers throttle rAF to ~1fps or pause it completely when a tab is hidden. There is no `visibilitychange` listener, no fallback timer, no delta-time system. If a player switches tabs, their worm stops receiving physics ticks entirely — no HP drain, no gut digestion, no physics at all.
-
-**Scope of what stops:**
-- `pHP` drain (starvation, acid, flood damage) — all per-frame subtractions
-- `pGut` digestion rate — frame-counted
-- Tunnel decay, poop physics, acid decay, drop simulation — all frame-counted
-- The entire `updatePlayer()` and `updatePhysics()` call chain
-
-**What already survives tab switching (setInterval-based):**
-- `saveSession()` auto-save every 30s — continues ✅
-- `presenceUpdate` broadcast every 2s — continues ✅
-- `applyOfflineDrain()` — runs once on re-open, retroactively, capped at 0.85 ✅
-
-**What does NOT exist yet:**
-- No Devvit `Scheduler` job in `main.tsx`
-- No server-side world simulation of any kind
-- No `visibilitychange` event listener in `game.js`
-- No delta-time system (physics assumes fixed 60fps)
+### The World Runs 24/7
+- World physics (tLvl, pooled, castingEnrichment, scrapsLevel) should evolve continuously, even with zero players online.
+- This is the goal of ARC-1B (Devvit Scheduler). Not yet implemented.
+- Until ARC-1B lands, world state is driven by the last active player's client.
 
 ---
 
-### ARC-1A — Client fix: Tab-hidden fallback loop (Step 1)
+## 🔥 HIGH PRIORITY — Live World Architecture (ARC-1)
 
-**What it does:** When the player hides the tab, switch from `requestAnimationFrame` to a `setInterval` fallback at ~2fps. Physics continues at reduced rate. On tab restore, switch back to rAF.
+### ARC-1A — Tab-hidden physics fallback ✅ CODED, NEEDS DEPLOY
+**What it does:** When player hides/switches tab, browser throttles `requestAnimationFrame` to ~1fps or pauses it entirely. ARC-1A switches to `setInterval(16ms)` so physics keep running at full speed. `draw()` is skipped (no canvas needed). On tab restore, switches back to rAF.
 
-**Files:** `game.js` only  
-**Complexity:** Medium — requires delta-time refactor of `updatePlayer()` drain rates  
-**Risk:** All per-frame drain constants (`pHP -= 0.0003`, digest rates, etc.) are tuned for 60fps. Need `dt` multiplier on every drain to stay equivalent across tick rates.  
-**Approach:**
-1. Add `var lastTickMs = performance.now();` at loop start
-2. Compute `var dt = (now - lastTickMs) / (1000/60);` each tick — normalizes to "how many 60fps frames worth of time passed"
-3. Multiply every drain/rate by `dt` in `updatePlayer()` and `updatePhysics()`
-4. Add `visibilitychange` listener: `hidden → clearRaf, startInterval(500ms)` / `visible → clearInterval, startRaf`
-5. The setInterval tick calls the same `updatePlayer()` + `updatePhysics()` — draw() can be skipped when hidden (no canvas needed)
+**Why full speed matters:** The game design requires that a starving/constipated/acidic worm dies in real time even when the tab is hidden. Slowing physics when hidden would break the core sleep contract — the only way to safely leave is to sleep first.
 
-**Status:** ⏳ NEXT — implement before any other work
+**What changed in game.js:**
+- Added `lastTickMs`, `loopRafId`, `loopIntId`, `tabHidden` vars
+- Added `startLoop()` — canonical entry point, replaces all `loop()` direct calls
+- Added `physicsTick(dt)` — shared physics body used by both rAF and interval paths
+- Added `hiddenTick()` — fires every 16ms when hidden; physics only, no draw
+- Added `visibilitychange` listener — switches between rAF and setInterval
+- All per-frame drain rates multiplied by `dt` (delta-time): pHP bleed, gut digestion, acid decay, castingEnrichment decay, tunnel decay, valve drain
+- `dt` clamped 0.25–4.0 to prevent insta-kill on first tick after resume
+- `MAX_OFFLINE_DRAIN = 0.85` cap **removed** from `applyOfflineDrain()`
+- `applyOfflineDrain()` HP bleed now allows pHP → 0
+
+**Status:** ⏳ Ready to push — needs staging + deploy
 
 ---
 
-### ARC-1B — Server fix: Devvit Scheduler world ticks (Step 2)
+### ARC-1B — Devvit Scheduler server-side world tick
+**What it does:** Add a `Devvit.addSchedulerJob('world-tick', ...)` in `main.tsx` that fires every 60 seconds on Devvit servers. Job reads `world:{postId}` from KV, advances tLvl/pooled/castingEnrichment/scrapsLevel, writes back, broadcasts via Realtime. World evolves 24/7 with zero players open.
 
-**What it does:** Add a `Devvit.addSchedulerJob()` in `main.tsx` that fires every 60 seconds. The job reads world state from KV, advances it (tLvl decay, pooled evaporation, scraps level), writes back, broadcasts via Realtime. The shared world evolves 24/7 with zero players open.
-
-**Files:** `main.tsx` (+ world physics constants need to be mirrored from `game.js`)  
-**Complexity:** High — world physics currently lives only in `game.js`. Need to:
+**Files:** `main.tsx`  
+**Complexity:** High — world physics currently lives only in game.js. Must mirror tick formulas into main.tsx.  
+**Steps:**
 1. Add `scheduler: true` to `Devvit.configure()`
-2. Extract world-tick formulas from `updatePhysics()` into a pure function in `main.tsx`
-3. Register a `Devvit.addSchedulerJob('world-tick', ...)` job
-4. Job reads `world:{postId}`, advances state, writes back, broadcasts `RT_WORLD`
-5. Webview receives Realtime update, applies it to local `tLvl`/`pooled`/`castingEnrichment`
+2. Extract world-tick formulas from `updatePhysics()` into pure function in main.tsx
+3. Register `Devvit.addSchedulerJob('world-tick', ...)` — runs every 60s
+4. Job: read `world:{postId}` → advance state → write back → broadcast `RT_WORLD`
+5. Webview receives Realtime update, applies to local `tLvl`/`pooled`/`castingEnrichment`
 
-**Risk:** World state currently written by the active client. With server ticks, need to handle race conditions — server tick vs client MSG_WORLD_UPDATE arriving at same time. Server wins on world state; client's local version is overwritten by next Realtime broadcast.
+**Race condition rule:** Server tick wins. Client `MSG_WORLD_UPDATE` accepted but overwritten by next server broadcast.
 
-**Status:** ⏳ Backlog — implement after ARC-1A is stable
+**Status:** ⏳ After ARC-1A confirmed working on Reddit
 
 ---
 
-### ARC-1C — Per-worm offline death (Step 3 — builds on ISS-3)
+### ARC-1C — Server-side worm drain + offline death post
+**What it does:** Once ARC-1B exists, scheduler job also reads `worm:{username}` KVs, applies hunger drain formula, marks worm dead if HP → 0, posts Reddit comment via main.tsx Reddit API.
 
-**What it does:** Once ARC-1B exists, the server can also simulate worm hunger drain during absence. Remove `MAX_OFFLINE_DRAIN = 0.85` cap. Server-side job checks worm session KV, applies drain formula, marks worm dead if HP → 0, posts Reddit comment.
-
-**Files:** `main.tsx` + `game.js`  
 **Dependency:** ARC-1B must exist first  
-**Status:** ⏳ Backlog
+**Status:** ⏳ Backlog — blocked on ARC-1B
 
 ---
 
 ## 🔴 Code Quality Fixes (game.js only)
 
 ### FIX-2 — `_svgX` / `_svgY` Still Underscore Named
-**Where:** `drawSnooDrain` — lines 2422–2423  
-**Detail:** Two local shorthands inside `drawSnooDrain` still use `_underscore` prefix. Only underscore functions left in the file. Rename to `svgX` / `svgY` — purely local scope, zero collision risk.  
-**Status:** ⏳ Deferred — do after ARC-1A
+**Where:** `drawSnooDrain` — lines ~2422–2423  
+**Detail:** Two local shorthands inside `drawSnooDrain` still use `_underscore` prefix. Rename to `svgX` / `svgY`.  
+**Status:** ⏳ Deferred — do after ARC-1A confirmed
 
-### FIX-3 — `onload` Dead Code
-**Where:** Line 282  
-**Detail:** `img.onload = function() { playerAvatarImg = img; }` — this is actually live code for avatar loading, NOT dead. Do not delete. Re-examine before touching.  
-**Status:** 🔍 Needs re-examination — may not be a bug
+### FIX-3 — `onload` Line 282
+**Where:** Line ~282  
+**Detail:** `img.onload = function() { playerAvatarImg = img; }` — live code for avatar loading, NOT dead. Do not delete.  
+**Status:** 🔍 Not a bug — leave alone
 
 ---
 
@@ -106,40 +105,32 @@
 > All items below are LOWER PRIORITY than ARC-1A and ARC-1B.
 
 ### ISS-9 — T-Key Drain Cinematic: Snoo Invisible on Mobile / Short Viewports
-**Where:** `updateSnooDrain()` — `drainCamTarget` formula + `drawSnooDrain()` coordinate system  
-**Root cause (suspected):** `drainCamTarget = 3*H + H*0.25 - H*0.72` is a fixed formula that assumes a specific canvas height. On short or mobile viewports, this puts the camera below where Snoo actually renders, so the canvas shows but Snoo is off-screen.  
-**Attempted fix:** Session 12 — changed `drainCamTarget = drainSnooStopY - H*0.58` (derived from Snoo's locked world-Y). Reverted after blank screen report — cause of blank screen not confirmed to be this fix.  
-**What to do next time:**
-1. Add a `DEBUG_MODE` overlay in `updateSnooDrain` that prints `drainSnooStopY`, `camY`, `H`, and `drainCamTarget` on screen
-2. Trigger on device, read the values — confirm whether Snoo is off-screen or not rendering at all
-3. Fix based on actual data, not guesswork  
-**Status:** ⏳ Pinned — do not attempt blind again. Needs debug overlay first.
+**Root cause (suspected):** `drainCamTarget` formula assumes a specific canvas height. On short/mobile viewports, camera ends up below where Snoo renders.  
+**What to do:** Add a `DEBUG_MODE` overlay in `updateSnooDrain` that prints `drainSnooStopY`, `camY`, `H`, `drainCamTarget` on screen. Trigger on device. Fix from actual data, not guesswork.  
+**Status:** ⏳ Pinned — do NOT attempt blind. Debug overlay first.
 
 ### ISS-2 — Remove `drawGenBadge()` from Local Player
-**Where:** Line 6478 — `drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation)`  
-**Cal's decision:** Gen identity shown via worm color. Badge is clutter. Remove the call. Keep the function — used elsewhere.  
-**Status:** ⏳ Deferred — do after ARC-1A
+**Where:** Line ~6478 — `drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation)`  
+**Cal's decision:** Gen identity shown via worm color. Badge is clutter on local player. Remove the call. Keep the function — used for other players.  
+**Status:** ⏳ Deferred
 
 ### ISS-1 — Username Labels Above All Worms
-**Where:** Local player draw (avatarMode === 1 currently shows 'u/You' placeholder). otherPlayers already show username.  
 **Cal's decision:** Show real `u/username` above every worm. In local dev (`username === 'u/You'`) show nothing.  
-**Status:** ⏳ Deferred — do after ARC-1A
+**Status:** ⏳ Deferred
 
 ### ISS-8 — Saturation System
 **Cal's concern:** Draining tea doesn't relieve saturation — disconnected feeling.  
-**What exists:** `pooled` only bleeds via evaporation of stalled drops. `triggerWeeklyDrain()` explicitly does NOT touch `pooled`.  
 **Fixes needed:**
 1. Weekly drain bleeds `pooled`: in `triggerWeeklyDrain()` add `pooled = Math.max(0, pooled - tLvl * 0.3)`
 2. Valve tap bleeds `pooled`: in `closeDrainTap()` add `pooled = Math.max(0, pooled - window._valveDrainedTotal * 0.25)`
 3. Oversaturation warning visual before damage kicks in at `pooled > 0.6`  
-**Status:** ⏳ Deferred — do after ARC-1A
+**Status:** ⏳ Deferred
 
-### ISS-3 — Offline Death + Comment Post
-**Cal's decision:** Worms can die offline. Post a Reddit comment when they do.  
-**What exists:** `applyOfflineDrain()` drains gut but `MAX_OFFLINE_DRAIN = 0.85` hardcap prevents death.  
-**Missing:** Remove cap, simulate acid/constipation offline, `MSG_PLAYER_DIED` → `main.tsx` posts comment.  
-**Note:** This becomes ARC-1C once ARC-1B (server scheduler) exists.  
-**Status:** ⏳ Backlog — blocked on ARC-1B
+### ISS-3 — Offline Death + Reddit Comment (client path)
+**What exists:** `applyOfflineDrain()` now has no cap. pHP can reach 0.  
+**Missing:** When `pHP <= 0` on load (set by `applyOfflineDrain`), the death screen fires and `postToHost({type:'playerDied',...})` triggers — this should already work via the existing death check in `updatePlayer()`. Needs verification on Reddit.  
+**Note:** Full server-side path becomes ARC-1C once ARC-1B exists.  
+**Status:** ⏳ Verify after ARC-1A deploy
 
 ### ISS-4 — Sound / Audio
 **Status:** ⏳ Intentionally deferred — return when live world is stable
@@ -167,7 +158,7 @@
 | `postToHost()` wrapper | ✅ Safe no-op in local dev |
 | `saveSession()` dual-write | ✅ |
 | All message handlers | ✅ Present and wired |
-| `applyOfflineDrain()` base gut drain | ✅ Works, needs expansion (ISS-3/ARC-1C) |
+| `applyOfflineDrain()` base gut drain | ✅ Works — cap now removed, real death possible |
 | Cocoon persistence + server clamps | ✅ |
 | `otherPlayers` real worm rendering | ✅ Real segs, gen color, HP, stale fade — fixed Session 11 |
 | Presence relay `players: [{}]` array shape | ✅ Fixed Session 11 |
@@ -175,7 +166,7 @@
 | Poop enrichment depth bonus | ✅ |
 | Valve + weekly drain mutual exclusion | ✅ |
 | `pooled` shared world state + Realtime sync | ✅ |
-| Soil color blending | ✅ Looks great |
+| Soil color blending | ✅ |
 
 ---
 
@@ -188,10 +179,12 @@
 | — | Dead code (`_refreshBin` etc) | Sess 3 | |
 | — | `MSG_*` constants throughout | Sess 2 | |
 | — | `localStorage` through `saveSession()` | Sess 2 | |
-| — | 11 `_underscore` → camelCase | Sess 11 | Root cause of Sess 4 movement bug was missed call sites — fixed properly this time |
+| — | 11 `_underscore` → camelCase | Sess 11 | Root cause of Sess 4 movement bug was missed call sites — fixed properly |
 | — | `player:{}` → `players:[{}]` in presence relay | Sess 11 | Other worms were invisible since launch |
 | — | Queue entries rendered as worms at (0,0) | Sess 11 | Guard added in `setPresence` handler |
 | — | Auto-deploy via bridge | Sess 10 | `devvit install wigglers_room_dev` — no manual click |
+| — | `MAX_OFFLINE_DRAIN` cap removed | Sess 13 | Real offline death — aligns with sleep contract design |
+| — | ARC-1A delta-time + tab fallback coded | Sess 13 | Full-speed physics when tab hidden — awaiting deploy |
 
 ---
 
@@ -199,9 +192,10 @@
 
 | What | Why |
 |---|---|
-| Split `draw()` / `updatePhysics()` / `updatePlayer()` into subfunctions | Session 5 — caused movement bug on Reddit. Root cause never fully isolated. |
-| Batch multiple renames without grepping every call site first | Session 4 — missed `_dropSegStart`/`_dropSegEnd` call sites, `try/catch` swallowed the error silently |
-| Fix Snoo drain camera blind (without debug overlay) | Session 12 — multiple reverts, blank screen reported, root cause unconfirmed. Always add debug overlay first. |
+| Split `draw()` / `updatePhysics()` / `updatePlayer()` into subfunctions | Session 5 — caused movement bug on Reddit. Root cause never isolated. |
+| Batch multiple renames without grepping every call site first | Session 4 — missed `_dropSegStart`/`_dropSegEnd` call sites, `try/catch` swallowed silently |
+| Fix Snoo drain camera blind (without debug overlay) | Session 12 — multiple reverts, blank screen. Always add debug overlay first. |
+| Slow down physics when tab is hidden | Breaks sleep contract — worms must die at real speed when unsafe |
 
 ---
 
@@ -209,17 +203,16 @@
 
 | # | Task | File(s) | Priority | Status |
 |---|---|---|---|---|
-| ARC-1A | Delta-time + visibilitychange fallback loop | game.js | 🔥 TOP | ⏳ Next |
-| ARC-1B | Devvit Scheduler server-side world tick | main.tsx | 🔥 HIGH | ⏳ After ARC-1A |
+| ARC-1A | Deploy delta-time + visibilitychange fallback | game.js | 🔥 TOP | ⏳ Ready to push |
+| ISS-3 | Verify offline death → Reddit comment fires on load | game.js | 🔥 HIGH | ⏳ Verify after ARC-1A |
+| ARC-1B | Devvit Scheduler server-side world tick | main.tsx | 🔥 HIGH | ⏳ After ARC-1A confirmed |
 | ARC-1C | Per-worm offline death via server | main.tsx + game.js | 🔥 HIGH | ⏳ After ARC-1B |
 | ISS-9 | Snoo drain invisible — debug overlay first | game.js | 🟡 Med | ⏳ Pinned |
 | FIX-2 | Rename `_svgX`/`_svgY` inside `drawSnooDrain` | game.js | 🟢 Low | ⏳ Deferred |
-| FIX-3 | Re-examine `onload` line 282 | game.js | 🟢 Low | 🔍 Deferred |
-| ISS-2 | Remove `drawGenBadge()` call line 6478 | game.js | 🟢 Low | ⏳ Deferred |
+| ISS-2 | Remove `drawGenBadge()` call from local player | game.js | 🟢 Low | ⏳ Deferred |
 | ISS-1 | Fix local player username label | game.js | 🟢 Low | ⏳ Deferred |
 | ISS-8 | Saturation: weekly drain + valve bleed `pooled` | game.js | 🟢 Low | ⏳ Deferred |
-| ISS-3 | Offline death — blocked on ARC-1B | game.js + main.tsx | 🟡 Med | ⏳ Backlog |
 | ISS-5 | Live weather: Open-Meteo | main.tsx + game.js | 🟢 Low | ⏳ Backlog |
 | ISS-7 | Weekly leaderboard pinned comment | main.tsx | 🟢 Low | ⏳ Backlog |
 
-*Wigglers Room V20 — Cal-Starfur/Wigglers_Room — Session 12 — ARC-1 live world is #1 priority*
+*Wigglers Room V20 — Cal-Starfur/Wigglers_Room — Session 13 — ARC-1A coded, sleep contract documented*
