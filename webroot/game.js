@@ -1,3 +1,5 @@
+[Fresh from GitHub: cd3da3c]
+
 
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
@@ -6491,11 +6493,11 @@ function draw() {
         drawSnoo(ctx, pSegs[0].x, phsy - pSR - 20, 1.4, pSleeping);
       }
     } else if (avatarMode === 1) {
-      // Username mode — show "You" until Devvit provides the real username
+      // Username mode — show the player's Reddit username
       ctx.fillStyle = 'rgba(200,240,160,0.9)';
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('u/You', pSegs[0].x, phsy - pSR - 5);
+      ctx.fillText(username, pSegs[0].x, phsy - pSR - 5);
     } else if (avatarMode === 2) {
       // Gen badge mode
       drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation);
@@ -8420,4 +8422,5 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     setTimeout(function() { setup(); loop(); }, 100);
   }
 })();
+
 
