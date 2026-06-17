@@ -7,7 +7,140 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+
+  <!-- ── Loading screen — sits above game canvas, fades when session arrives ── -->
+  <div id="loader">
+    <canvas id="lc"></canvas>
+    <div id="loader-ui">
+      <img id="loader-icon" src="./icon.png" alt="" />
+      <p id="loader-hint">tap to enter the bin</p>
+    </div>
+  </div>
+
+  <!-- ── Game canvas ──────────────────────────────────────────────────────── -->
   <div id="root"><canvas id="c"></canvas></div>
+
+  <!-- ── Falling scraps background — runs before game.js ─────────────────── -->
+  <script>
+  (function() {
+    var lc  = document.getElementById('lc');
+    var ctx = lc.getContext('2d');
+    var W, H, raf, running = true;
+
+    // Scrap types: color pairs [fill, stroke]
+    var SCRAP_TYPES = [
+      { label: 'apple',  cols: ['#c8341a','#8c2010'], r: 7  },
+      { label: 'leaf',   cols: ['#4a7c2a','#2e5018'], r: 6  },
+      { label: 'coffee', cols: ['#5a3010','#3a1c08'], r: 5  },
+      { label: 'eggsh',  cols: ['#d4cfa8','#a09a78'], r: 8  },
+      { label: 'banana', cols: ['#d4b020','#8c7010'], r: 9  },
+      { label: 'soil',   cols: ['#6a3a10','#3a1c06'], r: 4  },
+    ];
+
+    var particles = [];
+
+    function resize() {
+      W = lc.width  = window.innerWidth;
+      H = lc.height = window.innerHeight;
+    }
+
+    function spawn() {
+      var t = SCRAP_TYPES[Math.random() * SCRAP_TYPES.length | 0];
+      particles.push({
+        x:     Math.random() * W,
+        y:     -20,
+        r:     t.r * (0.7 + Math.random() * 0.8),
+        vx:    (Math.random() - 0.5) * 0.6,
+        vy:    0.4 + Math.random() * 1.1,
+        rot:   Math.random() * Math.PI * 2,
+        drot:  (Math.random() - 0.5) * 0.04,
+        alpha: 0.72 + Math.random() * 0.18,
+        fill:  t.cols[0],
+        stroke:t.cols[1],
+        sides: 3 + (Math.random() * 4 | 0), // 3-6 sided irregular chunk
+      });
+    }
+
+    function drawChunk(p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = p.alpha;
+      ctx.beginPath();
+      var n = p.sides;
+      for (var i = 0; i < n; i++) {
+        var angle = (i / n) * Math.PI * 2;
+        var jitter = 0.65 + Math.random() * 0.5; // irregular shape each draw — fine for this
+        var px = Math.cos(angle) * p.r * jitter;
+        var py = Math.sin(angle) * p.r * jitter;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle   = p.fill;
+      ctx.fill();
+      ctx.strokeStyle = p.stroke;
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    var frame = 0;
+    function tick() {
+      if (!running) return;
+      raf = requestAnimationFrame(tick);
+      frame++;
+
+      // Spawn rate — 1 new particle every ~40 frames
+      if (frame % 40 === 0) spawn();
+
+      // Dark soil fill — let particles leave trails like they're settling in
+      ctx.fillStyle = 'rgba(26, 16, 8, 0.18)';
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle soil-layer gradients at bottom (compost pile building up)
+      var gr = ctx.createLinearGradient(0, H * 0.72, 0, H);
+      gr.addColorStop(0,   'rgba(58, 32, 8, 0)');
+      gr.addColorStop(0.5, 'rgba(58, 32, 8, 0.18)');
+      gr.addColorStop(1,   'rgba(26, 12, 4, 0.45)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(0, H * 0.72, W, H * 0.28);
+
+      for (var i = particles.length - 1; i >= 0; i--) {
+        var p = particles[i];
+        p.x   += p.vx;
+        p.y   += p.vy;
+        p.vy  += 0.012; // gentle gravity
+        p.rot += p.drot;
+        // Slow and settle near bottom — compost pile feeling
+        if (p.y > H * 0.75) {
+          p.vy *= 0.90;
+          p.vx *= 0.92;
+          p.drot *= 0.88;
+        }
+        drawChunk(p);
+        // Remove if settled far below screen
+        if (p.y > H + 40) particles.splice(i, 1);
+      }
+    }
+
+    // Boot
+    resize();
+    window.addEventListener('resize', resize);
+    // Pre-seed some particles so screen isn't empty on load
+    for (var i = 0; i < 18; i++) {
+      spawn();
+      particles[particles.length-1].y = Math.random() * H * 0.9;
+    }
+    tick();
+
+    // Expose stop function so game.js can kill the animation when done
+    window._stopLoaderAnim = function() {
+      running = false;
+      cancelAnimationFrame(raf);
+    };
+  })();
+  </script>
+
   <script src="./game.js"></script>
 </body>
 </html>
