@@ -1,6 +1,6 @@
 # GAME_ARCHITECTURE.md
 *Source of truth. Updated every session. Never delete entries — only add or mark deprecated.*
-*Last updated: 2026-06-16 Session 12 reset*
+*Last updated: 2026-06-16 Session 12 — ARC-1 live world is #1 priority*
 
 ---
 
@@ -175,6 +175,39 @@ loop() each frame:
 
 ---
 
+## 🔥 Live World Architecture — ARC-1 (TOP PRIORITY)
+
+**Cal's directive:** The world must run 24/7 independent of any player's open tab. This is the #1 goal. No gameplay bugs are worked on until ARC-1A + ARC-1B are shipped.
+
+### Current problem
+The game loop runs entirely on `requestAnimationFrame`. Browsers pause/throttle rAF when a tab is hidden. Result: worm physics, HP drain, gut digestion, and all world physics freeze when the player switches tabs. There is no server-side simulation.
+
+### Three-phase plan
+
+| Phase | What | File(s) | Status |
+|---|---|---|---|
+| ARC-1A | Delta-time refactor + `visibilitychange` fallback to `setInterval` | game.js | ⏳ Next |
+| ARC-1B | Devvit Scheduler server-side world tick every 60s | main.tsx | ⏳ After ARC-1A |
+| ARC-1C | Per-worm offline death via server (replaces applyOfflineDrain cap) | main.tsx + game.js | ⏳ After ARC-1B |
+
+### ARC-1A — Client-side tab fallback
+When tab hidden: switch from rAF → `setInterval(tick, 500)` (~2fps equivalent).  
+Requires: `var dt = (now - lastTickMs) / (1000/60)` multiplier on ALL drain rates in `updatePlayer()` and `updatePhysics()`.  
+`draw()` is skipped when tab is hidden (no canvas needed). Only physics ticks.  
+On tab restore: clear interval, restart rAF.
+
+### ARC-1B — Devvit Scheduler
+Add `scheduler: true` to `Devvit.configure()`.  
+Register `Devvit.addSchedulerJob('world-tick', ...)` — runs every 60s on Devvit servers.  
+Job: read `world:{postId}` from KV → advance tLvl/pooled/castingEnrichment/scrapsLevel → write back → broadcast via `RT_WORLD`.  
+World state evolves with zero players open.  
+**Race condition rule:** Server tick wins. Client `MSG_WORLD_UPDATE` is still accepted but next server broadcast overwrites client drift.
+
+### ARC-1C — Server-side worm drain
+Once ARC-1B exists: scheduler job also reads `worm:{username}` KVs, applies hunger drain formula, marks dead if HP → 0, posts Reddit comment via `MSG_PLAYER_DIED`. Removes `MAX_OFFLINE_DRAIN = 0.85` cap in `game.js`.
+
+---
+
 ## Safe Editing Protocol
 
 1. Fetch fresh from GitHub via github-sync — never edit from stale context
@@ -228,9 +261,14 @@ First GitHub pull + full automated audit. 228 issues found.
 - **LESSON LEARNED:** Always hard-refresh Reddit after deploy. Stale cache caused phantom "duplicate bin" bug chase — code was fine, Reddit was serving old version.
 - Commits: `34e941e` (game.js) / `fda110c` (main.tsx) — 8,397 lines
 
-### V20 Session 12 — Next
+### V20 Session 12 — 2026-06-16
 **Current baseline: `34e941e` / `fda110c` — 8,397 lines — confirmed working on Reddit**
 - Hard-refresh confirmed: no duplicate bin, movement works
-- Checklist resumes: FIX-2, re-examine FIX-3, ISS-2, ISS-1, ISS-8
+- Full live-world architecture audit conducted (Session 12)
+- **ARC-1 identified as #1 priority** — world freezes when tab is hidden (rAF stops in background tabs)
+- Three-phase plan documented: ARC-1A (client fallback) → ARC-1B (Devvit Scheduler) → ARC-1C (server worm drain)
+- All gameplay bug fixes deferred until ARC-1A + ARC-1B shipped
+- WIGGLERS_AUDIT_V20.md + GAME_ARCHITECTURE.md updated with full ARC-1 spec
 
 *Wigglers Room V20 — Cal-Starfur/Wigglers_Room*
+
