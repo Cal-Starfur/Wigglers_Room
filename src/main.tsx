@@ -438,8 +438,12 @@ Devvit.addCustomPostType({
     });
 
     // ── Mount webview immediately — loading screen runs inside index.html ──────
+    // webView.mount() takes over the full screen. The Blocks render function
+    // must still return valid JSX, so we return a transparent placeholder.
     webView.mount();
-    return webView.render();
+    return (
+      <vstack width="100%" height="100%" backgroundColor="#1a1008" />
+    );
   },
 });
 
