@@ -169,18 +169,13 @@ var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live rate exactly
 var MAX_OFFLINE_DRAIN = 0.85;        // can arrive very hungry but never quite dead offline
 var SESSION_KEY = 'wigglers_session_v2';
 
-// ── Weather system ────────────────────────────────────────────────────────────
-// Nashville, TN defaults — real data injected via setWeather postMessage from Devvit host.
+// ── Weather system — simulated bin environment ───────────────────────────────
+// Values drive evaporation, rain, and humidity gameplay. Drifts slowly over time.
 var weather = {
-  humidity:  0.62,  // Nashville avg ~62% humidity
-  temp:      0.56,  // ~18°C average
-  precip:    0.04,  // moderate precipitation
-  lat:       36.17,
-  lon:       -86.78,
-  locName:   'Nashville, TN',
-  lastFetch: 0
+  humidity:  0.62,
+  temp:      0.56,
+  precip:    0.04,
 };
-var weatherLocationSet = true;
 
 // ── Devvit postMessage bridge ─────────────────────────────────────────────────
 // Handles all inbound messages from the Reddit/Devvit host.
@@ -245,16 +240,6 @@ window.addEventListener('message', function(e) {
       clearTimeout(window._devvitSetupTimer);
       setup(); loop();
     }
-  }
-
-  // ── setWeather — real weather data from Open-Meteo via host ──────────────
-  // { type: 'setWeather', humidity: 0–1, temp: 0–1, precip: 0–1, locName: string }
-  if (msg.type === 'setWeather') {
-    if (msg.humidity != null) weather.humidity = Math.min(1, Math.max(0, msg.humidity));
-    if (msg.temp     != null) weather.temp     = Math.min(1, Math.max(0, msg.temp));
-    if (msg.precip   != null) weather.precip   = Math.min(1, Math.max(0, msg.precip));
-    if (msg.locName)          weather.locName  = msg.locName;
-    weatherLocationSet = true;
   }
 
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
@@ -7124,8 +7109,6 @@ function draw() {
   // Snoo cinematics drawn on top of world, below death screen
   drawSnooCinematic();
   drawSnooDrain();
-  // Weather HUD — small location/conditions readout
-  drawWeatherHUD();
   // Queue system — pending cocoons and spectator HUD
   try { drawPendingWorms(); } catch(e) {}
   drawQueueHUD();
@@ -7333,25 +7316,6 @@ function drawQueueHUD() {
     ctx.fillText('Your worm starved before you arrived...', W/2, _qY-20);
     ctx.restore();
   }
-}
-
-function drawWeatherHUD() {
-  if (!weatherLocationSet) return;
-  var loc = weather.locName ? weather.locName : 'Unknown';
-  var hStr = Math.round(weather.humidity * 100) + '% hum';
-  var tStr = Math.round(weather.temp * 50 - 10) + '°C';
-  var pStr = weather.precip > 0 ? ' 🌧' : '';
-  ctx.textAlign = 'right';
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = '#f0e8b0';
-  ctx.font = '13px sans-serif';
-  ctx.fillText(loc, W - 10, 26);
-  ctx.globalAlpha = 0.65;
-  ctx.fillStyle = '#f0e8b0';
-  ctx.font = '9px sans-serif';
-  ctx.fillText(tStr + '  ' + hStr + pStr, W - 10, 38);
-  ctx.globalAlpha = 1;
-  ctx.textAlign = 'left';
 }
 
 function drawDeathScreen() {
