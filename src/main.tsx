@@ -1,4 +1,3 @@
-
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -142,14 +141,23 @@ Devvit.addCustomPostType({
             // Fetch avatar
             try {
               if (user?.username) {
-                const aboutRes = await fetch(
-                  `https://www.reddit.com/user/${user.username}/about.json`
-                );
-                const aboutData = await aboutRes.json();
-                const avatarUrl = aboutData?.data?.icon_img
-                  || aboutData?.data?.subreddit?.icon_img
-                  || '';
+                // Try Devvit's user object first (most reliable, no extra fetch needed)
+                let avatarUrl: string = (user as any).iconImg || (user as any).icon_img || '';
+
+                // Fallback: fetch from Reddit about.json
+                if (!avatarUrl) {
+                  const aboutRes = await fetch(
+                    `https://www.reddit.com/user/${user.username}/about.json`
+                  );
+                  const aboutData = await aboutRes.json();
+                  avatarUrl = aboutData?.data?.icon_img
+                    || aboutData?.data?.subreddit?.icon_img
+                    || '';
+                }
+
+                // Reddit encodes & as &amp; in icon_img URLs — decode it
                 if (avatarUrl) {
+                  avatarUrl = avatarUrl.replace(/&amp;/g, '&');
                   webView.postMessage({ type: MSG_SET_PLAYER_AVATAR, url: avatarUrl });
                 }
               }
@@ -501,4 +509,5 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
