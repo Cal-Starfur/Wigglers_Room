@@ -2095,6 +2095,10 @@ function triggerSnooDrain() {
   var _gY   = _bsy + 80;
   drainSnooStopX = _b.cx - _SC * 0.127;                              // screen X (bin never scrolls horizontally)
   drainSnooStopY = (_gY - _SC*0.225 - _SC*0.270 - _SC*0.058 + 100) + camY;  // store as world-Y
+  // Snap camera immediately to its drain target — no easing lag, no mid-scene drift.
+  // Without this, the 0.06 ease in updateSnooDrain causes Snoo to appear to
+  // push down during floatin and push up during floatout as camY catches up.
+  camY = Math.round(drainSnooStopY - H * 0.58);
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2104,9 +2108,10 @@ function updateSnooDrain() {
 
   var b       = getBin();
   var SC      = H * 0.16;             // Snoo scale — same constant used at trigger time
-  // Use the position locked at trigger time — prevents camY drift pushing Snoo down mid-scene
+  // Snoo always sits at H*0.58 in screen space — camera was snapped to this at trigger time.
+  // Using screen-space directly avoids any push/drift if camY ever micro-adjusts.
   var STOP_X  = drainSnooStopX;
-  var STOP_Y  = drainSnooStopY - camY;  // world-Y → screen-Y each frame
+  var STOP_Y  = H * 0.58;
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
@@ -2185,12 +2190,8 @@ function updateSnooDrain() {
       break;
   }
 
-  // Camera eases so Snoo's locked world position sits at ~58% of the viewport.
-  // Derived from drainSnooStopY instead of a fixed H multiple — fixes Snoo being
-  // off-screen on short/mobile canvases (Reddit webview H≈400-500px).
-  var drainCamTarget = drainSnooStopY - H * 0.58;
-  camY += (drainCamTarget - camY) * 0.06;
-  camY = Math.round(camY);
+  // Camera was snapped to drainSnooStopY - H*0.58 at trigger time in triggerSnooDrain().
+  // No per-frame easing needed — holding it steady prevents any residual drift.
 }
 
 // ── Draw drain cinematic ──────────────────────────────────────────────────
