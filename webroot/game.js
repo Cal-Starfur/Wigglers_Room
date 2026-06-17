@@ -2418,9 +2418,9 @@ function drawSnooDrain() {
 
   // ── SVG-accurate head ─────────────────────────────────────────────────────
   ctx.save(); ctx.translate(sx, sy);
-  var S2=headR/64;
-  function svgX(v) { return snooSvgX(v, S2); }
-  function svgY(v) { return snooSvgY(v, S2, headCY); }
+  var S2=headR/64, ox=128.1, oy=149.3;
+  function svgX(v) { return (v-ox)*S2; }
+  function svgY(v) { return (v-oy)*S2+headCY; }
   var earR2=29.9*S2, earCY2=svgY(123.7);
   ctx.fillStyle=snooHeadGrad(ctx, svgX(55.4),earCY2,earR2); ctx.beginPath(); ctx.arc(svgX(55.4),earCY2,earR2,0,Math.PI*2); ctx.fill();
   ctx.fillStyle=snooHeadGrad(ctx, svgX(200.6),earCY2,earR2); ctx.beginPath(); ctx.arc(svgX(200.6),earCY2,earR2,0,Math.PI*2); ctx.fill();
