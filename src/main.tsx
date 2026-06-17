@@ -437,12 +437,9 @@ Devvit.addCustomPostType({
       },
     });
 
-    // ── Preview UI (shown before webview mounts) ───────────────────────────
-    return (
-      <zstack width="100%" height="100%" alignment="center middle" backgroundColor="#3B1F0A">
-        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" onPress={() => webView.mount()} />
-      </zstack>
-    );
+    // ── Mount webview immediately — loading screen runs inside index.html ──────
+    webView.mount();
+    return webView.render();
   },
 });
 
