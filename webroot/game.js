@@ -7601,21 +7601,33 @@ function hiddenTick() {
   // No draw() — canvas is not visible, skip the render entirely
 }
 
-// ── ARC-1A: visibilitychange listener ────────────────────────────────────────────────────
+// ── ARC-1A: Tab-hidden detection ─────────────────────────────────────────────────────────
+// Devvit runs the game inside an iframe. document.visibilitychange does NOT fire inside
+// iframes when the parent tab is hidden — only the top-level document gets that event.
+// window blur/focus DO fire inside iframes and are the reliable signal here.
+// pagehide/pageshow added as backup for mobile Safari and bfcache scenarios.
+
+function onTabHidden() {
+  if (tabHidden) return;
+  tabHidden = true;
+  if (loopRafId) { cancelAnimationFrame(loopRafId); loopRafId = null; }
+  if (!loopIntId) { lastTickMs = performance.now(); loopIntId = setInterval(hiddenTick, 16); }
+}
+
+function onTabVisible() {
+  if (!tabHidden) return;
+  tabHidden = false;
+  if (loopIntId) { clearInterval(loopIntId); loopIntId = null; }
+  lastTickMs = performance.now();
+  if (!loopRafId) { loopRafId = requestAnimationFrame(loop); }
+}
+
+window.addEventListener('blur',     onTabHidden);
+window.addEventListener('focus',    onTabVisible);
+window.addEventListener('pagehide', onTabHidden);
+window.addEventListener('pageshow', onTabVisible);
 document.addEventListener('visibilitychange', function() {
-  if (document.hidden) {
-    // Tab hidden — stop rAF, start full-speed interval so physics keep running
-    tabHidden = true;
-    if (loopRafId) { cancelAnimationFrame(loopRafId); loopRafId = null; }
-    if (!loopIntId) { lastTickMs = performance.now(); loopIntId = setInterval(hiddenTick, 16); }
-  } else {
-    // Tab restored — stop interval, resume rAF
-    tabHidden = false;
-    if (loopIntId) { clearInterval(loopIntId); loopIntId = null; }
-    // Reset lastTickMs — prevents a massive dt spike on first visible frame
-    lastTickMs = performance.now();
-    if (!loopRafId) { loopRafId = requestAnimationFrame(loop); }
-  }
+  if (document.hidden) { onTabHidden(); } else { onTabVisible(); }
 });
 function showErr(msg) {
   if (!window._lastErr || window._lastErr !== msg) {
