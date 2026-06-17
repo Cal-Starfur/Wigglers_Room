@@ -142,3 +142,70 @@ All reverted in the V60 wipe. Safe, non-breaking, apply in order:
 | GIF/JPG rejected by Devvit asset uploader | S14 |
 | webView.render() doesn't exist | S14 |
 | Auto-mounting webview broke UX | S14 |
+
+---
+
+## Session 14 — Post-Lunch (2026-06-17 afternoon)
+
+### Commits Shipped
+| SHA | Change |
+|-----|--------|
+| `eb25d3b` | Multiplayer attempt 1 — BROKE all rooms (crashed render) |
+| `c663232` | REVERT — restored working state |
+| `eb25d3b` | Multiplayer attempt 2 — fixed RT_ channel names, added useChannel subs, fixed player→players |
+| `83aa0b3` | (earlier bad attempt — reverted) |
+| `5b7548b` | Increased startup fallback timeout 400ms → 2000ms |
+| `4b0ac87` | Added Devvit message envelope unwrap in game.js |
+| `b7089f4` | Removed strict origin check (www.reddit.com was wrong) |
+
+### What's Working
+- Multiplayer channels wired up — `useChannel` subscriptions for presence, world, flood
+- `player` → `players: []` array fix in presenceUpdate broadcast
+- RT_ channel names use underscores not colons (Devvit requirement)
+
+### ISS-10 — u/You instead of real username (OPEN — P1 next session)
+
+**Symptom:** Game always shows `u/You` instead of the player's real Reddit username.
+
+**What we tried:**
+1. Increased fallback timeout 400ms → 2000ms — no effect
+2. Added Devvit envelope unwrap (`devvit-message` → inner message) — no effect  
+3. Removed strict origin check (`www.reddit.com`) — no effect
+
+**Current diagnosis — still unconfirmed:**
+The `MSG_SET_USERNAME` message may never be reaching the game's `window.addEventListener('message')` handler. Three possible reasons still to investigate:
+
+1. **Wrong envelope structure** — we assumed `{ type: 'devvit-message', data: { message: ... } }` but the actual structure from `webView.postMessage()` in this Devvit version may differ. Need to add `console.log(JSON.stringify(e.data))` at the very top of the listener (before any filtering) and read the Codespace logs to see raw payloads.
+
+2. **`postToHost` direction confusion** — `postToHost` uses `window.parent.postMessage` but Devvit webview may require `window.top.postMessage` or a specific Devvit bridge function. If `postToHost` is sending to the wrong frame, the host never receives `ready` and never sends `setUsername`.
+
+3. **`ready` message never received by host** — if game.js sends `ready` before the Devvit webview bridge is fully initialised, the message is lost and the `MSG_READY` handler in main.tsx never fires — so `getCurrentUser()` is never called and no username is ever sent.
+
+**Next session investigation plan:**
+```javascript
+// Add at very top of window.addEventListener('message', ...) in game.js:
+console.log('[msg]', JSON.stringify({origin: e.origin, type: e.data?.type, keys: Object.keys(e.data||{})}));
+
+// Add at very top of postToHost() in game.js:
+console.log('[postToHost]', JSON.stringify(msg));
+```
+Then check Codespace logs after opening the game. This will tell us:
+- Whether ANY messages are arriving from the host
+- What origin they're coming from
+- Whether `ready` is being sent and received
+
+---
+
+## Devvit Platform Lessons Learned — UPDATED
+
+### Realtime / useChannel (NEW — learned this session)
+- ✅ **`useChannel` names must be `[a-zA-Z0-9_]` only** — colons throw immediately, crashing the entire render. `presence:${postId}` → `presence_${safeId(postId)}`
+- ✅ **`useChannel` is the subscription mechanism** — `realtime.send()` publishes but nothing receives unless `useChannel` + `.subscribe()` is called on every viewer's render instance
+- ✅ **Declare `useChannel` after `useWebView`** — hooks must run in consistent order; channels that reference `webView` need it in scope
+- ✅ **`channel.send()` vs `realtime.send()`** — `useChannel` has its own `.send()` method; `realtime.send()` uses a different internal channel format
+- ✅ **`presenceUpdate` sends `player: {}` but game expects `players: []`** — was silently dropped; fixed to `players: [{ ... }]`
+
+### Message Bridge (NEW — partially understood)
+- ✅ **Devvit wraps `webView.postMessage()` in an envelope** — structure: `{ type: 'devvit-message', data: { message: ... } }` — game.js must unwrap before reading `.type`
+- ⚠️ **Origin of host→webview messages is NOT `https://www.reddit.com`** — strict origin check blocks all messages; removed. Exact Devvit origin still unknown.
+- ❌ **`u/You` bug not yet fixed** — messages may still not be arriving despite envelope unwrap and origin fix. Need console logging to confirm.
