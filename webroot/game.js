@@ -2918,6 +2918,18 @@ function resizeCanvas() {
 
 function setup() {
   resizeCanvas();
+
+  // ── Dismiss loading screen ───────────────────────────────────────────────
+  // setup() is only called once setSession has arrived (or 400ms fallback).
+  // At this point the game canvas is about to paint its first frame —
+  // fade the loader out so the transition feels seamless.
+  (function() {
+    var loader = document.getElementById('loader');
+    if (!loader) return;
+    if (window._stopLoaderAnim) window._stopLoaderAnim();
+    loader.classList.add('fade-out');
+    setTimeout(function() { loader.classList.add('gone'); }, 650);
+  })();
   pPath = []; drops = []; bugs = []; castings = []; trashChunks = []; debris = []; weatherQueue = [];
   scraps = []; cocoons = []; teaSplashes = []; valveDrips = []; drainBonusPopups = [];
   floodActive = false; valveOpen = false; window._valveOpenState = false; window._valveDrainedTotal = 0;
