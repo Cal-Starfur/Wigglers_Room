@@ -1,6 +1,3 @@
-[Fresh from GitHub: cd3da3c]
-
-
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
