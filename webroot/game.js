@@ -3023,16 +3023,21 @@ function resizeCanvas() {
     canvas.width  = W;
     canvas.height = H;
   }
-  // Fit to viewport — preserve aspect ratio, letterbox if needed.
-  // Use the smaller scale so nothing is ever clipped.
+  // Fill viewport — scale uniformly, no letterbox.
+  // Use min scale so entire game fits; center with margin.
   var scale = Math.min(vw / W, vh / H);
+  var offsetX = Math.round((vw - W * scale) / 2);
+  var offsetY = Math.round((vh - H * scale) / 2);
   canvas.style.transform = 'scale(' + scale + ')';
   canvas.style.transformOrigin = 'top left';
-  // Center in viewport
-  canvas.style.left = Math.round((vw - W * scale) / 2) + 'px';
-  canvas.style.top  = Math.round((vh - H * scale) / 2) + 'px';
-  window._canvasScaleX = scale;
-  window._canvasScaleY = scale;
+  canvas.style.left = offsetX + 'px';
+  canvas.style.top  = offsetY + 'px';
+  // Store scale + offset so _toCanvas can convert screen → game coords correctly
+  window._canvasScale   = scale;
+  window._canvasOffsetX = offsetX;
+  window._canvasOffsetY = offsetY;
+  window._canvasScaleX  = scale;
+  window._canvasScaleY  = scale;
 }
 
 function setup() {
@@ -7931,17 +7936,20 @@ function tryPoop() {
 }
 
 // Convert a CSS pixel position (relative to root) to logical canvas coordinates.
-// When the canvas is CSS-scaled to fill the viewport, clicks/touches arrive in
-// CSS pixels and must be divided by the scale factor to get game-world coords.
-function _toCanvas(cssX, cssY) {
-  var sx = window._canvasScaleX || 1;
-  var sy = window._canvasScaleY || 1;
-  return { x: cssX / sx, y: cssY / sy };
+// Convert viewport CSS coords → game-world canvas coords.
+// Accounts for CSS scale AND canvas offset from letterboxing.
+function _toCanvas(clientX, clientY) {
+  var scale   = window._canvasScale   || 1;
+  var offsetX = window._canvasOffsetX || 0;
+  var offsetY = window._canvasOffsetY || 0;
+  return {
+    x: (clientX - offsetX) / scale,
+    y: (clientY - offsetY) / scale
+  };
 }
 
 root.addEventListener('mousemove', function(e) {
-  var r = root.getBoundingClientRect();
-  var p = _toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var p = _toCanvas(e.clientX, e.clientY);
   mX = p.x;
   mY = p.y + camY;
 });
@@ -7953,8 +7961,7 @@ root.addEventListener('wheel', function(e) {
   viewCamY += e.deltaY * 0.8;
 }, { passive: false });
 root.addEventListener('click', function(e) {
-  var r = root.getBoundingClientRect();
-  var _cp = _toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var _cp = _toCanvas(e.clientX, e.clientY);
   var cx = _cp.x;
   var cy = _cp.y;
   if (!viewMode) { mX = cx; mY = cy + camY; } // don't steer worm while scrolling
@@ -8094,8 +8101,7 @@ function _cancelLP() {
 
 root.addEventListener('touchmove', function(e) {
   e.preventDefault();
-  var r = root.getBoundingClientRect();
-  var _tp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tp = _toCanvas(e.touches[0].clientX, e.touches[0].clientY);
   var tx = _tp.x;
   var ty = _tp.y;
 
@@ -8127,7 +8133,7 @@ root.addEventListener('touchmove', function(e) {
 root.addEventListener('touchstart', function(e) {
   e.preventDefault();
   var r   = root.getBoundingClientRect();
-  var _tsp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tsp = _toCanvas(e.touches[0].clientX, e.touches[0].clientY);
   var tx  = _tsp.x;
   var ty  = _tsp.y;
   var now = performance.now();
@@ -8258,7 +8264,7 @@ root.addEventListener('touchend', function(e) {
     // Single short tap on drain button (not a swipe, not sleeping)
     if (peak === 1 && _gesture.swipeLive) {
       // swipeLive is still true here for short taps — check travel distance
-      var _te0 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te0 = _toCanvas(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
       var ex0  = _te0.x;
       var ey0  = _te0.y;
       var dyT  = Math.abs(_gesture.swipeStartY - ey0);
@@ -8293,7 +8299,7 @@ root.addEventListener('touchend', function(e) {
 
     } else if (peak === 1 && _gesture.swipeLive) {
       // ── Single finger — check for swipe-up (cocoon) ───────────────────────
-      var _te1 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te1 = _toCanvas(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
       var ex  = _te1.x;
       var ey  = _te1.y;
       var dyS = _gesture.swipeStartY - ey;
