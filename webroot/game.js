@@ -3009,33 +3009,31 @@ setInterval(function() {
   });
 }, 2000);
 
-// Fixed logical resolution — iPad landscape. Every device renders at this size;
-// CSS scaling zooms it to fill the viewport. Mobile side-scrolls via camX.
+// Fixed logical resolution — iPad landscape aspect.
+// Canvas always renders at 1024px wide. Height fills the viewport.
+// On mobile the canvas is wider than the screen — camX scrolls it.
+// On iPad/desktop it fits naturally.
 var LOGICAL_W = 1024;
-var LOGICAL_H = 768;
 
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
   if (!W || !H) {
-    W = LOGICAL_W;
-    H = LOGICAL_H;
+    W = LOGICAL_W;       // always 1024 logical pixels wide
+    H = vh;              // full viewport height
     canvas.width  = W;
     canvas.height = H;
   }
-  // Fill viewport — scale uniformly, no letterbox.
-  // Use min scale so entire game fits; center with margin.
-  var scale = Math.min(vw / W, vh / H);
-  var offsetX = Math.round((vw - W * scale) / 2);
-  var offsetY = Math.round((vh - H * scale) / 2);
+  // Scale height to always fill the viewport vertically.
+  // Width may overflow on narrow screens — that's intentional, camX scrolls it.
+  var scale = vh / H;
   canvas.style.transform = 'scale(' + scale + ')';
   canvas.style.transformOrigin = 'top left';
-  canvas.style.left = offsetX + 'px';
-  canvas.style.top  = offsetY + 'px';
-  // Store scale + offset so _toCanvas can convert screen → game coords correctly
+  canvas.style.left = '0px';
+  canvas.style.top  = '0px';
   window._canvasScale   = scale;
-  window._canvasOffsetX = offsetX;
-  window._canvasOffsetY = offsetY;
+  window._canvasOffsetX = 0;
+  window._canvasOffsetY = 0;
   window._canvasScaleX  = scale;
   window._canvasScaleY  = scale;
 }
