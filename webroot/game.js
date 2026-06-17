@@ -6603,11 +6603,8 @@ function draw() {
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(username, pSegs[0].x, phsy - pSR - 5);
-    } else if (avatarMode === 2) {
-      // Gen badge mode
-      drawGenBadge(pSegs[0].x, phsy - pSR - 2, generation);
     }
-    // avatarMode === 3: nothing (hidden / immersive)
+    // avatarMode === 2: hidden / immersive
     if (pPooping) {
       ctx.globalAlpha = 0.9;
       ctx.font = 'bold 15px sans-serif';
@@ -6722,7 +6719,7 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(0, -4.5); ctx.lineTo(0, 4.5); ctx.stroke();
     ctx.restore();
 
-    // Owner name — hidden when avatarMode === 2
+    // Owner name — hidden in immersive mode
     if (avatarMode !== 2) {
       ctx.font = '8px sans-serif';
       ctx.textAlign = 'center';
@@ -7186,20 +7183,7 @@ function draw() {
   // Long-press ring — gesture feedback
   drawLongPressRing();
 
-  // Avatar mode flash label — shows briefly after three-finger toggle
-  if (window._avatarFlash && frame - window._avatarFlash < 90) {
-    var fAlpha = 1 - (frame - window._avatarFlash) / 90;
-    var modeLabel = avatarMode === 0 ? '🐭 Snoo' : avatarMode === 1 ? '👤 Names' : avatarMode === 2 ? '🪱 Gen' : '👁 Hidden';
-    ctx.save();
-    ctx.globalAlpha = fAlpha;
-    ctx.fillStyle = 'rgba(20,20,20,0.75)';
-    ctx.beginPath(); ctx.roundRect(W/2 - 60, H/2 - 18, 120, 30, 8); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(modeLabel, W/2, H/2);
-    ctx.restore();
-  }
+
 
   // Weather HUD — upper left
   drawWeatherHUD();
@@ -8280,8 +8264,7 @@ root.addEventListener('touchend', function(e) {
 
     if (peak === 3) {
       // ── Three-finger tap — avatar cycle ──────────────────────────────────
-      avatarMode = (avatarMode + 1) % 4;
-      window._avatarFlash = frame;
+      avatarMode = (avatarMode + 1) % 3;
 
     } else if (peak === 2) {
       // ── Two-finger tap — poop ─────────────────────────────────────────────
@@ -8314,7 +8297,7 @@ root.addEventListener('touchcancel', function() {
 // 0 = Snoo (drawn canvas Snoo, or real avatar when Devvit connected)
 // 1 = Username text label
 // 2 = Nothing (clean / immersive mode)
-var avatarMode = 2;
+var avatarMode = 0;  // 0=Snoo 1=Names 2=Hidden
 
 // ── Real Reddit avatar support ────────────────────────────────────────────
 // TODO (Devvit integration): When wiring up the Devvit layer, do this server-side:
@@ -8475,7 +8458,7 @@ window.addEventListener('keydown', function(e) {
   if (e.code === 'KeyS') { e.preventDefault(); trySleep(); }
   if (e.code === 'KeyE') { e.preventDefault(); tryLayCocoon(); }
   if (e.code === 'KeyN') {
-    avatarMode = (avatarMode + 1) % 4;
+    avatarMode = (avatarMode + 1) % 3;
   }
   if (!DEBUG_MODE) return;
   // DEBUG — F key forces a flood instantly for testing.
