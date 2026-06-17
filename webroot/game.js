@@ -7207,7 +7207,7 @@ function drawWeatherHUD() {
   var dateStr = mo + '/' + day + '/' + yr;
 
   var tempF  = weatherTempF();
-  var humPct = Math.round(weather.humidity * 100) + '%';
+  var humPct = 'RH ' + Math.round(weather.humidity * 100) + '%';
   var raining = weather.precip > 0.10;
 
   // Build line 1: date   line 2: temp / humidity / rain
