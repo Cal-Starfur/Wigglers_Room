@@ -255,3 +255,75 @@ var otherPlayers = [];
 5. Pushing raw bytes via GitHub API `PUT /contents` with `base64.b64encode(bytes)`
 
 Regenerate whenever trash item visuals change in game.
+
+---
+
+## Message Bridge (game.js ↔ main.tsx) — CRITICAL
+
+### Host → Webview (main.tsx → game.js)
+`webView.postMessage(obj)` in main.tsx arrives in game.js wrapped in a Devvit envelope:
+```js
+// What actually arrives at window.addEventListener('message'):
+{
+  type: 'devvit-message',
+  data: {
+    message: { type: 'setUsername', username: 'u/...' }  // or JSON string
+  }
+}
+```
+game.js must unwrap before reading `.type`:
+```js
+var msg = e.data;
+if (msg && msg.type === 'devvit-message' && msg.data && msg.data.message) {
+  msg = typeof msg.data.message === 'string'
+    ? JSON.parse(msg.data.message)
+    : msg.data.message;
+}
+```
+
+### Webview → Host (game.js → main.tsx)
+`window.parent.postMessage(msg, '*')` in game.js arrives at main.tsx wrapped:
+```js
+// What arrives at onMessage(rawMessage):
+{ type: 'devvit-message', data: { message: { type: 'ready', ... } } }
+```
+main.tsx already unwraps this correctly in the `onMessage` handler.
+
+### Origin of host messages
+**NOT** `https://www.reddit.com`. Exact origin unknown — strict origin check removed from game.js. ⚠️ ISS-10 still open — username not arriving despite fixes.
+
+---
+
+## Realtime Multiplayer Architecture
+
+```
+Player A presses right
+  → game.js sends presenceUpdate via postToHost()
+  → main.tsx MSG_PRESENCE_UPDATE handler fires
+  → realtime.send(RT_PRESENCE(roomId), { type: 'setPresence', players: [{...}] })
+  → Devvit Realtime broadcasts to all subscribers on that channel
+  → Player B's main.tsx presenceChannel.onMessage fires
+  → webView.postMessage({ type: 'setPresence', players: [{...}] })
+  → Player B's game.js receives setPresence, updates otherPlayers[]
+  → Player B sees Player A's worm move
+```
+
+### Channel Names (must be `[a-zA-Z0-9_]` only — NO colons)
+```ts
+const safeId   = (id: string) => id.replace(/[^a-zA-Z0-9_]/g, '_');
+const RT_WORLD    = (postId: string) => `world_${safeId(postId)}`;
+const RT_PRESENCE = (postId: string) => `presence_${safeId(postId)}`;
+const RT_FLOOD    = (postId: string) => `flood_${safeId(postId)}`;
+```
+
+### useChannel Pattern (main.tsx)
+```ts
+const presenceChannel = useChannel({
+  name: RT_PRESENCE(roomId),
+  onMessage: (msg: any) => {
+    try { webView.postMessage(msg); } catch (_) {}
+  },
+});
+presenceChannel.subscribe();
+```
+Declared **after** `useWebView` so `webView` is in scope. Hooks must run in consistent order every render.
