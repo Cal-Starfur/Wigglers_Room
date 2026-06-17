@@ -1,6 +1,65 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-17 end of day (Session 14 full)
-> Current state: V60 base + all Session 14 fixes
+> Last updated: 2026-06-17 Session 15
+> Current state: V20 + all Session 14 + Session 15 fixes
+
+---
+
+## Session 15 — 2026-06-17 (Afternoon/Evening)
+
+### Commits Shipped
+| SHA | Change |
+|-----|--------|
+| `d180d0d` | Fix: username shown above worm head — was hardcoded `'u/You'` literal, now uses `username` variable |
+| `a1e3ae1` | Hotfix: sync-script header artifact prepended to game.js broke all JS — stripped and re-pushed clean |
+| `cf64c96` | Fix: `user.getSnoovatarUrl()` — correct Devvit API for Reddit Snoovatar (was guessing property names) |
+| `842d754` | Cleanup: remove debug logs from avatar handler |
+| `607d945` | Polish: Snoovatar drawn as circle-clipped portrait — first attempt (too small) |
+| `ce2eb1e` | Fix: Snoovatar drawn full-body portrait at correct aspect ratio |
+| `4a95535` | Fix: pre-render Snoovatar to offscreen canvas on load — eliminates per-frame scaling flicker |
+| `5a704b4` | Remove: MSG_SET_WEATHER dead constant from main.tsx |
+| `f6539b5` | Remove: weather integration — cut setWeather handler, HUD, locName. Nashville defaults → pure sim values |
+| `d624a1e` | Feature: full simulated weather system — seasonal baselines, random events, live HUD |
+| `951293f` | Fix: move weather HUD to upper right — was overlapping karma display |
+| `ceb3d84` | Clean: remove Gen avatar mode, remove flash label, cycle is now Snoo→Names→Hidden |
+| `a6cad43` | Polish: humidity displays as `RH 68%` in weather HUD |
+| `8419e51` | Attempt: cap logical width at 430px — wrong direction, abandoned |
+| `3486cb8` | Attempt: lock to 1024×768 letterbox — pointer offset introduced, abandoned |
+| `2b5bad5` | Fix: pointer/touch coords — account for canvas offset in _toCanvas |
+| `db670c4` | Attempt: 1024px wide, height fills viewport — camX still broken |
+| `7da62c4` | Lock logical resolution to iPad Pro 11" landscape 1194×834 |
+| `424ad15` | Fix root cause: W=viewport width, WORLD_W=1194 fixed — bin always full size, camX scrolls |
+| `a970e17` | Fix: _toCanvas uses root offset, all mX assignments add camX for world coords |
+
+### What We Built / Fixed
+- **Username above worm head** — was hardcoded `'u/You'` string literal, now uses the `username` variable
+- **Real Snoovatar** — `user.getSnoovatarUrl()` (correct Devvit API), pre-rendered to offscreen canvas at 44px, drawn full-body above worm
+- **Avatar toggle cleaned up** — Gen mode removed, flash label removed, 3 modes: Snoo→Names→Hidden
+- **Weather system** — fully simulated, no external API. Seasonal baselines + slow drift + random events (rainstorm/dry/heat wave). HUD: date, °F, RH%, rain indicator upper right
+- **Horizontal scrolling** — WORLD_W=1194 fixed bin size, W=viewport, camX follows worm with clamp to bin walls. Mobile side-scrolls ~700px. iPad fits perfectly
+- **Pointer fix** — `_toCanvas` uses `root.getBoundingClientRect()`, all world coord assignments add `camX`
+
+### Lessons Learned This Session
+
+**Sync script adds header artifact**
+`sync_from_github.py read` prepends `[Fresh from GitHub: sha]` to file content. If you use the output directly as a file, that header becomes the first line of your JS — syntax error, game breaks. Always strip or use the GitHub API client directly.
+
+**Devvit avatar API**
+`getCurrentUser()` returns a User object with a `getSnoovatarUrl()` method — not a property. `user.iconImg`, `user.snoovatarUrl`, `user.icon_img` are all wrong. The correct call is `await user.getSnoovatarUrl()`.
+
+**Snoovatar is a full-body portrait, not a headshot**
+Circle-clipping it cuts off the character. Draw it as a standing figure above the worm head, using `naturalWidth/naturalHeight` for aspect ratio, pre-rendered to an offscreen canvas to eliminate per-frame scaling flicker.
+
+**Weather integration via external HTTP is blocked in Devvit**
+`fetch()` to Open-Meteo or any external domain is silently blocked in Devvit's server sandbox. No `http` permission exists in devvit.yaml. Self-contained simulation is the correct approach.
+
+**W vs WORLD_W — the key insight for horizontal scrolling**
+The bin must be wider than the viewport for camX to have any range. If `getBin()` uses `W` (viewport width) to size the bin, then `binWidth ≈ W * 0.88`, and `camXMax = binRight - W ≈ -W * 0.12` — negative, so clamping to max(camXMin, camXMax) forces camX to zero. The fix: `getBin()` uses `WORLD_W` (fixed 1194px). `W` is the viewport. camX range = `WORLD_W - W` ≈ 700px on mobile.
+
+**camX must be initialized at spawn and respawn**
+`camX = 0` at startup puts the camera at the left edge while the worm is at `WORLD_W/2 = 597`. Fix: `camX = startX - W/2` at both initial spawn and respawn.
+
+**All mX/mY world coord assignments need + camX**
+Touch/mouse events return screen coordinates. `mX` is a world coordinate. Every place that sets `mX` from a pointer event must add `camX`: `mX = screenX + camX`. Missed any one of them and the worm tracks incorrectly on the far side of the bin.
 
 ---
 
@@ -21,21 +80,16 @@
 | `1641bbe` | Preview background — trash chunk wallpaper using real game draw code |
 | `04ad8ac` | `preview-bg.png` added to assets (all 27 trash items on dark soil, vignette) |
 | `6580e10` | Re-pushed preview-bg.png as clean binary (was corrupted in first push) |
+| `5b7548b` | Increased startup fallback timeout 400ms → 2000ms |
+| `4b0ac87` | Added Devvit message envelope unwrap in game.js |
+| `b7089f4` | Removed strict origin check (www.reddit.com was wrong) |
 
 ### What We Built
-- **Snoo drain cinematic fully working on mobile** — was completely invisible due to hardcoded camera formula calibrated for desktop
-- **Death headstone comments** — real RIP posts to Reddit thread with cause, karma, real dates
-- **Loading screen** — 512px worm icon on soil brown, tap to enter
-- **Preview card wallpaper** — all 27 trash items rendered via real `drawTrashChunk()` code, scattered on dark soil with vignette
-
-### Root Cause Analysis: Why the Full Revert Happened
-S13 attempted ARC-1A (tab-hidden physics + dt refactor) causing blank screen on load.
-Revert went to "original V60" — wiping Sessions 2–9 code health work alongside S13.
-
-The drain cinematic was broken from the very first upload because:
-- `drainCamTarget = 3*H + H*0.25 - H*0.72 = 2.53*H` was calibrated on desktop (H≈800px)
-- Reddit mobile webview H≈400–500px → Snoo rendered 8–108px below canvas bottom
-- Camera formula needed to derive from `drainSnooStopY` not a fixed H multiple
+- Snoo drain cinematic fully working on mobile
+- Death headstone comments — real RIP posts to Reddit thread
+- Loading screen — 512px worm icon on soil brown, tap to enter
+- Preview card wallpaper — all 27 trash items rendered via real `drawTrashChunk()` code
+- Multiplayer channels wired — useChannel subscriptions for presence, world, flood
 
 ---
 
@@ -43,40 +97,31 @@ The drain cinematic was broken from the very first upload because:
 
 ### Asset Rules
 - ✅ **PNG only** — Devvit asset uploader rejects GIF, JPG, any non-PNG
-- ✅ **Push binary files via GitHub API directly** — the github-sync script corrupts binary files during push (base64 encoding issue). Always use direct `urllib` PUT with proper `base64.b64encode(bytes)` for images
-- ✅ **Verify PNG after push** — check `bytes[:8] == b'\x89PNG\r\n\x1a\n'` on the GitHub copy before uploading to Devvit
-- ✅ **Assets folder** — put all images in `/assets/`, referenced by filename only (e.g. `"icon.png"`, `"preview-bg.png"`)
+- ✅ **Push binary files via GitHub API directly** — sync script corrupts binary files. Use direct `urllib` PUT with `base64.b64encode(bytes)`
+- ✅ **Verify PNG after push** — check `bytes[:8] == b'\x89PNG\r\n\x1a\n'`
+- ✅ **Assets folder** — put all images in `/assets/`, referenced by filename only
 
-### Devvit Blocks (Preview UI) Rules
-- ✅ **No HTML/CSS/canvas** — preview is declarative Blocks UI only
-- ✅ **No z-index** — use `<zstack>` for layering
-- ✅ **`<image onPress>` works** — can put `onPress` on an image to make it a tap target
-- ✅ **`backgroundColor` goes on the stack element** — not on image
-- ✅ **Animated GIFs not supported** — rejected by asset uploader
-- ✅ **`webView.render()` does not exist** — `UseWebViewResult` only has `mount()`, `unmount()`, `postMessage()`
-- ✅ **Auto-mounting webview breaks UX** — calling `webView.mount()` in render body fires on every render, not just on tap. Only call inside `onPress`
-- ✅ **Render must always return valid JSX** — even when webview is active
+### Devvit API
+- ✅ **`user.getSnoovatarUrl()`** — method call, not a property. Returns the user's Snoovatar URL
+- ✅ **`getCurrentUser()` fields** — only reliable: `username`, `getSnoovatarUrl()`. Do not guess other properties
+- ✅ **External HTTP blocked** — `fetch()` to non-Reddit domains silently fails. No http permission in devvit.yaml. Use self-contained simulation instead
+- ✅ **`webView.mount()` only inside `onPress`** — never in render body
+- ✅ **`webView.render()` does not exist** — only `mount()`, `unmount()`, `postMessage()`
 
-### Post Lifecycle Rules
-- ✅ **Old posts go read-only after re-upload** — every `devvit upload` invalidates existing custom posts. Must create a new post to test new builds
-- ✅ **`forUserType: 'moderator'`** — gates menu items to mods only. Required for production so users can't spam bin posts
-- ✅ **`devvit install <subreddit>` required after every upload** — upload alone doesn't activate the new version on the sub
+### Realtime / useChannel
+- ✅ **Channel names must be `[a-zA-Z0-9_]` only** — colons crash render
+- ✅ **Declare `useChannel` after `useWebView`** — hooks must run in consistent order
+- ✅ **`presenceUpdate` sends `player: {}` but game expects `players: []`**
 
-### Git / Codespace Rules
-- ✅ **Always `git pull` before `devvit upload`** — or files from Claude's pushes will be missing
-- ✅ **`git config pull.rebase true`** — set once, prevents the MERGE_MSG dialog forever
-- ✅ **Divergent branches** — caused by Claude pushing directly to GitHub while Codespace has local commits. Rebase resolves it cleanly
+### Message Bridge
+- ✅ **Devvit wraps `webView.postMessage()` in an envelope** — `{ type: 'devvit-message', data: { message: ... } }`
+- ✅ **Origin of host→webview messages is NOT `https://www.reddit.com`** — removed strict origin check
+- ✅ **Sync script prepends header to file content** — strip before using as game file
 
-### TypeScript Rules
-- ✅ **Run `tsc --noEmit` locally before every push** — catches errors before CI fails
-- ✅ **Always check `UseWebViewResult` type** — Devvit's hook types are narrow, don't assume methods exist
-- ✅ **Type annotations in template literals** — `Record<string, [string, string]>` works fine in tsx
-
-### Rendering / Asset Generation
-- ✅ **Playwright + Chromium available in container** — use for headless canvas rendering
-- ✅ **Canvas → PNG via `toDataURL`** — reliable, produces valid PNG bytes
-- ✅ **Verify PNG signature before pushing** — `bytes[:8] == b'\x89PNG\r\n\x1a\n'`
-- ✅ **Use real game draw code for assets** — extract `drawTrashChunk()` and render via Playwright for pixel-perfect consistency with in-game visuals
+### Post Lifecycle
+- ✅ **Old posts go read-only after re-upload** — create new post to test
+- ✅ **`devvit install <subreddit>` required after every upload**
+- ✅ **Always `git pull` before `devvit upload`**
 
 ---
 
@@ -84,27 +129,22 @@ The drain cinematic was broken from the very first upload because:
 
 ### P1 — Weekly Drain Wiring (main.tsx) — ~40 lines
 Three bugs prevent weekly drain from ever firing automatically:
-
-1. **`weeklyDrain` flag silently dropped** — `MSG_WORLD_UPDATE` handler ignores `weekStartTs` and `weeklyDrain: true` from game
-2. **`KV_WEEK` never read** — each player runs independent 7-day clock, never synced
-3. **New players never get shared `weekStartTs`** — always resets to `Date.now()` on first load
+1. `weeklyDrain` flag silently dropped — `MSG_WORLD_UPDATE` handler ignores it
+2. `KV_WEEK` never read — each player runs independent 7-day clock
+3. New players never get shared `weekStartTs`
 
 **Fix:** Read `KV_WEEK` on open → send `weekStartTs` in `setWorldState` → handle in game → on drain completion write new `weekStartTs` to `KV_WEEK` + broadcast via Realtime
 
 ### P2 — Re-apply S2–S5 Code Health (game.js)
-All reverted in the V60 wipe. Safe, non-breaking, apply in order:
-
 | Task | What |
 |------|------|
 | S2a | 18 raw message strings → `MSG_*` constants matching main.tsx |
 | S2b | 5 duplicate Snoo SVG helper pairs → shared functions |
 | S3  | Delete 4 dead functions (`_refreshBin`, `blendEnrichCol`, `drawGenDebugPanel`, `nearestPathIdx`) |
 | S4  | Rename 17 `_underscore` functions → camelCase |
-| S5  | Split `draw()` (2,022 lines) into 8 subfunctions |
-| S5  | Split `updatePhysics()` (815 lines) into 4 subfunctions |
-| S5  | Split `updatePlayer()` (646 lines) into 6 subfunctions |
+| S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
 
-### P3 — Deferred to Pre-Launch
+### P3 — Pre-Launch
 - Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
 
 ---
@@ -129,83 +169,20 @@ All reverted in the V60 wipe. Safe, non-breaking, apply in order:
 
 | Fix | Session |
 |-----|---------|
+| u/You hardcoded — username variable not used in avatar render | S15 |
+| Snoovatar fetch used wrong Devvit API (property vs method) | S15 |
+| Snoovatar circle-cropped — should be full-body portrait | S15 |
+| Snoovatar flicker — per-frame scaling, fixed by offscreen canvas pre-render | S15 |
+| Weather HUD overlapping karma — moved to upper right | S15 |
+| Gen avatar mode did nothing — removed, cycle is now 3 modes | S15 |
+| Weather system dead-ended on external API — replaced with simulation | S15 |
+| Bin size inconsistent across devices — WORLD_W=1194 fixed, viewport scrolls | S15 |
+| camX never scrolled right — getBin() was using W not WORLD_W | S15 |
+| Pointer/touch offset after coordinate system change — _toCanvas uses root rect + camX | S15 |
 | Snoo drain invisible on mobile (camera formula) | S14 |
 | Snoo push-down/push-up during cinematic | S14 |
 | Loading screen icon lost in revert | S14 |
-| Loading screen icon not centered on mobile | S14 |
 | Death never posted to thread | S14 |
-| Headstone dates were fake (1920s) | S14 |
-| Headstone dates simulated from pEaten | S14 |
+| Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
-| Preview-bg.png corrupted on first push | S14 |
-| GIF/JPG rejected by Devvit asset uploader | S14 |
-| webView.render() doesn't exist | S14 |
-| Auto-mounting webview broke UX | S14 |
-
----
-
-## Session 14 — Post-Lunch (2026-06-17 afternoon)
-
-### Commits Shipped
-| SHA | Change |
-|-----|--------|
-| `eb25d3b` | Multiplayer attempt 1 — BROKE all rooms (crashed render) |
-| `c663232` | REVERT — restored working state |
-| `eb25d3b` | Multiplayer attempt 2 — fixed RT_ channel names, added useChannel subs, fixed player→players |
-| `83aa0b3` | (earlier bad attempt — reverted) |
-| `5b7548b` | Increased startup fallback timeout 400ms → 2000ms |
-| `4b0ac87` | Added Devvit message envelope unwrap in game.js |
-| `b7089f4` | Removed strict origin check (www.reddit.com was wrong) |
-
-### What's Working
-- Multiplayer channels wired up — `useChannel` subscriptions for presence, world, flood
-- `player` → `players: []` array fix in presenceUpdate broadcast
-- RT_ channel names use underscores not colons (Devvit requirement)
-
-### ISS-10 — u/You instead of real username (OPEN — P1 next session)
-
-**Symptom:** Game always shows `u/You` instead of the player's real Reddit username.
-
-**What we tried:**
-1. Increased fallback timeout 400ms → 2000ms — no effect
-2. Added Devvit envelope unwrap (`devvit-message` → inner message) — no effect  
-3. Removed strict origin check (`www.reddit.com`) — no effect
-
-**Current diagnosis — still unconfirmed:**
-The `MSG_SET_USERNAME` message may never be reaching the game's `window.addEventListener('message')` handler. Three possible reasons still to investigate:
-
-1. **Wrong envelope structure** — we assumed `{ type: 'devvit-message', data: { message: ... } }` but the actual structure from `webView.postMessage()` in this Devvit version may differ. Need to add `console.log(JSON.stringify(e.data))` at the very top of the listener (before any filtering) and read the Codespace logs to see raw payloads.
-
-2. **`postToHost` direction confusion** — `postToHost` uses `window.parent.postMessage` but Devvit webview may require `window.top.postMessage` or a specific Devvit bridge function. If `postToHost` is sending to the wrong frame, the host never receives `ready` and never sends `setUsername`.
-
-3. **`ready` message never received by host** — if game.js sends `ready` before the Devvit webview bridge is fully initialised, the message is lost and the `MSG_READY` handler in main.tsx never fires — so `getCurrentUser()` is never called and no username is ever sent.
-
-**Next session investigation plan:**
-```javascript
-// Add at very top of window.addEventListener('message', ...) in game.js:
-console.log('[msg]', JSON.stringify({origin: e.origin, type: e.data?.type, keys: Object.keys(e.data||{})}));
-
-// Add at very top of postToHost() in game.js:
-console.log('[postToHost]', JSON.stringify(msg));
-```
-Then check Codespace logs after opening the game. This will tell us:
-- Whether ANY messages are arriving from the host
-- What origin they're coming from
-- Whether `ready` is being sent and received
-
----
-
-## Devvit Platform Lessons Learned — UPDATED
-
-### Realtime / useChannel (NEW — learned this session)
-- ✅ **`useChannel` names must be `[a-zA-Z0-9_]` only** — colons throw immediately, crashing the entire render. `presence:${postId}` → `presence_${safeId(postId)}`
-- ✅ **`useChannel` is the subscription mechanism** — `realtime.send()` publishes but nothing receives unless `useChannel` + `.subscribe()` is called on every viewer's render instance
-- ✅ **Declare `useChannel` after `useWebView`** — hooks must run in consistent order; channels that reference `webView` need it in scope
-- ✅ **`channel.send()` vs `realtime.send()`** — `useChannel` has its own `.send()` method; `realtime.send()` uses a different internal channel format
-- ✅ **`presenceUpdate` sends `player: {}` but game expects `players: []`** — was silently dropped; fixed to `players: [{ ... }]`
-
-### Message Bridge (NEW — partially understood)
-- ✅ **Devvit wraps `webView.postMessage()` in an envelope** — structure: `{ type: 'devvit-message', data: { message: ... } }` — game.js must unwrap before reading `.type`
-- ⚠️ **Origin of host→webview messages is NOT `https://www.reddit.com`** — strict origin check blocks all messages; removed. Exact Devvit origin still unknown.
-- ❌ **`u/You` bug not yet fixed** — messages may still not be arriving despite envelope unwrap and origin fix. Need console logging to confirm.
