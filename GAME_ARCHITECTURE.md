@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-17 end of day (Session 14)
+> Last updated: 2026-06-17 Session 15
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -8,9 +8,9 @@
 
 ```
 Wigglers_Room/
-├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~420 lines
+├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~500 lines
 ├── webroot/
-│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8420 lines
+│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8570 lines
 │   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
 │   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
@@ -48,8 +48,7 @@ Realtime broadcast (multiplayer)       Physics / game loop (requestAnimationFram
 Anti-cheat session clamping            Player input (touch/mouse/keyboard)
 Reddit auth + avatar fetch             localStorage fallback (dev/standalone mode)
 Death headstone comment posting        bornTs / diedTs tracking
-Weather fetch (Open-Meteo API)         saveSession() → postToHost on state change
-Post creation (mod-only)
+Post creation (mod-only)               Simulated weather system
         │         postMessage bridge          │
         └──────────────────────────────────--─┘
 ```
@@ -79,9 +78,11 @@ Shown before user taps to enter. Lives entirely in `main.tsx` render function.
 
 ## Message Constants (main.tsx)
 
-**Host → Webview:** `MSG_SET_USERNAME`, `MSG_SET_SESSION`, `MSG_SET_WEATHER`, `MSG_SET_PLAYER_AVATAR`, `MSG_SET_WORLD_STATE`, `MSG_SET_PRESENCE`, `MSG_SET_FLOOD`, `MSG_WORM_CLAIMED`
+**Host → Webview:** `MSG_SET_USERNAME`, `MSG_SET_SESSION`, `MSG_SET_PLAYER_AVATAR`, `MSG_SET_WORLD_STATE`, `MSG_SET_PRESENCE`, `MSG_SET_FLOOD`, `MSG_WORM_CLAIMED`
 
 **Webview → Host:** `MSG_READY`, `MSG_SAVE_SESSION`, `MSG_WORLD_UPDATE`, `MSG_PRESENCE_UPDATE`, `MSG_PLAYER_DIED`, `MSG_REQUEST_PRESENCE`, `MSG_CLAIM_WORM`, `MSG_JOIN_QUEUE`, `MSG_FLOOD_ACK`, `MSG_UNCLAIMED_WORM_DIED`
+
+`MSG_SET_WEATHER` removed — weather is fully simulated in game.js, no external data needed.
 
 ⚠️ **game.js uses raw strings** — `MSG_*` constants not yet applied (S2 work reverted). Re-applying is P2.
 
@@ -113,7 +114,7 @@ Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pS
 
 ## World Layout — The Bin
 
-Y increases downward. `H` = canvas height / number of tiers.
+Y increases downward. `H` = canvas height. `WORLD_W = 1194` = fixed world width (iPad Pro 11" landscape).
 
 ```
 y = 0   .. H     Tier 0 — Scraps & blanket   (food drops here)
@@ -122,6 +123,84 @@ y = 2H  .. 3H    Tier 2 — Castings/compost    (tunnel zone)
 y = 3H           cSurf() — compost floor / sump top
 y = 3H+          Sump    — worm tea reservoir (tLvl 0–1)
 ```
+
+**Bin width:** `getBin()` always uses `WORLD_W * 0.88 ≈ 1051px` regardless of viewport.
+**Camera:** `camY` scrolls vertically, `camX` scrolls horizontally. Both lerp to follow worm.
+
+---
+
+## Coordinate System
+
+```
+World coords:  (x, y) — absolute position in the game world
+Screen coords: (x - camX, y - camY) — what appears on canvas
+```
+
+**`_toCanvas(clientX, clientY)`** converts pointer events to screen coords (subtracts root offset).
+**All mX/mY assignments** add `+ camX` to convert screen → world X.
+**`ctx.translate(-camX, 0)`** at start of draw() shifts entire world render.
+**`ctx.restore()`** before HUD elements — karma, weather, death screen are screen-space.
+
+---
+
+## Canvas / Viewport Architecture
+
+```
+WORLD_W = 1194px  — fixed logical world width (iPad Pro 11" landscape)
+W = viewport width — varies per device (390px mobile, 1194px iPad)
+H = viewport height — fills screen vertically
+
+On iPad Pro 11" landscape:  W ≈ 1194, camX range ≈ 0 (no scroll needed)
+On mobile (390px wide):     camX range ≈ 700px (worm scrolls bin horizontally)
+```
+
+**resizeCanvas():** Sets W/H from viewport, no CSS scaling. Canvas matches viewport exactly.
+**getBin():** Uses `WORLD_W` not `W` — bin is always 1194px wide.
+**camX clamp:** `binLeft - 20` to `binRight - W + 20`
+
+---
+
+## Avatar System
+
+**Player Snoovatar:** Fetched via `user.getSnoovatarUrl()` in main.tsx MSG_READY handler.
+Sent as `MSG_SET_PLAYER_AVATAR`. In game.js: pre-rendered to offscreen canvas at 44px height
+on load (eliminates per-frame scaling flicker). Drawn full-body upright above worm head.
+
+**Avatar toggle:** 3-finger tap cycles `avatarMode` 0→1→2→0 (no flash label):
+- `0` = Snoovatar (or drawn Snoo if no avatar loaded)
+- `1` = Username text (`u/username`)
+- `2` = Hidden / immersive
+
+**Other players:** Avatar URLs broadcast via Realtime presence. Drawn at worm head (simple Image load, no offscreen pre-render).
+
+---
+
+## Weather System (Fully Simulated — No External API)
+
+Weather integration via Open-Meteo was abandoned — Devvit sandbox blocks external HTTP.
+Weather is now a self-contained simulation in game.js. No main.tsx involvement.
+
+```js
+var WEATHER_SEASONS = [ /* 12 monthly baselines */ ];
+var weather = { humidity, temp, precip }; // 0–1 internal values
+var _weatherTarget = { ... };   // drift target
+var _weatherEvent  = null;      // active event (rain/dry/heat) or null
+```
+
+**Update cycle:**
+- `tickWeather()` — every frame, lerps weather toward target (rate 0.0008)
+- `updateWeatherSim()` — every 600 frames (~10s), reads real calendar month for seasonal baseline, rolls for weather events
+
+**Weather events** (checked every 10s when no event active):
+- Rainstorm (18% chance): high precip + humidity, lasts 20–60 game-minutes
+- Dry spell (12%): low precip + lower humidity, lasts 1–2 hours
+- Heat wave (8%): high temp, lasts 2–4 hours
+
+**HUD:** Upper right corner — date (`M/D/YYYY`), temp (`72°F`), humidity (`RH 68%`), rain indicator (`☂` when precip > 0.10).
+
+**Gameplay effects:** humidity + temp drive `getEvapRate()` (affects bin moisture/flooding). precip spawns rain drops into bin top.
+
+**`weatherTempF()`:** Converts internal 0–1 temp to Fahrenheit: `20 + temp * 90`.
 
 ---
 
@@ -147,6 +226,13 @@ var generation = 0;        // increments on natural death
 var bornTs = 0;            // ms when this worm life began
 var deathCause = '';       // 'starvation'|'hunger'|'constipation'|'acidity'|'flood'|'drowning'|'natural'
 var playerState = 'playing'; // 'playing'|'dead'|'queued'|'claiming'
+```
+
+### Camera
+```js
+var camY = 0;   // vertical scroll — follows worm Y
+var camX = 0;   // horizontal scroll — follows worm X, clamped to bin walls
+var WORLD_W = 1194; // fixed world width
 ```
 
 ---
@@ -198,10 +284,12 @@ Durations: `{floatin:55, pause:30, openvalve:35, draining:0, closevalve:30, floa
 
 | Function | Lines | Notes |
 |----------|-------|-------|
-| `draw()` | 2,022 | Monolith — S5 split reverted, P2 to re-split |
-| `updatePhysics()` | 815 | Monolith — S5 split reverted |
-| `updatePlayer()` | 646 | Monolith — S5 split reverted |
-| `drawTrashChunk()` | 698 | 27 trash item renderers — used for wallpaper too |
+| `draw()` | ~2,022 | Monolith — S5 split reverted, P2 to re-split |
+| `updatePhysics()` | ~815 | Monolith — S5 split reverted |
+| `updatePlayer()` | ~646 | Monolith — S5 split reverted |
+| `drawTrashChunk()` | ~698 | 27 trash item renderers — used for wallpaper too |
+| `updateWeatherSim()` | ~60 | Simulated weather events — runs every 600 frames |
+| `drawWeatherHUD()` | ~30 | Upper right — date, °F, RH%, rain indicator |
 
 ---
 
@@ -263,7 +351,6 @@ Regenerate whenever trash item visuals change in game.
 ### Host → Webview (main.tsx → game.js)
 `webView.postMessage(obj)` in main.tsx arrives in game.js wrapped in a Devvit envelope:
 ```js
-// What actually arrives at window.addEventListener('message'):
 {
   type: 'devvit-message',
   data: {
@@ -271,26 +358,14 @@ Regenerate whenever trash item visuals change in game.
   }
 }
 ```
-game.js must unwrap before reading `.type`:
-```js
-var msg = e.data;
-if (msg && msg.type === 'devvit-message' && msg.data && msg.data.message) {
-  msg = typeof msg.data.message === 'string'
-    ? JSON.parse(msg.data.message)
-    : msg.data.message;
-}
-```
+game.js must unwrap before reading `.type`.
 
 ### Webview → Host (game.js → main.tsx)
-`window.parent.postMessage(msg, '*')` in game.js arrives at main.tsx wrapped:
-```js
-// What arrives at onMessage(rawMessage):
-{ type: 'devvit-message', data: { message: { type: 'ready', ... } } }
-```
+`window.parent.postMessage(msg, '*')` in game.js arrives at main.tsx wrapped.
 main.tsx already unwraps this correctly in the `onMessage` handler.
 
 ### Origin of host messages
-**NOT** `https://www.reddit.com`. Exact origin unknown — strict origin check removed from game.js. ⚠️ ISS-10 still open — username not arriving despite fixes.
+NOT `https://www.reddit.com`. Strict origin check removed from game.js.
 
 ---
 
@@ -326,4 +401,4 @@ const presenceChannel = useChannel({
 });
 presenceChannel.subscribe();
 ```
-Declared **after** `useWebView` so `webView` is in scope. Hooks must run in consistent order every render.
+Declared **after** `useWebView` so `webView` is in scope.
