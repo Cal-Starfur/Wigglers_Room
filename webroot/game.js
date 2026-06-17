@@ -45,10 +45,6 @@ var viewMode = false;   // true when sleeping or observing — free-scroll activ
 var viewCamY = 0;       // scroll target written by drag/wheel; camY lerps here in viewMode
 var mX = 0, mY = 0;
 var frame = 0;
-var lastTickMs = 0;       // ARC-1A: timestamp of previous tick — for delta-time
-var loopRafId  = null;    // ARC-1A: rAF handle — cancel before switching to interval
-var loopIntId  = null;    // ARC-1A: setInterval handle — cancel before switching to rAF
-var tabHidden  = false;   // ARC-1A: true when browser has hidden this tab
 var username = 'u/You';   // player username — will come from Devvit auth in production
 // dayTime is derived live from the real wall clock each frame — 0=midnight, 0.5=noon, 1=midnight
 // This means all players worldwide see the same sky phase simultaneously.
@@ -167,11 +163,10 @@ var deathFade = 0;           // 0→1 fade-in alpha
 
 // ── Offline hunger drain ──────────────────────────────────────────────────
 // We record a timestamp on every session-save. On next load we compute
-// elapsed seconds and drain hunger accordingly. Worms CAN die offline —
-// only safe to leave when sleeping in deep compost.
+// elapsed seconds and drain hunger accordingly (capped so the player
+// can't die offline, just arrive very hungry).
 var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live rate exactly
-// MAX_OFFLINE_DRAIN cap removed — ARC-1A: real offline death is intentional.
-// If your worm was starving/constipated/acidic when you left, it dies while you're gone.
+var MAX_OFFLINE_DRAIN = 0.85;        // can arrive very hungry but never quite dead offline
 var SESSION_KEY = 'wigglers_session_v2';
 
 // ── Weather system ────────────────────────────────────────────────────────────
@@ -264,7 +259,7 @@ window.addEventListener('message', function(e) {
     if (window._devvitSetupPending) {
       window._devvitSetupPending = false;
       clearTimeout(window._devvitSetupTimer);
-      setup(); startLoop();
+      setup(); loop();
     }
   }
 
@@ -2871,23 +2866,13 @@ function applyOfflineDrain(saved) {
 
   // Drain pGut — hunger is derived from gut fill, so this is the correct target.
   // Draining pHunger directly was a bug: it got overwritten by the first updatePlayer tick.
-  // ARC-1A: cap removed — worms CAN die offline. Only safe to leave while sleeping.
-  var drain = elapsedSec * OFFLINE_DRAIN_PER_SEC;
+  var drain = Math.min(MAX_OFFLINE_DRAIN, elapsedSec * OFFLINE_DRAIN_PER_SEC);
   if (generation >= 2) drain *= 0.85; // Gen 2+ perk: −15% offline drain
   // drain is on a 0-1 scale matching the old pHunger range; convert to gut units
   var gutDrain = drain * pGutMax;
   pGut = Math.max(0, pGut - gutDrain); // clamp at 0 — never go negative
-  // If fully starved, bleed HP down — same formula as live starving damage
-  // pHP can reach 0 here; death check in updatePlayer() will fire on next tick
-  if (pGut <= 0) {
-    // Gut hit 0 — calculate how long the worm was starving after the gut emptied.
-    // gutEmptiedAtSec = how many seconds into the absence the gut ran out.
-    // Live starvation rate: 0.0003 HP/frame × 60fps = 0.018 HP/sec.
-    var gutEmptiedAtSec = (1.0 / OFFLINE_DRAIN_PER_SEC) * (saved.pGut / pGutMax);
-    var starvingSec = Math.max(0, elapsedSec - gutEmptiedAtSec);
-    var STARVE_HP_PER_SEC = 0.0003 * 60; // matches live rate exactly
-    pHP = Math.max(0, pHP - starvingSec * STARVE_HP_PER_SEC);
-  }
+  // If drain was severe, also tick HP down a little
+  if (drain > 0.5) pHP = Math.max(0.1, pHP - (drain - 0.5) * 0.4);
 
   // Build an accurate return-status message from the actual restored state.
   // This runs after pGut, pHP, pSleeping, tLvl, cocoons etc. are all loaded —
@@ -3140,39 +3125,6 @@ function setup() {
 
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
-
-  // DEBUG: show what applyOfflineDrain computed on every load — remove before launch
-  if (saved && saved.ts) {
-    var _dbgElapsed = ((Date.now() - saved.ts) / 1000).toFixed(1);
-    var _dbgMsg = 'OFFLINE DEBUG | away=' + _dbgElapsed + 's'
-      + ' | saved.pGut=' + (saved.pGut || 0).toFixed(2)
-      + ' | pGut now=' + pGut.toFixed(2)
-      + ' | pHP now=' + pHP.toFixed(3)
-      + ' | pSleeping=' + pSleeping;
-    console.log(_dbgMsg);
-    window._offlineDrainMsg = _dbgMsg;
-  }
-
-  // ── Offline death check — must run here, not in updatePlayer() ───────────
-  // applyOfflineDrain() can set pHP = 0. We can't rely on updatePlayer() to
-  // catch it because: (a) setup() already reset deathScreen = false above,
-  // and (b) the game loop hasn't started yet. Trigger death screen now so the
-  // player sees it on load and the Reddit comment fires.
-  if (pHP <= 0 && !deathScreen) {
-    deathScreen = true;
-    deathFade = 0;
-    if (!deathCause) deathCause = 'starvation'; // default if not set by flood path
-    saveSession(); // persist the death state
-    postToHost({
-      type:       MSG_PLAYER_DIED,
-      cause:      deathCause,
-      karma:      Math.floor(karma),
-      generation: generation,
-      pEaten:     pEaten,
-      username:   username
-    });
-  }
-
   spawnScraps();
 }
 
@@ -3189,8 +3141,7 @@ function updateCocoons() {
   }
 }
 
-function updatePlayer(dt) {
-  dt = dt || 1; // ARC-1A: default to 1 for callers that don't pass dt yet
+function updatePlayer() {
   if (!pSegs.length) return;
 
   // Natural lifespan — worm dies gracefully at 300,000 eaten
@@ -3373,14 +3324,14 @@ function updatePlayer(dt) {
 
   if (constipated) {
     if (pHP > 0) deathCause = 'constipation';
-    pHP = Math.max(0, pHP - 0.0003 * dt);
+    pHP = Math.max(0, pHP - 0.0003);
   } else if (starving) {
     if (pHP > 0) deathCause = 'starvation';
-    pHP = Math.max(0, pHP - 0.0003 * dt);
+    pHP = Math.max(0, pHP - 0.0003);
   } else if (hungry) {
     if (pHP > 0) deathCause = 'hunger';
     var hungerBleed = Math.pow((pHunger - 0.5) / 0.5, 3) * 0.0003;
-    pHP = Math.max(0, pHP - hungerBleed * dt);
+    pHP = Math.max(0, pHP - hungerBleed);
   }
 
   // ── Passive digestion — runs alongside hunger bleed, not instead of it ───
@@ -3401,7 +3352,7 @@ function updatePlayer(dt) {
     var reserveMult = gutFrac50 > 0.5 ? 1.0 : 0.1;
 
     var digestRate = digestMult * reserveMult / (5 * 60 * 60);
-    var gutDrained = Math.min(pGut, digestRate * pGutMax * dt);
+    var gutDrained = Math.min(pGut, digestRate * pGutMax);
     pGut = Math.max(0, pGut - gutDrained);
 
     // HP recovery — only when gut is above 20%; below that, bleed must win
@@ -3412,11 +3363,11 @@ function updatePlayer(dt) {
   }
 
   // Acid decay — clears naturally over ~60 seconds when not eating acid food
-  pAcid = Math.max(0, pAcid - ACID_DECAY * dt);
+  pAcid = Math.max(0, pAcid - ACID_DECAY);
   // Acid HP burn — starts hurting at 50% acid buildup, gets worse as it rises
   if (pAcid > 0.5) {
     if (pHP > 0) deathCause = 'acidity';
-    pHP = Math.max(0, pHP - ACID_HP_DRAIN * ((pAcid - 0.5) * 2) * dt);
+    pHP = Math.max(0, pHP - ACID_HP_DRAIN * ((pAcid - 0.5) * 2));
   }
 
   var tail0 = pSegs[pSegs.length - 1];
@@ -3844,13 +3795,12 @@ var _segConnBuf = new Uint8Array(512);
 var TUNNEL_DECAY = 0.0000167;        // base rate (~16 min for sump-connected)
 var TUNNEL_DECAY_UNCONNECTED = 0.0000535; // ~5 min for tubes with no sump link
 
-function updatePhysics(dt) {
-  dt = dt || 1; // ARC-1A: default to 1 for callers that don't pass dt yet
+function updatePhysics() {
   // Filter eaten scraps — only every 60 frames to avoid allocation pressure
   if (frame % 60 === 0) scraps = scraps.filter(function(s) { return !s.eaten; });
 
   // --- Castings enrichment slow decay ---
-  castingEnrichment = Math.max(0, castingEnrichment - ENRICH_DECAY * dt);
+  castingEnrichment = Math.max(0, castingEnrichment - ENRICH_DECAY);
 
   // --- Passive tunnel decay — tier 2 paths fill back in over time ---
   // Only every 10 frames — decay is slow enough this is imperceptible, saves O(pPath) per frame
@@ -3885,11 +3835,11 @@ function updatePhysics(dt) {
       if (!tp || tp.ti !== 2) continue;
       if (tp.alpha == null) tp.alpha = 1;
       var _decayRate = _segConn[tdi] ? TUNNEL_DECAY : TUNNEL_DECAY_UNCONNECTED;
-      tp.alpha = Math.max(0, tp.alpha - _decayRate * 10 * dt);
+      tp.alpha = Math.max(0, tp.alpha - _decayRate * 10);
       // Clog self-clears over ~25 min (castings break down in rich compost)
       // But only decay if no fresh poop landed here in the last 1800 frames (~30 seconds)
       if (tp.clog && (frame - (tp.clogTs || 0)) > 1800) {
-        var clogDecay = (0.00001 + castingEnrichment * 0.00003) * 10 * dt;
+        var clogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
         tp.clog = Math.max(0, tp.clog - clogDecay);
       }
     }
@@ -4624,7 +4574,7 @@ function updatePhysics(dt) {
   // ── Valve open — continuous tea drain while player holds it open ──────────
   if (valveOpen && drainOwner === 'valve') { // guard: only drain if this system owns tLvl
     if (tLvl > 0) {
-      var drainAmt = VALVE_DRAIN_RATE * dt;
+      var drainAmt = VALVE_DRAIN_RATE;
       tLvl = Math.max(0, tLvl - drainAmt);
       window._valveDrainedTotal = (window._valveDrainedTotal || 0) + drainAmt;
       valveDropTimer++;
@@ -7550,21 +7500,11 @@ function updatePendingWorms() {
   }
 }
 
-// ARC-1A: Canonical entry point — always use this instead of calling loop() directly.
-// Initializes lastTickMs so the first dt is ~1.0 instead of potentially huge.
-function startLoop() {
-  lastTickMs = performance.now();
-  if (!loopRafId) { loopRafId = requestAnimationFrame(loop); }
-}
-
-// ── ARC-1A: Physics tick — shared by rAF path and hidden-tab setInterval path ───────────
-// dt = elapsed time normalized to 60fps frames (1.0 = exactly one 60fps frame).
-// All per-frame drain rates in updatePlayer() and updatePhysics() are multiplied by dt
-// so physics advance at wall-clock speed regardless of actual frame rate.
-// draw() is only called when the tab is visible (rAF path). Hidden-tab path skips it.
-function physicsTick(dt) {
-  if (!W || !H) return;
+function loop() {
+  if (!W || !H) { requestAnimationFrame(loop); return; }
   frame++;
+  // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
+  // Throttle the new Date() allocation to every 60 frames instead of every frame.
   if (frame % 60 === 0) dayTime = getRealDayTime();
   try { updateCocoons(); } catch(e) { showErr('updateCocoons: '+e.message); }
   try { updateSnoo(); } catch(e) { showErr('updateSnoo: '+e.message); }
@@ -7573,22 +7513,9 @@ function physicsTick(dt) {
   if (drainTapCooldown > 0) drainTapCooldown--;
   if (emergencyCooldown > 0) emergencyCooldown--;
   if (!snooGamePaused) {
-    try { updatePlayer(dt); } catch(e) { showErr('updatePlayer: '+e.message); }
-    try { updatePhysics(dt); } catch(e) { showErr('updatePhysics: '+e.message); }
+    try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
+    try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
   }
-}
-
-function loop() {
-  if (!W || !H) { loopRafId = requestAnimationFrame(loop); return; }
-  var now = performance.now();
-  var elapsed = lastTickMs > 0 ? now - lastTickMs : 1000/60;
-  // Clamp dt: minimum 0.25 (deliberate slow tab), maximum 4.0 (browser just resumed).
-  // Without this, a long sleep would insta-kill all worms in one tick.
-  var dt = Math.min(4.0, Math.max(0.25, elapsed / (1000 / 60)));
-  lastTickMs = now;
-
-  physicsTick(dt);
-
   // ── View mode camera — lerps camY toward viewCamY when free-scrolling ──
   if (viewMode) {
     var _camMax = 3*H + H*0.25 - H + 120;
@@ -7597,58 +7524,8 @@ function loop() {
     camY = Math.round(camY);
   }
   try { draw(); } catch(e) { showErr('draw: '+e.message); }
-  loopRafId = requestAnimationFrame(loop);
+  requestAnimationFrame(loop);
 }
-
-// ── ARC-1A: Hidden-tab fallback — fires every 500ms when tab is not visible ─────────────
-// Keeps worm physics running at full speed (same as rAF) so worm HP/gut/acid drain
-// continues normally. Worms CAN die offline. Only safe to leave when sleeping.
-// draw() is skipped — canvas is not visible, no render needed.
-function hiddenTick() {
-  var now = performance.now();
-  var elapsed = lastTickMs > 0 ? now - lastTickMs : 16;
-  var dt = Math.min(4.0, Math.max(0.25, elapsed / (1000 / 60)));
-  lastTickMs = now;
-  physicsTick(dt);
-  // No draw() — canvas is not visible, skip the render entirely
-}
-
-// ── ARC-1A: Tab-hidden detection ─────────────────────────────────────────────────────────
-// Devvit runs the game inside an iframe. document.visibilitychange does NOT fire inside
-// iframes when the parent tab is hidden — only the top-level document gets that event.
-// window blur/focus DO fire inside iframes and are the reliable signal here.
-// pagehide/pageshow added as backup for mobile Safari and bfcache scenarios.
-
-function onTabHidden() {
-  if (tabHidden) return;
-  tabHidden = true;
-  // Save current state to KV immediately — so the server has the real pGut/pHP
-  // when the player returns. Without this, server KV has stale data and
-  // applyOfflineDrain gets the old healthy gut value, not the drained one.
-  if (!deathScreen && pSegs.length) saveSession();
-  if (loopRafId) { cancelAnimationFrame(loopRafId); loopRafId = null; }
-  if (!loopIntId) { lastTickMs = performance.now(); loopIntId = setInterval(hiddenTick, 16); }
-}
-
-function onTabVisible() {
-  if (!tabHidden) return;
-  tabHidden = false;
-  if (loopIntId) { clearInterval(loopIntId); loopIntId = null; }
-  lastTickMs = performance.now();
-  if (!loopRafId) { loopRafId = requestAnimationFrame(loop); }
-}
-
-window.addEventListener('blur',        onTabHidden);
-window.addEventListener('focus',       onTabVisible);
-window.addEventListener('pagehide',    onTabHidden);
-window.addEventListener('pageshow',    onTabVisible);
-window.addEventListener('beforeunload', function() {
-  // Save on tab close — ensures KV has current pGut/pHP for offline drain calc
-  if (!deathScreen && pSegs.length) saveSession();
-});
-document.addEventListener('visibilitychange', function() {
-  if (document.hidden) { onTabHidden(); } else { onTabVisible(); }
-});
 function showErr(msg) {
   if (!window._lastErr || window._lastErr !== msg) {
     window._lastErr = msg;
@@ -8509,12 +8386,12 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     window._devvitSetupTimer = setTimeout(function() {
       if (window._devvitSetupPending) {
         window._devvitSetupPending = false;
-        setup(); startLoop();
+        setup(); loop();
       }
     }, 400);
   } else {
     // Not in an iframe — local dev or standalone. Start immediately.
-    setTimeout(function() { setup(); startLoop(); }, 100);
+    setTimeout(function() { setup(); loop(); }, 100);
   }
 })();
 
