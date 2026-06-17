@@ -6490,29 +6490,18 @@ function draw() {
     if (avatarMode === 0) {
       // Snoo mode — use real Reddit avatar if loaded, else drawn Snoo
       if (playerAvatarImg) {
-        // Draw Snoovatar clipped to a circle with a soft backing disc
-        var _ax = pSegs[0].x, _ay = phsy - pSR - 26, _ar = 18;
+        // Snoovatar is a full-body portrait PNG — draw it upright above the worm
+        // Scale to ~44px tall, keep aspect ratio, center on worm head X, feet at worm head
+        var _iw = playerAvatarImg.naturalWidth  || playerAvatarImg.width  || 1;
+        var _ih = playerAvatarImg.naturalHeight || playerAvatarImg.height || 1;
+        var _ah = 44;                         // target height in px
+        var _aw = _ah * (_iw / _ih);          // maintain aspect ratio
+        var _ax = pSegs[0].x - _aw / 2;      // center horizontally
+        var _ay = phsy - pSR - _ah - 2;       // feet sit just above worm head
         ctx.save();
-        // Soft shadow/glow behind avatar
-        ctx.shadowColor = 'rgba(0,0,0,0.55)';
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        ctx.arc(_ax, _ay, _ar + 1, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(20,20,20,0.45)';
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        // Clip to circle
-        ctx.beginPath();
-        ctx.arc(_ax, _ay, _ar, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(playerAvatarImg, _ax - _ar, _ay - _ar, _ar * 2, _ar * 2);
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(playerAvatarImg, _ax, _ay, _aw, _ah);
         ctx.restore();
-        // Thin ring outline
-        ctx.beginPath();
-        ctx.arc(_ax, _ay, _ar, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(180,255,140,0.7)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
       } else {
         drawSnoo(ctx, pSegs[0].x, phsy - pSR - 20, 1.4, pSleeping);
       }
