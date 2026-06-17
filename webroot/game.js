@@ -2342,8 +2342,7 @@ function drawSnooDrain() {
   rg.addColorStop(0,'#5a8ad8'); rg.addColorStop(0.5,'#4a78c4'); rg.addColorStop(1,'#3a68b0');
   ctx.fillStyle = rg;
   ctx.beginPath(); ctx.roundRect(bodyW*0.08, torsoBot, bodyW*0.34, legH, [0,0,4,4]); ctx.fill();
-  // Boots
-  function dBoot(bx) {
+  function _dBoot(bx) {
     var by = torsoBot + legH;
     ctx.fillStyle = '#6a3a18';
     ctx.beginPath(); ctx.ellipse(bx, by, bootW, bootH, 0, 0, Math.PI); ctx.fill();
@@ -2352,7 +2351,7 @@ function drawSnooDrain() {
     ctx.strokeStyle = '#3a1a06'; ctx.lineWidth = SC*0.008;
     ctx.beginPath(); ctx.ellipse(bx, by, bootW*1.04, bootH*1.08, 0, Math.PI, Math.PI*2); ctx.stroke();
   }
-  dBoot(-bodyW*0.25); dBoot(bodyW*0.25);
+  _dBoot(-bodyW*0.25); _dBoot(bodyW*0.25);
   ctx.restore();
 
   // ── Left upper arm behind body ────────────────────────────────────────────
@@ -2419,43 +2418,59 @@ function drawSnooDrain() {
   // ── SVG-accurate head ─────────────────────────────────────────────────────
   ctx.save(); ctx.translate(sx, sy);
   var S2=headR/64, ox=128.1, oy=149.3;
-  function svgX(v) { return (v-ox)*S2; }
-  function svgY(v) { return (v-oy)*S2+headCY; }
-  var earR2=29.9*S2, earCY2=svgY(123.7);
-  ctx.fillStyle=snooHeadGrad(ctx, svgX(55.4),earCY2,earR2); ctx.beginPath(); ctx.arc(svgX(55.4),earCY2,earR2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=snooHeadGrad(ctx, svgX(200.6),earCY2,earR2); ctx.beginPath(); ctx.arc(svgX(200.6),earCY2,earR2,0,Math.PI*2); ctx.fill();
-  var hRx2=85.3*S2,hRy2=64*S2,hCX2=svgX(128.1),hCY2=svgY(149.3);
-  ctx.fillStyle=snooHeadGrad(ctx, hCX2,hCY2,Math.max(hRx2,hRy2));
+  function _svgX(v) { return (v-ox)*S2; }
+  function _svgY(v) { return (v-oy)*S2+headCY; }
+  function _mkSnooGrad(gcx,gcy,gr) {
+    var g=ctx.createRadialGradient(gcx,gcy,0,gcx,gcy,gr*1.4);
+    g.addColorStop(0,'#FEFFFF'); g.addColorStop(0.4,'#FEFFFF'); g.addColorStop(0.51,'#F9FCFC');
+    g.addColorStop(0.62,'#EDF3F5'); g.addColorStop(0.72,'#D8E4E8');
+    g.addColorStop(0.8,'#C8D5DD'); g.addColorStop(0.9,'#FFEBEF'); return g;
+  }
+  var earR2=29.9*S2, earCY2=_svgY(123.7);
+  ctx.fillStyle=_mkSnooGrad(_svgX(55.4),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(55.4),earCY2,earR2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=_mkSnooGrad(_svgX(200.6),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(200.6),earCY2,earR2,0,Math.PI*2); ctx.fill();
+  var hRx2=85.3*S2,hRy2=64*S2,hCX2=_svgX(128.1),hCY2=_svgY(149.3);
+  ctx.fillStyle=_mkSnooGrad(hCX2,hCY2,Math.max(hRx2,hRy2));
   ctx.beginPath(); ctx.ellipse(hCX2,hCY2,hRx2,hRy2,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#842123';
-  ctx.beginPath(); ctx.moveTo(svgX(102.8),svgY(143.1)); ctx.bezierCurveTo(svgX(102.3),svgY(153.9),svgX(95.1),svgY(157.9),svgX(86.7),svgY(157.9)); ctx.bezierCurveTo(svgX(78.3),svgY(157.9),svgX(71.9),svgY(152.3),svgX(72.4),svgY(141.5)); ctx.bezierCurveTo(svgX(72.9),svgY(130.7),svgX(80.6),svgY(123.5),svgX(88.5),svgY(123.5)); ctx.bezierCurveTo(svgX(96.4),svgY(123.5),svgX(103.3),svgY(132.3),svgX(102.8),svgY(143.1)); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(svgX(183.6),svgY(141.5)); ctx.bezierCurveTo(svgX(184.1),svgY(152.3),svgX(177.7),svgY(157.9),svgX(169.3),svgY(157.9)); ctx.bezierCurveTo(svgX(160.9),svgY(157.9),svgX(153.7),svgY(154.0),svgX(153.2),svgY(143.1)); ctx.bezierCurveTo(svgX(152.7),svgY(132.3),svgX(159.1),svgY(123.9),svgX(167.5),svgY(123.9)); ctx.bezierCurveTo(svgX(175.9),svgY(123.9),svgX(183.1),svgY(130.6),svgX(183.6),svgY(141.5)); ctx.closePath(); ctx.fill();
-  ctx.fillStyle=snooIrisGrad(ctx,svgX(87.8),svgY(141.5),S2);
-  ctx.beginPath(); ctx.moveTo(svgX(102.8),svgY(144.1)); ctx.bezierCurveTo(svgX(102.3),svgY(154.2),svgX(95.6),svgY(157.9),svgX(87.8),svgY(157.9)); ctx.bezierCurveTo(svgX(80.0),svgY(157.9),svgX(74.5),svgY(152.4),svgX(74.5),svgY(142.2)); ctx.bezierCurveTo(svgX(75.0),svgY(132.1),svgX(81.7),svgY(125.4),svgX(89.5),svgY(125.4)); ctx.bezierCurveTo(svgX(97.3),svgY(125.4),svgX(103.3),svgY(133.9),svgX(102.8),svgY(144.1)); ctx.closePath(); ctx.fill();
-  ctx.fillStyle=snooIrisGrad(ctx,svgX(168.3),svgY(141.5),S2);
-  ctx.beginPath(); ctx.moveTo(svgX(153.3),svgY(144.1)); ctx.bezierCurveTo(svgX(153.8),svgY(154.2),svgX(160.5),svgY(157.9),svgX(168.3),svgY(157.9)); ctx.bezierCurveTo(svgX(176.1),svgY(157.9),svgX(182.1),svgY(152.4),svgX(181.7),svgY(142.2)); ctx.bezierCurveTo(svgX(181.2),svgY(132.1),svgX(174.5),svgY(125.4),svgX(166.7),svgY(125.4)); ctx.bezierCurveTo(svgX(158.9),svgY(125.4),svgX(152.8),svgY(133.9),svgX(153.3),svgY(144.1)); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(_svgX(102.8),_svgY(143.1)); ctx.bezierCurveTo(_svgX(102.3),_svgY(153.9),_svgX(95.1),_svgY(157.9),_svgX(86.7),_svgY(157.9)); ctx.bezierCurveTo(_svgX(78.3),_svgY(157.9),_svgX(71.9),_svgY(152.3),_svgX(72.4),_svgY(141.5)); ctx.bezierCurveTo(_svgX(72.9),_svgY(130.7),_svgX(80.6),_svgY(123.5),_svgX(88.5),_svgY(123.5)); ctx.bezierCurveTo(_svgX(96.4),_svgY(123.5),_svgX(103.3),_svgY(132.3),_svgX(102.8),_svgY(143.1)); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(_svgX(183.6),_svgY(141.5)); ctx.bezierCurveTo(_svgX(184.1),_svgY(152.3),_svgX(177.7),_svgY(157.9),_svgX(169.3),_svgY(157.9)); ctx.bezierCurveTo(_svgX(160.9),_svgY(157.9),_svgX(153.7),_svgY(154.0),_svgX(153.2),_svgY(143.1)); ctx.bezierCurveTo(_svgX(152.7),_svgY(132.3),_svgX(159.1),_svgY(123.9),_svgX(167.5),_svgY(123.9)); ctx.bezierCurveTo(_svgX(175.9),_svgY(123.9),_svgX(183.1),_svgY(130.6),_svgX(183.6),_svgY(141.5)); ctx.closePath(); ctx.fill();
+  function _mkIrisGrad(icx,icy) {
+    var g=ctx.createRadialGradient(icx,icy-3*S2,0,icx,icy+2*S2,17*S2);
+    g.addColorStop(0,'#FF6600'); g.addColorStop(0.5,'#FF4500'); g.addColorStop(0.7,'#FC4301');
+    g.addColorStop(0.82,'#F43F07'); g.addColorStop(0.92,'#E53812'); g.addColorStop(1,'#D4301F'); return g;
+  }
+  ctx.fillStyle=_mkIrisGrad(_svgX(87.8),_svgY(141.5));
+  ctx.beginPath(); ctx.moveTo(_svgX(102.8),_svgY(144.1)); ctx.bezierCurveTo(_svgX(102.3),_svgY(154.2),_svgX(95.6),_svgY(157.9),_svgX(87.8),_svgY(157.9)); ctx.bezierCurveTo(_svgX(80.0),_svgY(157.9),_svgX(74.5),_svgY(152.4),_svgX(74.5),_svgY(142.2)); ctx.bezierCurveTo(_svgX(75.0),_svgY(132.1),_svgX(81.7),_svgY(125.4),_svgX(89.5),_svgY(125.4)); ctx.bezierCurveTo(_svgX(97.3),_svgY(125.4),_svgX(103.3),_svgY(133.9),_svgX(102.8),_svgY(144.1)); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=_mkIrisGrad(_svgX(168.3),_svgY(141.5));
+  ctx.beginPath(); ctx.moveTo(_svgX(153.3),_svgY(144.1)); ctx.bezierCurveTo(_svgX(153.8),_svgY(154.2),_svgX(160.5),_svgY(157.9),_svgX(168.3),_svgY(157.9)); ctx.bezierCurveTo(_svgX(176.1),_svgY(157.9),_svgX(182.1),_svgY(152.4),_svgX(181.7),_svgY(142.2)); ctx.bezierCurveTo(_svgX(181.2),_svgY(132.1),_svgX(174.5),_svgY(125.4),_svgX(166.7),_svgY(125.4)); ctx.bezierCurveTo(_svgX(158.9),_svgY(125.4),_svgX(152.8),_svgY(133.9),_svgX(153.3),_svgY(144.1)); ctx.closePath(); ctx.fill();
   ctx.fillStyle='#FF6101';
-  ctx.beginPath(); ctx.ellipse(svgX(88.0),svgY(149.1),9.3*S2,7.1*S2,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(svgX(168.2),svgY(149.1),9.3*S2,7.1*S2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(_svgX(88.0),_svgY(149.1),9.3*S2,7.1*S2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(_svgX(168.2),_svgY(149.1),9.3*S2,7.1*S2,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.92)';
-  ctx.beginPath(); ctx.arc(svgX(82),svgY(132),4.8*S2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(svgX(162),svgY(132),4.8*S2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(_svgX(82),_svgY(132),4.8*S2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(_svgX(162),_svgY(132),4.8*S2,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#FFC49C';
-  ctx.beginPath(); ctx.ellipse(svgX(94.4),svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(svgX(173.3),svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
-  // Mouth — shared snooSmilePath helper
-  ctx.fillStyle='#BBCFDA'; snooSmilePath(ctx,165.1,186.0,30.1,S2,headCY); ctx.fill();
-  ctx.fillStyle='#FFFFFF';  snooSmilePath(ctx,167.5,190.1,30.0,S2,headCY); ctx.fill();
-  var mG=ctx.createRadialGradient(svgX(128.1),svgY(175),0,svgX(128.1),svgY(166),21*S2);
+  ctx.beginPath(); ctx.ellipse(_svgX(94.4),_svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(_svgX(173.3),_svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
+  function _smilePath(ty2,by2,hw2) {
+    var tx2=_svgX(128.1),ty3=_svgY(ty2),hw3=hw2*S2,dep=(by2-ty2)*S2;
+    ctx.beginPath(); ctx.moveTo(tx2-hw3,ty3); ctx.lineTo(tx2+hw3,ty3);
+    ctx.bezierCurveTo(tx2+hw3,ty3+dep*0.4,tx2+hw3*0.80,ty3+dep,tx2,ty3+dep);
+    ctx.bezierCurveTo(tx2-hw3*0.80,ty3+dep,tx2-hw3,ty3+dep*0.4,tx2-hw3,ty3); ctx.closePath();
+  }
+  ctx.fillStyle='#BBCFDA'; _smilePath(165.1,186.0,30.1); ctx.fill();
+  ctx.fillStyle='#FFFFFF';  _smilePath(167.5,190.1,30.0); ctx.fill();
+  var mG=ctx.createRadialGradient(_svgX(128.1),_svgY(175),0,_svgX(128.1),_svgY(166),21*S2);
   mG.addColorStop(0,'#172E35'); mG.addColorStop(0.29,'#0E1C21'); mG.addColorStop(0.73,'#030708'); mG.addColorStop(1,'#000000');
-  ctx.fillStyle=mG; snooSmilePath(ctx,166.2,187.2,29.5,S2,headCY); ctx.fill();
+  ctx.fillStyle=mG; _smilePath(166.2,187.2,29.5); ctx.fill();
   // Antenna
-  var orbX2=svgX(174.8),orbY2=svgY(55.5),orbR2=21.2*S2;
-  ctx.fillStyle=snooHeadGrad(ctx, orbX2,orbY2,orbR2); ctx.beginPath(); ctx.arc(orbX2,orbY2,orbR2,0,Math.PI*2); ctx.fill();
+  var orbX2=_svgX(174.8),orbY2=_svgY(55.5),orbR2=21.2*S2;
+  ctx.fillStyle=_mkSnooGrad(orbX2,orbY2,orbR2); ctx.beginPath(); ctx.arc(orbX2,orbY2,orbR2,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#172E35';
-  ctx.beginPath(); ctx.moveTo(svgX(127.8),svgY(88)); ctx.bezierCurveTo(svgX(127.8),svgY(69),svgX(143.2),svgY(53.6),svgX(162.2),svgY(53.6)); ctx.bezierCurveTo(svgX(164.7),svgY(53.6),svgX(166.8),svgY(55.7),svgX(166.8),svgY(58.2)); ctx.bezierCurveTo(svgX(166.8),svgY(60.7),svgX(164.7),svgY(62.8),svgX(162.2),svgY(62.8)); ctx.bezierCurveTo(svgX(148.3),svgY(62.8),svgX(137.0),svgY(74.1),svgX(137.0),svgY(88.0)); ctx.bezierCurveTo(svgX(132.4),svgY(87.0),svgX(130.3),svgY(88.0),svgX(127.8),svgY(88.0)); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(_svgX(127.8),_svgY(88)); ctx.bezierCurveTo(_svgX(127.8),_svgY(69),_svgX(143.2),_svgY(53.6),_svgX(162.2),_svgY(53.6)); ctx.bezierCurveTo(_svgX(164.7),_svgY(53.6),_svgX(166.8),_svgY(55.7),_svgX(166.8),_svgY(58.2)); ctx.bezierCurveTo(_svgX(166.8),_svgY(60.7),_svgX(164.7),_svgY(62.8),_svgX(162.2),_svgY(62.8)); ctx.bezierCurveTo(_svgX(148.3),_svgY(62.8),_svgX(137.0),_svgY(74.1),_svgX(137.0),_svgY(88.0)); ctx.bezierCurveTo(_svgX(132.4),_svgY(87.0),_svgX(130.3),_svgY(88.0),_svgX(127.8),_svgY(88.0)); ctx.closePath(); ctx.fill();
   ctx.save(); ctx.beginPath(); ctx.ellipse(hCX2,hCY2,hRx2,hRy2,0,0,Math.PI*2); ctx.clip();
-  ctx.fillStyle=snooHeadGrad(ctx, hCX2,hCY2,Math.max(hRx2,hRy2));
+  ctx.fillStyle=_mkSnooGrad(hCX2,hCY2,Math.max(hRx2,hRy2));
   ctx.fillRect(hCX2-hRx2*0.55,hCY2-hRy2*1.05,hRx2*1.1,hRy2*0.22); ctx.restore();
   ctx.restore(); // end head translate
 
