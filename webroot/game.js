@@ -3008,24 +3008,28 @@ setInterval(function() {
   });
 }, 2000);
 
+// Maximum logical canvas width — keeps bin the same size on all screens.
+// On larger viewports the canvas CSS-scales up uniformly (zoom), not by
+// expanding the coordinate space. Physics, bin, worm all stay identical.
+var MAX_LOGICAL_W = 430;
+
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
   if (!W || !H) {
-    // First call — establish logical coordinate space from current viewport.
-    W = vw;
-    H = vh;
+    // First call — clamp logical width so bin is consistent across devices.
+    // Height scales proportionally so aspect ratio matches the viewport.
+    var logicalW = Math.min(vw, MAX_LOGICAL_W);
+    var logicalH = Math.round(vh * (logicalW / vw));
+    W = logicalW;
+    H = logicalH;
     canvas.width  = W;
     canvas.height = H;
   }
-  // On subsequent calls (window resize): keep W/H locked so all world-coordinate
-  // objects (drops, scraps, pPath, worm segments) remain valid.
-  // Scale the canvas CSS to fill the new viewport without touching the logical
-  // pixel grid that the game world is built on.
+  // Scale canvas CSS to fill the full viewport — logical coords stay locked.
   var scaleX = vw / W;
   var scaleY = vh / H;
   canvas.style.transform = 'scale(' + scaleX + ',' + scaleY + ')';
-  // Store scale factors so event handlers can invert screen->world coords.
   window._canvasScaleX = scaleX;
   window._canvasScaleY = scaleY;
 }
