@@ -7089,6 +7089,17 @@ function draw() {
   // Snoo cinematics drawn on top of world, below death screen
   drawSnooCinematic();
   drawSnooDrain();
+  // DEBUG overlay — shows T key state on screen
+  if (window._debugMsg && frame - (window._debugMsgFrame||0) < 300) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(10, 10, W-20, 34);
+    ctx.fillStyle = '#ffff00';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(window._debugMsg, 14, 31);
+    ctx.restore();
+  }
   // Weather HUD — small location/conditions readout
   drawWeatherHUD();
   // Queue system — pending cocoons and spectator HUD
@@ -8363,7 +8374,13 @@ window.addEventListener('keydown', function(e) {
     e.preventDefault();
     tLvl = 0.8;
     weeklyContrib = 1.0;  // DEBUG: solo player gets full bonus
-    triggerSnooDrain();
+    try {
+      triggerSnooDrain();
+      window._debugMsg = 'T pressed: drainScene=' + drainScene + ' drainPhase=' + drainPhase + ' tLvl=' + tLvl.toFixed(2);
+    } catch(e2) {
+      window._debugMsg = 'T ERROR: ' + e2.message;
+    }
+    window._debugMsgFrame = frame;
   }
   // DEBUG — G key triggers Snoo emergency cinematic.
   if (e.code === 'KeyG') { e.preventDefault(); triggerSnoo('emergency'); }
