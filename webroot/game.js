@@ -2879,7 +2879,15 @@ function applyOfflineDrain(saved) {
   pGut = Math.max(0, pGut - gutDrain); // clamp at 0 — never go negative
   // If fully starved, bleed HP down — same formula as live starving damage
   // pHP can reach 0 here; death check in updatePlayer() will fire on next tick
-  if (pGut <= 0) pHP = Math.max(0, pHP - Math.max(0, drain - 1.0) * 0.6);
+  if (pGut <= 0) {
+    // Gut hit 0 — calculate how long the worm was starving after the gut emptied.
+    // gutEmptiedAtSec = how many seconds into the absence the gut ran out.
+    // Live starvation rate: 0.0003 HP/frame × 60fps = 0.018 HP/sec.
+    var gutEmptiedAtSec = (1.0 / OFFLINE_DRAIN_PER_SEC) * (saved.pGut / pGutMax);
+    var starvingSec = Math.max(0, elapsedSec - gutEmptiedAtSec);
+    var STARVE_HP_PER_SEC = 0.0003 * 60; // matches live rate exactly
+    pHP = Math.max(0, pHP - starvingSec * STARVE_HP_PER_SEC);
+  }
 
   // Build an accurate return-status message from the actual restored state.
   // This runs after pGut, pHP, pSleeping, tLvl, cocoons etc. are all loaded —
@@ -3132,6 +3140,27 @@ function setup() {
 
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
+
+  // ── Offline death check — must run here, not in updatePlayer() ───────────
+  // applyOfflineDrain() can set pHP = 0. We can't rely on updatePlayer() to
+  // catch it because: (a) setup() already reset deathScreen = false above,
+  // and (b) the game loop hasn't started yet. Trigger death screen now so the
+  // player sees it on load and the Reddit comment fires.
+  if (pHP <= 0 && !deathScreen) {
+    deathScreen = true;
+    deathFade = 0;
+    if (!deathCause) deathCause = 'starvation'; // default if not set by flood path
+    saveSession(); // persist the death state
+    postToHost({
+      type:       MSG_PLAYER_DIED,
+      cause:      deathCause,
+      karma:      Math.floor(karma),
+      generation: generation,
+      pEaten:     pEaten,
+      username:   username
+    });
+  }
+
   spawnScraps();
 }
 
