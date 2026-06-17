@@ -41,6 +41,7 @@ var _ctxFilterSupported = (function(){
 
 var W = 0, H = 0;
 var camY = 0;
+var camX = 0;           // horizontal camera offset — follows worm X on wide worlds
 var viewMode = false;   // true when sleeping or observing — free-scroll active
 var viewCamY = 0;       // scroll target written by drag/wheel; camY lerps here in viewMode
 var mX = 0, mY = 0;
@@ -3008,10 +3009,9 @@ setInterval(function() {
   });
 }, 2000);
 
-// Maximum logical canvas width — keeps bin the same size on all screens.
-// On larger viewports the canvas CSS-scales up uniformly (zoom), not by
-// expanding the coordinate space. Physics, bin, worm all stay identical.
-var MAX_LOGICAL_W = 430;
+// Logical world width — bin is sized for this. On narrow screens the canvas
+// CSS-scales down; on wide screens it fills naturally. camX scrolls horizontally.
+var MAX_LOGICAL_W = 1024;
 
 function resizeCanvas() {
   var vw = root.offsetWidth;
@@ -3832,6 +3832,15 @@ function updatePlayer() {
   if (!viewMode) {
     var tc = head.y - H/2;
     camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
+    // Horizontal camera — clamp so we never scroll past the bin walls
+    var _b0 = getBinCached();
+    var _tcx = head.x - W/2;
+    var _camXMin = _b0.cx - _b0.bw2 - (W/2 - _b0.bw2);
+    var _camXMax = _b0.cx + _b0.bw2 - W/2 + (W/2 - _b0.bw2);
+    var _camXMin2 = Math.min(0, _b0.cx - _b0.bw2 - 10);
+    var _camXMax2 = Math.max(0, _b0.cx + _b0.bw2 + 10 - W);
+    camX += (Math.max(_camXMin2, Math.min(_camXMax2, _tcx)) - camX) * 0.04;
+    camX = Math.round(camX);
   }
 }
 
@@ -5194,6 +5203,9 @@ var _segPtsScratch = [];
 function draw() {
   if (!W || !H) return;
   ctx.clearRect(0, 0, W, H);
+  // Shift entire world by -camX so worm stays horizontally centered
+  ctx.save();
+  ctx.translate(-camX, 0);
   var b = getBinCached();
 
   // Compute pile top Y once — used by airspace, soil fill, blanket, bugs.
@@ -6864,6 +6876,9 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  // ── Restore canvas transform — everything below is screen-space HUD ──────
+  ctx.restore();
+
   // HUD — Karma pill (top left, persistent across deaths)
   ctx.font = '13px sans-serif';
   ctx.textAlign = 'left';
@@ -7117,16 +7132,17 @@ function draw() {
 
 
 
-  // ZZZ particles — convert world Y to screen Y
+  // ZZZ particles — convert world coords to screen coords (after camera restore)
   for (var zi2 = 0; zi2 < pZzz.length; zi2++) {
     var zp = pZzz[zi2];
     var zpScreenY = zp.wy - camY;
+    var zpScreenX = zp.x - camX;
     if (zpScreenY < -20 || zpScreenY > H + 20) continue;
     ctx.globalAlpha = zp.alpha;
     ctx.fillStyle = '#aaddff';
     ctx.font = 'bold ' + Math.round(zp.size) + 'px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(zp.char, zp.x, zpScreenY);
+    ctx.fillText(zp.char, zpScreenX, zpScreenY);
   }
   ctx.globalAlpha = 1;
 
