@@ -7934,21 +7934,19 @@ function tryPoop() {
 }
 
 // Convert a CSS pixel position (relative to root) to logical canvas coordinates.
-// Convert viewport CSS coords → game-world canvas coords.
-// Accounts for CSS scale AND canvas offset from letterboxing.
+// Convert client coords → canvas screen coords, then add camera offset for world coords.
+// _toCanvas returns screen-space coords. Add camX/camY to get world coords.
 function _toCanvas(clientX, clientY) {
-  var scale   = window._canvasScale   || 1;
-  var offsetX = window._canvasOffsetX || 0;
-  var offsetY = window._canvasOffsetY || 0;
+  var r = root.getBoundingClientRect();
   return {
-    x: (clientX - offsetX) / scale,
-    y: (clientY - offsetY) / scale
+    x: clientX - r.left,
+    y: clientY - r.top
   };
 }
 
 root.addEventListener('mousemove', function(e) {
   var p = _toCanvas(e.clientX, e.clientY);
-  mX = p.x;
+  mX = p.x + camX;
   mY = p.y + camY;
 });
 
@@ -7960,9 +7958,9 @@ root.addEventListener('wheel', function(e) {
 }, { passive: false });
 root.addEventListener('click', function(e) {
   var _cp = _toCanvas(e.clientX, e.clientY);
-  var cx = _cp.x;
+  var cx = _cp.x + camX;
   var cy = _cp.y;
-  if (!viewMode) { mX = cx; mY = cy + camY; } // don't steer worm while scrolling
+  if (!viewMode) { mX = cx + camX; mY = cy + camY; } // don't steer worm while scrolling
 
   // Block clicks during Snoo cinematic
   if (snooScene) return;
@@ -8118,7 +8116,7 @@ root.addEventListener('touchmove', function(e) {
     return;
   }
 
-  mX = tx;
+  mX = tx + camX;
   mY = ty + camY;
   // Cancel long-press if first finger drifts > 15px
   if (_gesture.lpActive) {
@@ -8138,7 +8136,7 @@ root.addEventListener('touchstart', function(e) {
   var n   = e.touches.length; // total fingers NOW on screen
   // Only steer on first finger — additional fingers are gestures (poop, avatar)
   // and must not jerk the worm toward the new touch point.
-  if (n === 1) { mX = tx; mY = ty + camY; }
+  if (n === 1) { mX = tx + camX; mY = ty + camY; }
 
   // Track peak finger count for this sequence
   if (n > _gesture.peakCount) _gesture.peakCount = n;
