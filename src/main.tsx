@@ -21,7 +21,7 @@
  *   queue:{postId}           — pending worm queue JSON array
  */
 
-import { Devvit, useWebView, useChannel } from '@devvit/public-api';
+import { Devvit, useWebView } from '@devvit/public-api';
 
 // ─── Message type constants ───────────────────────────────────────────────────
 // Inbound (webview → host)
@@ -107,35 +107,6 @@ Devvit.addCustomPostType({
   render: (context) => {
     const { kvStore, postId, userId, realtime } = context;
     const roomId = postId ?? 'unknown';
-
-    // ── Realtime channels — forward broadcasts to this webview ────────────
-    // realtime.send() publishes to a channel but doesn't auto-deliver to webviews.
-    // useChannel subscribes each viewer's host instance so every broadcast
-    // (presence, world state, flood) gets forwarded via webView.postMessage.
-    // Must be declared BEFORE useWebView so hooks run in consistent order.
-    const presenceChannel = useChannel({
-      name: RT_PRESENCE(roomId),
-      onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
-      },
-    });
-    presenceChannel.subscribe();
-
-    const worldChannel = useChannel({
-      name: RT_WORLD(roomId),
-      onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
-      },
-    });
-    worldChannel.subscribe();
-
-    const floodChannel = useChannel({
-      name: RT_FLOOD(roomId),
-      onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
-      },
-    });
-    floodChannel.subscribe();
 
     const webView = useWebView({
       url: 'index.html',
@@ -285,13 +256,13 @@ Devvit.addCustomPostType({
               if (!username) break;
               await realtime.send(RT_PRESENCE(roomId), JSON.stringify({
                 type: MSG_SET_PRESENCE,
-                players: [{
+                player: {
                   username,
-                  x:        message.x,
-                  y:        message.y,
+                  x:       message.x,
+                  y:       message.y,
                   sleeping: message.sleeping,
-                  size:     message.size,
-                }],
+                  size:    message.size,
+                },
               }));
             } catch (e) {
               // Presence updates are fire-and-forget — don't warn on failure
