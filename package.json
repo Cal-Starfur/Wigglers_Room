@@ -1,13 +1,13 @@
 {
   "name": "wigglers-room",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A wiggly multiplayer room game on Reddit via Devvit",
   "scripts": {
-    "build":     "tsc --noEmit && devvit build",
-    "dev":       "devvit upload && devvit playtest",
-    "lint":      "eslint src --ext .ts",
-    "test":      "vitest run",
+    "build": "tsc --noEmit && devvit build",
+    "dev": "devvit upload && devvit playtest",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "vitest":     "^1.5.0",
+    "vitest": "^1.5.0",
     "@types/node": "^20.0.0"
   }
 }
