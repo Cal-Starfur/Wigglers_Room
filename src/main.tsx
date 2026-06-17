@@ -38,7 +38,6 @@ const MSG_READY               = 'ready';
 // Outbound (host → webview)
 const MSG_SET_USERNAME        = 'setUsername';
 const MSG_SET_SESSION         = 'setSession';
-const MSG_SET_WEATHER         = 'setWeather';
 const MSG_SET_PLAYER_AVATAR   = 'setPlayerAvatar';
 const MSG_SET_WORLD_STATE     = 'setWorldState';
 const MSG_SET_PRESENCE        = 'setPresence';
