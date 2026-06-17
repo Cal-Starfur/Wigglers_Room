@@ -529,6 +529,7 @@ var drainDownCooldown = 0;       // lockout frames after down drain fires — pr
 
 // Player worm
 var pEaten = 0;   // total items eaten — growth gated on this
+var bornTs = 0;   // timestamp when this worm life began — for headstone birth date
 var pGut = 0;     // gut size 0..pGutMax — bigger gut = bigger poop deposit
 var pGutMax = 8;
 var pPooping = false;
@@ -2723,6 +2724,7 @@ function saveSession() {
   try {
     var data = {
       ts:                Date.now(),
+      bornTs:            bornTs,
       karma:             Math.floor(karma),
       pEaten:            pEaten,
       pSR:               pSR,
@@ -2969,6 +2971,7 @@ function setup() {
     // Until then, clamp to sane ranges to prevent localStorage tampering.
     karma   = Math.max(0, Math.min(99999,   saved.karma  || 0));
     pEaten  = Math.max(0, Math.min(300000,   saved.pEaten || 0));
+    bornTs  = saved.bornTs || Date.now();
     pSR     = 4; // radius always locked at 4
     pSEG    = Math.max(4, Math.min(8,        saved.pSEG   || 4));
     generation = Math.max(0, Math.min(99,    saved.generation || 0));
@@ -3086,7 +3089,9 @@ function updatePlayer() {
       karma:      Math.floor(karma),
       generation: generation,
       pEaten:     pEaten,
-      username:   username
+      username:   username,
+      bornTs:     bornTs,
+      diedTs:     Date.now()
     });
     // ── END notify host ──────────────────────────────────────────────────
     // Wipe all fields that baby respawn resets — a reload must not restore pre-death progress
@@ -7579,6 +7584,7 @@ function respawnPlayer(usedKarma) {
     respawnY = H * 1.5;
     pGut = 0; pHP = 1.0;
     pEaten = 0; pSR = 4; pSEG = 4;
+    bornTs = Date.now(); // new life — stamp birth time
     // Reset the worm state — bin world persists (persistent game)
     tapReady = false; floodActive = false;
     window._moisture = pooled;
