@@ -188,33 +188,6 @@ var weatherLocationSet = true;
 // When running as a plain HTML file (local dev / testing) everything falls back
 // to localStorage automatically — no Devvit host needed for local play.
 
-// ── Message type constants — must match main.tsx exactly ─────────────────────
-// Inbound (host → webview)
-var MSG_SET_USERNAME        = 'setUsername';
-var MSG_SET_SESSION         = 'setSession';
-var MSG_SET_WEATHER         = 'setWeather';
-var MSG_SET_PLAYER_AVATAR   = 'setPlayerAvatar';
-var MSG_SET_WORLD_STATE     = 'setWorldState';
-var MSG_SET_PRESENCE        = 'setPresence';
-var MSG_SET_FLOOD           = 'setFlood';
-var MSG_WORM_CLAIMED        = 'wormClaimed';
-// Outbound (webview → host)
-var MSG_READY               = 'ready';
-var MSG_SAVE_SESSION        = 'saveSession';
-var MSG_WORLD_UPDATE        = 'worldUpdate';
-var MSG_PRESENCE_UPDATE     = 'presenceUpdate';
-var MSG_PLAYER_DIED         = 'playerDied';
-var MSG_REQUEST_PRESENCE    = 'requestPresence';
-var MSG_CLAIM_WORM          = 'claimWorm';
-var MSG_JOIN_QUEUE          = 'joinQueue';
-var MSG_FLOOD_ACK           = 'floodAck';
-var MSG_UNCLAIMED_WORM_DIED = 'unclaimedWormDied';
-// Legacy queue types (game.js internal — not yet in main.tsx)
-var MSG_SET_QUEUE_STATE     = 'setQueueState';
-var MSG_PENDING_WORM        = 'pendingWorm';
-var MSG_WORM_HATCHED        = 'wormHatched';
-var MSG_WORM_UNCLAIMED_DIED = 'wormUnclaimedDied';
-
 // Flag: true once the host has delivered a session so setup() knows not to wait
 var _devvitSessionReceived = false;
 
@@ -236,7 +209,7 @@ window.addEventListener('message', function(e) {
 
   // ── setUsername — Reddit auth identity ───────────────────────────────────
   // Devvit host sends: { type: 'setUsername', username: 'u/SoilKing42' }
-  if (msg.type === MSG_SET_USERNAME && msg.username) {
+  if (msg.type === 'setUsername' && msg.username) {
     username = msg.username;
   }
 
@@ -247,7 +220,7 @@ window.addEventListener('message', function(e) {
   //   pHP, pGut, pX, pY, pSleeping, pSleepX, pSleepY, cocoons,
   //   lastCocoonLaid, weekStartTs, weeklyContrib, tLvl, pooled,
   //   castingEnrichment, drops } }
-  if (msg.type === MSG_SET_SESSION) {
+  if (msg.type === 'setSession') {
     _devvitSessionReceived = true;
     if (msg.session) {
       // Write into localStorage so the existing loadSession() path picks it up
@@ -265,7 +238,7 @@ window.addEventListener('message', function(e) {
 
   // ── setWeather — real weather data from Open-Meteo via host ──────────────
   // { type: 'setWeather', humidity: 0–1, temp: 0–1, precip: 0–1, locName: string }
-  if (msg.type === MSG_SET_WEATHER) {
+  if (msg.type === 'setWeather') {
     if (msg.humidity != null) weather.humidity = Math.min(1, Math.max(0, msg.humidity));
     if (msg.temp     != null) weather.temp     = Math.min(1, Math.max(0, msg.temp));
     if (msg.precip   != null) weather.precip   = Math.min(1, Math.max(0, msg.precip));
@@ -275,7 +248,7 @@ window.addEventListener('message', function(e) {
 
   // ── setPlayerAvatar — real Reddit avatar image URL ────────────────────────
   // { type: 'setPlayerAvatar', url: 'https://...' }
-  if (msg.type === MSG_SET_PLAYER_AVATAR && msg.url) {
+  if (msg.type === 'setPlayerAvatar' && msg.url) {
     var img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = msg.url;
@@ -285,7 +258,7 @@ window.addEventListener('message', function(e) {
   // ── setWorldState — authoritative shared world from KV store ──────────────
   // Sent by host on post open with the current shared bin state.
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1 }
-  if (msg.type === MSG_SET_WORLD_STATE) {
+  if (msg.type === 'setWorldState') {
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
     if (msg.pooled           != null) pooled             = Math.max(0, Math.min(1, +msg.pooled           || 0));
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
@@ -297,11 +270,10 @@ window.addEventListener('message', function(e) {
   // Sent by host after 'requestPresence' and on Realtime presence updates.
   // { type: 'setPresence', players: [{ username, x, y, sleeping, size, avatarUrl }] }
   // We filter out our own entry so we never draw a ghost of the local player.
-  if (msg.type === MSG_SET_PRESENCE && Array.isArray(msg.players)) {
+  if (msg.type === 'setPresence' && Array.isArray(msg.players)) {
     var now = Date.now();
     msg.players.forEach(function(p) {
       if (!p || p.username === username) return; // skip self
-      if (p.x == null && p.y == null) return;   // skip queue entries — no position means not a live worm
       // Find existing entry or create one
       var existing = null;
       for (var i = 0; i < otherPlayers.length; i++) {
@@ -314,11 +286,6 @@ window.addEventListener('message', function(e) {
         existing.sleeping  = !!p.sleeping;
         existing.size      = Math.max(4, Math.min(7, +p.size || 5));
         existing.lastSeen  = now;
-        // Real worm data — use directly in draw loop
-        if (Array.isArray(p.segs))    existing.segs       = p.segs;
-        if (p.generation != null)     existing.generation = +p.generation;
-        if (p.hp != null)             existing.hp         = +p.hp;
-        if (p.gut != null)            existing.gut        = +p.gut;
         // Load avatar if URL changed or image not yet loaded
         if (p.avatarUrl && p.avatarUrl !== existing.avatarUrl) {
           existing.avatarUrl = p.avatarUrl;
@@ -329,21 +296,17 @@ window.addEventListener('message', function(e) {
         var _newImg = null;
         if (p.avatarUrl) { _newImg = new Image(); _newImg.src = p.avatarUrl; }
         otherPlayers.push({
-          username:   p.username,
-          x:          p.x != null ? +p.x : 0,
-          y:          p.y != null ? +p.y : 0,
-          targetX:    p.x != null ? +p.x : 0,
-          targetY:    p.y != null ? +p.y : 0,
-          sleeping:   !!p.sleeping,
-          size:       Math.max(4, Math.min(7, +p.size || 5)),
-          segs:       Array.isArray(p.segs) ? p.segs : null,
-          generation: p.generation != null ? +p.generation : 0,
-          hp:         p.hp != null ? +p.hp : 1,
-          gut:        p.gut != null ? +p.gut : 1,
-          avatarUrl:  p.avatarUrl || null,
-          avatarImg:  _newImg,
-          hist:       null,  // fallback history ring buffer if segs not yet received
-          lastSeen:   now
+          username:  p.username,
+          x:         p.x != null ? +p.x : 0,
+          y:         p.y != null ? +p.y : 0,
+          targetX:   p.x != null ? +p.x : 0,
+          targetY:   p.y != null ? +p.y : 0,
+          sleeping:  !!p.sleeping,
+          size:      Math.max(4, Math.min(7, +p.size || 5)),
+          avatarUrl: p.avatarUrl || null,
+          avatarImg: _newImg,
+          hist:      null,  // initialised lazily in draw loop
+          lastSeen:  now
         });
       }
     });
@@ -357,7 +320,7 @@ window.addEventListener('message', function(e) {
   // { type: 'setFlood', active: bool, level: 0–1, tLvl: 0–1, floodTs: ms }
   // The client-side tLvl threshold check still runs as a local fallback when
   // running standalone (localStorage mode) — it is NOT removed.
-  if (msg.type === MSG_SET_FLOOD) {
+  if (msg.type === 'setFlood') {
     if (msg.tLvl != null) tLvl = Math.max(0, Math.min(1, +msg.tLvl || 0));
     if (msg.active && !floodActive) {
       floodActive = true;
@@ -368,9 +331,10 @@ window.addEventListener('message', function(e) {
       // the client-only localStorage write in updatePhysics is a local-dev fallback.
       if (msg.floodTs) {
         try {
-          if (data) { data.lastFloodTs = +msg.floodTs; saveSession(); }
+          var fss = loadSession();
+          if (fss) { fss.lastFloodTs = +msg.floodTs; localStorage.setItem(SESSION_KEY, JSON.stringify(fss)); }
         } catch(e2) {}
-        postToHost({ type: MSG_FLOOD_ACK, floodTs: +msg.floodTs, username: username });
+        postToHost({ type: 'floodAck', floodTs: +msg.floodTs, username: username });
       }
     } else if (!msg.active && floodActive) {
       floodActive = false;
@@ -379,21 +343,21 @@ window.addEventListener('message', function(e) {
   }
 
   // ── setQueueState — sent on post open to queued / waiting players ─────────
-  if (msg.type === MSG_SET_QUEUE_STATE) {
+  if (msg.type === 'setQueueState') {
     queuePosition = msg.position || 0;
     queueTotal    = msg.total    || 0;
     if (queuePosition > 0) playerState = 'queued';
-    if (msg.pendingWorm) registerPendingWorm(msg.pendingWorm);
+    if (msg.pendingWorm) _registerPendingWorm(msg.pendingWorm);
   }
 
   // ── pendingWorm — broadcast to all when a death queues the next worm ──────
-  if (msg.type === MSG_PENDING_WORM) {
-    registerPendingWorm(msg);
+  if (msg.type === 'pendingWorm') {
+    _registerPendingWorm(msg);
   }
 
   // ── wormHatched — cocoon bursts, uncontrolled worm is now live ───────────
-  if (msg.type === MSG_WORM_HATCHED) {
-    var _hwp = findPendingWorm(msg.username);
+  if (msg.type === 'wormHatched') {
+    var _hwp = _findPendingWorm(msg.username);
     if (_hwp) { _hwp.hatched = true; _hwp.gutFrac = msg.gutFrac != null ? msg.gutFrac : 1.0; }
     if (msg.username === username && playerState === 'queued') {
       window._claimPrompt = frame;
@@ -401,7 +365,7 @@ window.addEventListener('message', function(e) {
   }
 
   // ── claimWorm — sent only to the owning player when they open the post ────
-  if (msg.type === MSG_CLAIM_WORM) {
+  if (msg.type === 'claimWorm') {
     pHP   = 1.0;
     pGut  = (msg.gutFrac != null ? msg.gutFrac : 0.5) * pGutMax;
     if (msg.karma      != null) karma      = msg.karma;
@@ -417,17 +381,17 @@ window.addEventListener('message', function(e) {
     pSleeping = false; deathScreen = false; deathFade = 0; pAcid = 0;
     playerState = 'playing';
     pendingWorms = pendingWorms.filter(function(p){ return p.username !== username; });
-    postToHost({ type: MSG_WORM_CLAIMED, username: username });
+    postToHost({ type: 'wormClaimed', username: username });
     saveSession();
   }
 
   // ── wormClaimed — another player just claimed their worm ─────────────────
-  if (msg.type === MSG_WORM_CLAIMED) {
+  if (msg.type === 'wormClaimed') {
     pendingWorms = pendingWorms.filter(function(p){ return p.username !== msg.username; });
   }
 
   // ── wormUnclaimedDied — an unclaimed worm starved ────────────────────────
-  if (msg.type === MSG_WORM_UNCLAIMED_DIED) {
+  if (msg.type === 'wormUnclaimedDied') {
     pendingWorms = pendingWorms.filter(function(p){ return p.username !== msg.username; });
     window._unclaimedDeathMsg  = (msg.username || '?') + '\'s worm starved unclaimed...';
     window._unclaimedDeathMsgT = frame;
@@ -435,7 +399,7 @@ window.addEventListener('message', function(e) {
 });
 
 // Derived rates — called each frame from updatePhysics
-function registerPendingWorm(pw) {
+function _registerPendingWorm(pw) {
   if (!pw || !pw.username) return;
   for (var _ri = 0; _ri < pendingWorms.length; _ri++) {
     if (pendingWorms[_ri].username === pw.username) {
@@ -457,7 +421,7 @@ function registerPendingWorm(pw) {
   });
 }
 
-function findPendingWorm(uname) {
+function _findPendingWorm(uname) {
   for (var _fi = 0; _fi < pendingWorms.length; _fi++) {
     if (pendingWorms[_fi].username === uname) return pendingWorms[_fi];
   }
@@ -613,6 +577,7 @@ function getBin() {
 // Cached bin geometry — recomputed only when W changes (resizeCanvas).
 // Hot paths call _bin instead of getBin() to avoid per-frame recalculation.
 var _bin = null;
+function _refreshBin() { _bin = getBin(); }
 // Override getBin to return the cache when available — safe because W never
 // changes mid-frame. Falls back to live if cache is stale (W changed since last resize).
 var _binCacheW = -1;
@@ -1633,94 +1598,6 @@ function getLowestScrapY() {
   return minY;
 }
 
-// ── Shared Snoo SVG helpers ───────────────────────────────────────────────
-// Used by drawFarmerSnoo, drawSnooDrain, and drawSnoo.
-// Source: Reddit_Icon_FullColor.svg viewBox="0 0 256 256", head ellipse cx=128.1 cy=149.3
-var SNOO_OX = 128.1, SNOO_OY = 149.3;
-
-function snooSvgX(v, scale) { return (v - SNOO_OX) * scale; }
-function snooSvgY(v, scale, headCY) { return (v - SNOO_OY) * scale + (headCY || 0); }
-
-function snooHeadGrad(ctx, gcx, gcy, gr) {
-  var g = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr * 1.4);
-  g.addColorStop(0,    '#FEFFFF');
-  g.addColorStop(0.4,  '#FEFFFF');
-  g.addColorStop(0.51, '#F9FCFC');
-  g.addColorStop(0.62, '#EDF3F5');
-  g.addColorStop(0.72, '#D8E4E8');
-  g.addColorStop(0.8,  '#C8D5DD');
-  g.addColorStop(0.9,  '#FFEBEF');
-  return g;
-}
-
-function snooIrisGrad(ctx, icx, icy, scale) {
-  var g = ctx.createRadialGradient(icx, icy - 3*scale, 0, icx, icy + 2*scale, 17*scale);
-  g.addColorStop(0,    '#FF6600');
-  g.addColorStop(0.5,  '#FF4500');
-  g.addColorStop(0.7,  '#FC4301');
-  g.addColorStop(0.82, '#F43F07');
-  g.addColorStop(0.92, '#E53812');
-  g.addColorStop(1,    '#D4301F');
-  return g;
-}
-
-function snooSmilePath(ctx, topSvgY, botSvgY, halfWSvg, scale, headCY) {
-  var tx  = snooSvgX(128.1, scale);
-  var ty  = snooSvgY(topSvgY, scale, headCY);
-  var hw  = halfWSvg * scale;
-  var dep = (botSvgY - topSvgY) * scale;
-  ctx.beginPath();
-  ctx.moveTo(tx - hw, ty);
-  ctx.lineTo(tx + hw, ty);
-  ctx.bezierCurveTo(tx+hw, ty+dep*0.4, tx+hw*0.80, ty+dep, tx, ty+dep);
-  ctx.bezierCurveTo(tx-hw*0.80, ty+dep, tx-hw, ty+dep*0.4, tx-hw, ty);
-  ctx.closePath();
-}
-
-// ── Shared Snoo SVG helpers ───────────────────────────────────────────────
-// Used by drawFarmerSnoo, drawSnooDrain, and drawSnoo.
-// Source: Reddit_Icon_FullColor.svg viewBox="0 0 256 256", head ellipse cx=128.1 cy=149.3
-var SNOO_OX = 128.1, SNOO_OY = 149.3;
-
-function snooSvgX(v, scale) { return (v - SNOO_OX) * scale; }
-function snooSvgY(v, scale, headCY) { return (v - SNOO_OY) * scale + (headCY || 0); }
-
-function snooHeadGrad(ctx, gcx, gcy, gr) {
-  var g = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr * 1.4);
-  g.addColorStop(0,    '#FEFFFF');
-  g.addColorStop(0.4,  '#FEFFFF');
-  g.addColorStop(0.51, '#F9FCFC');
-  g.addColorStop(0.62, '#EDF3F5');
-  g.addColorStop(0.72, '#D8E4E8');
-  g.addColorStop(0.8,  '#C8D5DD');
-  g.addColorStop(0.9,  '#FFEBEF');
-  return g;
-}
-
-function snooIrisGrad(ctx, icx, icy, scale) {
-  var g = ctx.createRadialGradient(icx, icy - 3*scale, 0, icx, icy + 2*scale, 17*scale);
-  g.addColorStop(0,    '#FF6600');
-  g.addColorStop(0.5,  '#FF4500');
-  g.addColorStop(0.7,  '#FC4301');
-  g.addColorStop(0.82, '#F43F07');
-  g.addColorStop(0.92, '#E53812');
-  g.addColorStop(1,    '#D4301F');
-  return g;
-}
-
-function snooSmilePath(ctx, topSvgY, botSvgY, halfWSvg, scale, headCY) {
-  var tx  = snooSvgX(128.1, scale);
-  var ty  = snooSvgY(topSvgY, scale, headCY);
-  var hw  = halfWSvg * scale;
-  var dep = (botSvgY - topSvgY) * scale;
-  ctx.beginPath();
-  ctx.moveTo(tx - hw, ty);
-  ctx.lineTo(tx + hw, ty);
-  ctx.bezierCurveTo(tx+hw, ty+dep*0.4, tx+hw*0.80, ty+dep, tx, ty+dep);
-  ctx.bezierCurveTo(tx-hw*0.80, ty+dep, tx-hw, ty+dep*0.4, tx-hw, ty);
-  ctx.closePath();
-}
-
 // ── Farmer Snoo draw function ─────────────────────────────────────────────
 // sx, sy = anchor (torso top). lidAng = lid open angle. buckAng = bucket tip angle.
 function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
@@ -1894,24 +1771,36 @@ function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
   // ── SVG-ACCURATE HEAD ─────────────────────────────────────────────────────
   // Source: Reddit_Icon_FullColor.svg  viewBox="0 0 256 256"
   // Head ellipse: cx=128.1 cy=149.3 rx=85.3 ry=64
-  var S = headR / 64;
-  function svgX(v) { return snooSvgX(v, S); }
-  function svgY(v) { return snooSvgY(v, S, headCY); }
-  function mkGrad(gcx, gcy, gr) { return snooHeadGrad(ctx, gcx, gcy, gr); }
+  var S   = headR / 64;
+  var ox  = 128.1, oy = 149.3;
+  function svgX(v) { return (v - ox) * S; }
+  function svgY(v) { return (v - oy) * S + headCY; }
+
+  function makeSnooGrad(gcx, gcy, gr) {
+    var g = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr * 1.4);
+    g.addColorStop(0,    '#FEFFFF');
+    g.addColorStop(0.4,  '#FEFFFF');
+    g.addColorStop(0.51, '#F9FCFC');
+    g.addColorStop(0.62, '#EDF3F5');
+    g.addColorStop(0.72, '#D8E4E8');
+    g.addColorStop(0.8,  '#C8D5DD');
+    g.addColorStop(0.9,  '#FFEBEF');
+    return g;
+  }
 
   // ── Ears: r=29.9, cx=55.4/200.6, cy=123.7 ────────────────────────────────
   var earR  = 29.9 * S;
   var earCY = svgY(123.7);
   var lexX = svgX(55.4), rexX = svgX(200.6);
-  ctx.fillStyle = mkGrad(lexX, earCY, earR);
+  ctx.fillStyle = makeSnooGrad(lexX, earCY, earR);
   ctx.beginPath(); ctx.arc(lexX, earCY, earR, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = mkGrad(rexX, earCY, earR);
+  ctx.fillStyle = makeSnooGrad(rexX, earCY, earR);
   ctx.beginPath(); ctx.arc(rexX, earCY, earR, 0, Math.PI*2); ctx.fill();
 
   // ── Head ellipse rx=85.3 ry=64 ───────────────────────────────────────────
   var hRx = 85.3*S, hRy = 64*S;
   var hCX = svgX(128.1), hCY = svgY(149.3);
-  ctx.fillStyle = mkGrad(hCX, hCY, Math.max(hRx, hRy));
+  ctx.fillStyle = makeSnooGrad(hCX, hCY, Math.max(hRx, hRy));
   ctx.beginPath(); ctx.ellipse(hCX, hCY, hRx, hRy, 0, 0, Math.PI*2); ctx.fill();
 
   // ── Eyes ──────────────────────────────────────────────────────────────────
@@ -1934,8 +1823,19 @@ function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
   ctx.closePath(); ctx.fill();
 
   // Iris gradient
-  // Left iris — shared snooIrisGrad helper
-  ctx.fillStyle = snooIrisGrad(ctx, svgX(87.8), svgY(141.5), S);
+  function makeIrisGrad(icx, icy) {
+    var g = ctx.createRadialGradient(icx, icy - 3*S, 0, icx, icy + 2*S, 17*S);
+    g.addColorStop(0,    '#FF6600');
+    g.addColorStop(0.5,  '#FF4500');
+    g.addColorStop(0.7,  '#FC4301');
+    g.addColorStop(0.82, '#F43F07');
+    g.addColorStop(0.92, '#E53812');
+    g.addColorStop(1,    '#D4301F');
+    return g;
+  }
+
+  // Left iris
+  ctx.fillStyle = makeIrisGrad(svgX(87.8), svgY(141.5));
   ctx.beginPath();
   ctx.moveTo(svgX(102.8), svgY(144.1));
   ctx.bezierCurveTo(svgX(102.3),svgY(154.2), svgX(95.6), svgY(157.9), svgX(87.8), svgY(157.9));
@@ -1945,7 +1845,7 @@ function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
   ctx.closePath(); ctx.fill();
 
   // Right iris
-  ctx.fillStyle = snooIrisGrad(ctx, svgX(168.3), svgY(141.5), S);
+  ctx.fillStyle = makeIrisGrad(svgX(168.3), svgY(141.5));
   ctx.beginPath();
   ctx.moveTo(svgX(153.3), svgY(144.1));
   ctx.bezierCurveTo(svgX(153.8),svgY(154.2), svgX(160.5),svgY(157.9), svgX(168.3),svgY(157.9));
@@ -1970,19 +1870,28 @@ function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
   ctx.beginPath(); ctx.ellipse(svgX(173.3),svgY(134.8),3.3*S,3.6*S,0,0,Math.PI*2); ctx.fill();
 
   // Mouth
-  // Mouth — shared snooSmilePath helper
-  ctx.fillStyle='#BBCFDA'; snooSmilePath(ctx,165.1,186.0,30.1,S,headCY); ctx.fill();
-  ctx.fillStyle='#FFFFFF';  snooSmilePath(ctx,167.5,190.1,30.0,S,headCY); ctx.fill();
+  function smilePath(topSvgY, botSvgY, halfWSvg) {
+    var tx=svgX(128.1), ty=svgY(topSvgY);
+    var hw=halfWSvg*S, depth=(botSvgY-topSvgY)*S;
+    ctx.beginPath();
+    ctx.moveTo(tx-hw, ty);
+    ctx.lineTo(tx+hw, ty);
+    ctx.bezierCurveTo(tx+hw, ty+depth*0.4, tx+hw*0.80, ty+depth, tx, ty+depth);
+    ctx.bezierCurveTo(tx-hw*0.80, ty+depth, tx-hw, ty+depth*0.4, tx-hw, ty);
+    ctx.closePath();
+  }
+  ctx.fillStyle='#BBCFDA'; smilePath(165.1,186.0,30.1); ctx.fill();
+  ctx.fillStyle='#FFFFFF';  smilePath(167.5,190.1,30.0); ctx.fill();
   var mG=ctx.createRadialGradient(svgX(128.1),svgY(175),0,svgX(128.1),svgY(166),21*S);
   mG.addColorStop(0,'#172E35'); mG.addColorStop(0.29,'#0E1C21');
   mG.addColorStop(0.73,'#030708'); mG.addColorStop(1,'#000000');
-  ctx.fillStyle=mG; snooSmilePath(ctx,166.2,187.2,29.5,S,headCY); ctx.fill();
+  ctx.fillStyle=mG; smilePath(166.2,187.2,29.5); ctx.fill();
 
   // ── Antenna — SVG-accurate filled bezier stem + orb ──────────────────────
   var orbX = svgX(174.8), orbY = svgY(55.5), orbR = 21.2*S;
 
   // Orb — same gradient as head
-  ctx.fillStyle = mkGrad(orbX, orbY, orbR);
+  ctx.fillStyle = makeSnooGrad(orbX, orbY, orbR);
   ctx.beginPath(); ctx.arc(orbX, orbY, orbR, 0, Math.PI*2); ctx.fill();
 
   // Stem — filled bezier shape
@@ -2002,7 +1911,7 @@ function drawFarmerSnoo(ctx, sx, sy, lidAng, buckAng, scene) {
   ctx.beginPath();
   ctx.ellipse(hCX, hCY, hRx, hRy, 0, 0, Math.PI*2);
   ctx.clip();
-  ctx.fillStyle = mkGrad(hCX, hCY, Math.max(hRx, hRy));
+  ctx.fillStyle = makeSnooGrad(hCX, hCY, Math.max(hRx, hRy));
   ctx.fillRect(hCX - hRx*0.55, hCY - hRy*1.05, hRx*1.1, hRy*0.22);
   ctx.restore();
 
@@ -2041,14 +1950,14 @@ function updateSnoo() {
   snooBucketScreenX = elbowX + (-armLen3*0.40)*Math.cos(foreAng) - (armLen3*0.45)*Math.sin(foreAng);
   snooBucketScreenY = elbowY + (-armLen3*0.40)*Math.sin(foreAng) + (armLen3*0.45)*Math.cos(foreAng);
 
-  function snooEaseOut(x) { return 1-(1-x)*(1-x); }
-  function snooEaseIn(x)  { return x*x; }
+  function _snooEaseOut(x) { return 1-(1-x)*(1-x); }
+  function _snooEaseIn(x)  { return x*x; }
 
   switch(snooPhase) {
     case 'slidein':
       // Slide in from left at constant scale=1, just like drain Snoo
       snooScale = 1;
-      var slideInT = snooEaseOut(Math.min(1, snooT / snooPhaseDur.slidein));
+      var slideInT = _snooEaseOut(Math.min(1, snooT / snooPhaseDur.slidein));
       snooX = -W * 0.15 + (snooTargetX + W * 0.15) * slideInT;
       snooLidAngle = 0; snooBucketAngle = 0;
       if (snooT >= snooPhaseDur.slidein) { snooX = snooTargetX; snooPhase = 'bend'; snooT = 0; }
@@ -2096,7 +2005,7 @@ function updateSnoo() {
     case 'slideout':
       // Slide back off to the left — mirrors slidein, just like drain Snoo's floatout
       snooScale = 1;
-      var slideOutT = snooEaseIn(Math.min(1, snooT / snooPhaseDur.slideout));
+      var slideOutT = _snooEaseIn(Math.min(1, snooT / snooPhaseDur.slideout));
       snooX = snooTargetX + (-W * 0.15 - snooTargetX) * slideOutT;
       snooLidAngle = 0; snooBucketAngle = 0;
       if (snooT >= snooPhaseDur.slideout) {
@@ -2343,7 +2252,7 @@ function drawSnooDrain() {
   ctx.fillStyle = rg;
   ctx.beginPath(); ctx.roundRect(bodyW*0.08, torsoBot, bodyW*0.34, legH, [0,0,4,4]); ctx.fill();
   // Boots
-  function dBoot(bx) {
+  function _dBoot(bx) {
     var by = torsoBot + legH;
     ctx.fillStyle = '#6a3a18';
     ctx.beginPath(); ctx.ellipse(bx, by, bootW, bootH, 0, 0, Math.PI); ctx.fill();
@@ -2352,7 +2261,7 @@ function drawSnooDrain() {
     ctx.strokeStyle = '#3a1a06'; ctx.lineWidth = SC*0.008;
     ctx.beginPath(); ctx.ellipse(bx, by, bootW*1.04, bootH*1.08, 0, Math.PI, Math.PI*2); ctx.stroke();
   }
-  dBoot(-bodyW*0.25); dBoot(bodyW*0.25);
+  _dBoot(-bodyW*0.25); _dBoot(bodyW*0.25);
   ctx.restore();
 
   // ── Left upper arm behind body ────────────────────────────────────────────
@@ -2418,21 +2327,32 @@ function drawSnooDrain() {
 
   // ── SVG-accurate head ─────────────────────────────────────────────────────
   ctx.save(); ctx.translate(sx, sy);
-  var S2=headR/64;
-  function _svgX(v) { return snooSvgX(v, S2); }
-  function _svgY(v) { return snooSvgY(v, S2, headCY); }
+  var S2=headR/64, ox=128.1, oy=149.3;
+  function _svgX(v) { return (v-ox)*S2; }
+  function _svgY(v) { return (v-oy)*S2+headCY; }
+  function _mkSnooGrad(gcx,gcy,gr) {
+    var g=ctx.createRadialGradient(gcx,gcy,0,gcx,gcy,gr*1.4);
+    g.addColorStop(0,'#FEFFFF'); g.addColorStop(0.4,'#FEFFFF'); g.addColorStop(0.51,'#F9FCFC');
+    g.addColorStop(0.62,'#EDF3F5'); g.addColorStop(0.72,'#D8E4E8');
+    g.addColorStop(0.8,'#C8D5DD'); g.addColorStop(0.9,'#FFEBEF'); return g;
+  }
   var earR2=29.9*S2, earCY2=_svgY(123.7);
-  ctx.fillStyle=snooHeadGrad(ctx, _svgX(55.4),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(55.4),earCY2,earR2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=snooHeadGrad(ctx, _svgX(200.6),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(200.6),earCY2,earR2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=_mkSnooGrad(_svgX(55.4),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(55.4),earCY2,earR2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=_mkSnooGrad(_svgX(200.6),earCY2,earR2); ctx.beginPath(); ctx.arc(_svgX(200.6),earCY2,earR2,0,Math.PI*2); ctx.fill();
   var hRx2=85.3*S2,hRy2=64*S2,hCX2=_svgX(128.1),hCY2=_svgY(149.3);
-  ctx.fillStyle=snooHeadGrad(ctx, hCX2,hCY2,Math.max(hRx2,hRy2));
+  ctx.fillStyle=_mkSnooGrad(hCX2,hCY2,Math.max(hRx2,hRy2));
   ctx.beginPath(); ctx.ellipse(hCX2,hCY2,hRx2,hRy2,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#842123';
   ctx.beginPath(); ctx.moveTo(_svgX(102.8),_svgY(143.1)); ctx.bezierCurveTo(_svgX(102.3),_svgY(153.9),_svgX(95.1),_svgY(157.9),_svgX(86.7),_svgY(157.9)); ctx.bezierCurveTo(_svgX(78.3),_svgY(157.9),_svgX(71.9),_svgY(152.3),_svgX(72.4),_svgY(141.5)); ctx.bezierCurveTo(_svgX(72.9),_svgY(130.7),_svgX(80.6),_svgY(123.5),_svgX(88.5),_svgY(123.5)); ctx.bezierCurveTo(_svgX(96.4),_svgY(123.5),_svgX(103.3),_svgY(132.3),_svgX(102.8),_svgY(143.1)); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(_svgX(183.6),_svgY(141.5)); ctx.bezierCurveTo(_svgX(184.1),_svgY(152.3),_svgX(177.7),_svgY(157.9),_svgX(169.3),_svgY(157.9)); ctx.bezierCurveTo(_svgX(160.9),_svgY(157.9),_svgX(153.7),_svgY(154.0),_svgX(153.2),_svgY(143.1)); ctx.bezierCurveTo(_svgX(152.7),_svgY(132.3),_svgX(159.1),_svgY(123.9),_svgX(167.5),_svgY(123.9)); ctx.bezierCurveTo(_svgX(175.9),_svgY(123.9),_svgX(183.1),_svgY(130.6),_svgX(183.6),_svgY(141.5)); ctx.closePath(); ctx.fill();
-  ctx.fillStyle=snooIrisGrad(ctx,_svgX(87.8),_svgY(141.5),S2);
+  function _mkIrisGrad(icx,icy) {
+    var g=ctx.createRadialGradient(icx,icy-3*S2,0,icx,icy+2*S2,17*S2);
+    g.addColorStop(0,'#FF6600'); g.addColorStop(0.5,'#FF4500'); g.addColorStop(0.7,'#FC4301');
+    g.addColorStop(0.82,'#F43F07'); g.addColorStop(0.92,'#E53812'); g.addColorStop(1,'#D4301F'); return g;
+  }
+  ctx.fillStyle=_mkIrisGrad(_svgX(87.8),_svgY(141.5));
   ctx.beginPath(); ctx.moveTo(_svgX(102.8),_svgY(144.1)); ctx.bezierCurveTo(_svgX(102.3),_svgY(154.2),_svgX(95.6),_svgY(157.9),_svgX(87.8),_svgY(157.9)); ctx.bezierCurveTo(_svgX(80.0),_svgY(157.9),_svgX(74.5),_svgY(152.4),_svgX(74.5),_svgY(142.2)); ctx.bezierCurveTo(_svgX(75.0),_svgY(132.1),_svgX(81.7),_svgY(125.4),_svgX(89.5),_svgY(125.4)); ctx.bezierCurveTo(_svgX(97.3),_svgY(125.4),_svgX(103.3),_svgY(133.9),_svgX(102.8),_svgY(144.1)); ctx.closePath(); ctx.fill();
-  ctx.fillStyle=snooIrisGrad(ctx,_svgX(168.3),_svgY(141.5),S2);
+  ctx.fillStyle=_mkIrisGrad(_svgX(168.3),_svgY(141.5));
   ctx.beginPath(); ctx.moveTo(_svgX(153.3),_svgY(144.1)); ctx.bezierCurveTo(_svgX(153.8),_svgY(154.2),_svgX(160.5),_svgY(157.9),_svgX(168.3),_svgY(157.9)); ctx.bezierCurveTo(_svgX(176.1),_svgY(157.9),_svgX(182.1),_svgY(152.4),_svgX(181.7),_svgY(142.2)); ctx.bezierCurveTo(_svgX(181.2),_svgY(132.1),_svgX(174.5),_svgY(125.4),_svgX(166.7),_svgY(125.4)); ctx.bezierCurveTo(_svgX(158.9),_svgY(125.4),_svgX(152.8),_svgY(133.9),_svgX(153.3),_svgY(144.1)); ctx.closePath(); ctx.fill();
   ctx.fillStyle='#FF6101';
   ctx.beginPath(); ctx.ellipse(_svgX(88.0),_svgY(149.1),9.3*S2,7.1*S2,0,0,Math.PI*2); ctx.fill();
@@ -2443,19 +2363,24 @@ function drawSnooDrain() {
   ctx.fillStyle='#FFC49C';
   ctx.beginPath(); ctx.ellipse(_svgX(94.4),_svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(_svgX(173.3),_svgY(134.8),3.3*S2,3.6*S2,0,0,Math.PI*2); ctx.fill();
-  // Mouth — shared snooSmilePath helper
-  ctx.fillStyle='#BBCFDA'; snooSmilePath(ctx,165.1,186.0,30.1,S2,headCY); ctx.fill();
-  ctx.fillStyle='#FFFFFF';  snooSmilePath(ctx,167.5,190.1,30.0,S2,headCY); ctx.fill();
+  function _smilePath(ty2,by2,hw2) {
+    var tx2=_svgX(128.1),ty3=_svgY(ty2),hw3=hw2*S2,dep=(by2-ty2)*S2;
+    ctx.beginPath(); ctx.moveTo(tx2-hw3,ty3); ctx.lineTo(tx2+hw3,ty3);
+    ctx.bezierCurveTo(tx2+hw3,ty3+dep*0.4,tx2+hw3*0.80,ty3+dep,tx2,ty3+dep);
+    ctx.bezierCurveTo(tx2-hw3*0.80,ty3+dep,tx2-hw3,ty3+dep*0.4,tx2-hw3,ty3); ctx.closePath();
+  }
+  ctx.fillStyle='#BBCFDA'; _smilePath(165.1,186.0,30.1); ctx.fill();
+  ctx.fillStyle='#FFFFFF';  _smilePath(167.5,190.1,30.0); ctx.fill();
   var mG=ctx.createRadialGradient(_svgX(128.1),_svgY(175),0,_svgX(128.1),_svgY(166),21*S2);
   mG.addColorStop(0,'#172E35'); mG.addColorStop(0.29,'#0E1C21'); mG.addColorStop(0.73,'#030708'); mG.addColorStop(1,'#000000');
-  ctx.fillStyle=mG; snooSmilePath(ctx,166.2,187.2,29.5,S2,headCY); ctx.fill();
+  ctx.fillStyle=mG; _smilePath(166.2,187.2,29.5); ctx.fill();
   // Antenna
   var orbX2=_svgX(174.8),orbY2=_svgY(55.5),orbR2=21.2*S2;
-  ctx.fillStyle=snooHeadGrad(ctx, orbX2,orbY2,orbR2); ctx.beginPath(); ctx.arc(orbX2,orbY2,orbR2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=_mkSnooGrad(orbX2,orbY2,orbR2); ctx.beginPath(); ctx.arc(orbX2,orbY2,orbR2,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#172E35';
   ctx.beginPath(); ctx.moveTo(_svgX(127.8),_svgY(88)); ctx.bezierCurveTo(_svgX(127.8),_svgY(69),_svgX(143.2),_svgY(53.6),_svgX(162.2),_svgY(53.6)); ctx.bezierCurveTo(_svgX(164.7),_svgY(53.6),_svgX(166.8),_svgY(55.7),_svgX(166.8),_svgY(58.2)); ctx.bezierCurveTo(_svgX(166.8),_svgY(60.7),_svgX(164.7),_svgY(62.8),_svgX(162.2),_svgY(62.8)); ctx.bezierCurveTo(_svgX(148.3),_svgY(62.8),_svgX(137.0),_svgY(74.1),_svgX(137.0),_svgY(88.0)); ctx.bezierCurveTo(_svgX(132.4),_svgY(87.0),_svgX(130.3),_svgY(88.0),_svgX(127.8),_svgY(88.0)); ctx.closePath(); ctx.fill();
   ctx.save(); ctx.beginPath(); ctx.ellipse(hCX2,hCY2,hRx2,hRy2,0,0,Math.PI*2); ctx.clip();
-  ctx.fillStyle=snooHeadGrad(ctx, hCX2,hCY2,Math.max(hRx2,hRy2));
+  ctx.fillStyle=_mkSnooGrad(hCX2,hCY2,Math.max(hRx2,hRy2));
   ctx.fillRect(hCX2-hRx2*0.55,hCY2-hRy2*1.05,hRx2*1.1,hRy2*0.22); ctx.restore();
   ctx.restore(); // end head translate
 
@@ -2828,7 +2753,7 @@ function saveSession() {
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
     // Also send to Devvit host when running inside Reddit iframe.
     // Host receives this and writes to KV store for cross-device persistence.
-    postToHost({ type: MSG_SAVE_SESSION, session: data });
+    postToHost({ type: 'saveSession', session: data });
   } catch(e) { }
 }
 
@@ -2860,7 +2785,7 @@ function applyOfflineDrain(saved) {
     deathCause = 'flood';
     window._offlineDrainMsg = 'A flood occurred while you were away — your worm drowned!';
     // Clear the flood flag so it only triggers death once
-    try { saved.lastFloodTs = null; } catch(e) {} // cleared from data obj; saveSession() in setup() will persist
+    try { saved.lastFloodTs = null; localStorage.setItem(SESSION_KEY, JSON.stringify(saved)); } catch(e) {}
     return;
   }
 
@@ -2953,20 +2878,13 @@ setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 300
 // Throttled separately from saveSession to keep KV writes low.
 setInterval(function() {
   if (!pSegs.length || deathScreen) return;
-  // Send real segment data so other clients draw us as a full worm, not a ghost.
-  // Cap at 20 segs to keep the Realtime payload small — enough for any worm size.
-  var _broadcastSegs = pSegs.slice(0, 20).map(function(s) { return {x: s.x, y: s.y}; });
   postToHost({
-    type:       MSG_PRESENCE_UPDATE,
-    username:   username,
-    x:          pSegs[0].x,
-    y:          pSegs[0].y,
-    sleeping:   pSleeping,
-    size:       pSR,
-    segs:       _broadcastSegs,
-    generation: generation,
-    hp:         pHP,
-    gut:        pGut / (pGutMax || 1)
+    type:     'presenceUpdate',
+    username: username,
+    x:        pSegs[0].x,
+    y:        pSegs[0].y,
+    sleeping: pSleeping,
+    size:     pSR
   });
 }, 2000);
 
@@ -3099,10 +3017,12 @@ function setup() {
     }
     // Flush any NPC cocoons out of storage immediately
     try {
-      if (data && data.cocoons) {
-        data.cocoons = data.cocoons.filter(function(c){ return c.owner === username; });
+      var _savedRaw = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+      if (_savedRaw.cocoons) {
+        _savedRaw.cocoons = _savedRaw.cocoons.filter(function(c){ return c.owner === username; });
+        localStorage.setItem(SESSION_KEY, JSON.stringify(_savedRaw));
       }
-    } catch(e) {} // saveSession() called at end of setup() persists this
+    } catch(e) {}
 
     // Restore sleep state — worm stays asleep if it was sleeping when you left
     if (saved.pSleeping) {
@@ -3157,7 +3077,7 @@ function updatePlayer() {
     saveSession(); // persist timestamp so offline drain knows when we died
     // ── Notify host: post death comment + queue next worm ────────────────
     postToHost({
-      type:       MSG_PLAYER_DIED,
+      type:       'playerDied',
       cause:      deathCause,
       karma:      Math.floor(karma),
       generation: generation,
@@ -3167,9 +3087,12 @@ function updatePlayer() {
     // ── END notify host ──────────────────────────────────────────────────
     // Wipe all fields that baby respawn resets — a reload must not restore pre-death progress
     try {
-      data.pHP = 1.0; data.pGut = 0; // full health on respawn
-      data.pEaten = 0; data.pSR = 4; data.pSEG = 4;
-      saveSession();
+      var ds = loadSession();
+      if (ds) {
+        ds.pHP = 1.0; ds.pGut = 0; // full health on respawn, gut empty
+        ds.pEaten = 0; ds.pSR = 4; ds.pSEG = 4; ds.pGut = 0;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(ds));
+      }
     } catch(e) {}
     return;
   }
@@ -3964,7 +3887,7 @@ function updatePhysics() {
   // Helper: find the null-boundary index that starts the segment containing pPath[idx].
   // Returns 0 if idx is in the first segment (no null before it).
   // Used so stalled tea drops only re-scan their own segment, not cross into older tunnels.
-  function dropSegStart(idx) {
+  function _dropSegStart(idx) {
     for (var _ss = idx - 1; _ss >= 0; _ss--) {
       if (!pPath[_ss]) return _ss + 1;
     }
@@ -3972,7 +3895,7 @@ function updatePhysics() {
   }
   // Helper: find the index one past the null boundary that ends the segment at idx.
   // Returns pPath.length if there is no trailing null (last segment).
-  function dropSegEnd(idx) {
+  function _dropSegEnd(idx) {
     for (var _se = idx + 1; _se < pPath.length; _se++) {
       if (!pPath[_se]) return _se;
     }
@@ -4005,7 +3928,7 @@ function updatePhysics() {
         var pp = pPath[d.pathIdx];
         if (!pp || (pp.alpha != null && pp.alpha <= 0)) {
           // Target point deleted or faded — detach, free-fall from here
-          d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
+          d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
           d.pathIdx = null;
         } else {
           // On pPath — tunnel acts as clear channel, speed governed by angle of segment
@@ -4064,8 +3987,8 @@ function updatePhysics() {
                   d.upDrain = true; // switch advance direction: poop now climbs toward shallower points
                   // Lock to this segment immediately — prevents the rescan from snapping
                   // the poop to a nearby down-drain if the up-drain advance stalls or detaches.
-                  d.lastSegStart = dropSegStart(d.pathIdx);
-                  d.lastSegEnd   = dropSegEnd(d.pathIdx);
+                  d.lastSegStart = _dropSegStart(d.pathIdx);
+                  d.lastSegEnd   = _dropSegEnd(d.pathIdx);
                   for (var _uae = d.pathIdx + 1; _uae < pPath.length; _uae++) {
                     var _uaep = pPath[_uae];
                     if (!_uaep) break;
@@ -4130,7 +4053,7 @@ function updatePhysics() {
                 }
               } else {
                 // Target segment gone — free-fall
-                d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
+                d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
                 d.pathIdx = null;
                 d.vy = Math.max(0.08, d.vy);
               }
@@ -4181,7 +4104,7 @@ function updatePhysics() {
                     d.clogStalled = true;
                   } else {
                     // No clog — tea exits the top of the up-drain and free-falls from here
-                    d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
+                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
@@ -4232,7 +4155,7 @@ function updatePhysics() {
                 }
                 // If nothing ahead on the horizontal — detach and free-fall from here
                 if (!advanced) {
-                  d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
+                  d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
                   d.pathIdx = null;
                   d.vy = Math.max(0.05, d.vy);
                   advanced = true; // prevent backward scan re-attaching
@@ -4280,7 +4203,7 @@ function updatePhysics() {
                   // Check if any point in this segment is clogged
                   var _segHasClog = (pp.clog || 0) > 0;
                   if (!_segHasClog) {
-                    var _chkS = dropSegStart(d.pathIdx), _chkE = dropSegEnd(d.pathIdx);
+                    var _chkS = _dropSegStart(d.pathIdx), _chkE = _dropSegEnd(d.pathIdx);
                     for (var _chk = _chkS; _chk < _chkE; _chk++) {
                       var _chkP = pPath[_chk];
                       if (_chkP && (_chkP.clog || 0) >= 0.55) { _segHasClog = true; break; }
@@ -4293,7 +4216,7 @@ function updatePhysics() {
                     d.stalled     = true;
                     d.clogStalled = true;
                   } else {
-                    d.lastSegStart = dropSegStart(d.pathIdx); d.lastSegEnd = dropSegEnd(d.pathIdx);
+                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
@@ -4480,7 +4403,7 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
   }
 
   // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
@@ -4537,12 +4460,12 @@ function updatePhysics() {
     window._floodMsg = '⚠ FLOOD! Worm tea overflowing — sump full!';
     window._floodMsgT = frame;
     try {
-      if (data) { data.lastFloodTs = Date.now(); saveSession(); }
+      var fs = loadSession(); if (fs) { fs.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs)); }
     } catch(e) {}
     // Broadcast to host — server will re-broadcast via Realtime to all viewers.
     // In production the setFlood message from the host is authoritative;
     // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
@@ -4650,7 +4573,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: MSG_WORLD_UPDATE, tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  postToHost({ type: 'worldUpdate', tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
 }
 
 function drawPath(path) {
@@ -4702,6 +4625,62 @@ function drawPath(path) {
 }
 
 // ── Generation debug panel (DEBUG_MODE only) ─────────────────────────────
+function drawGenDebugPanel() {
+  var pw = 180, ph = 148;
+  var px = W - pw - 8, py2 = 110;
+  // Panel bg
+  ctx.fillStyle = 'rgba(10,5,20,0.88)';
+  ctx.strokeStyle = 'rgba(180,100,255,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(px, py2, pw, ph, 8); ctx.fill(); ctx.stroke();
+
+  ctx.textAlign = 'left';
+
+  // Title
+  ctx.fillStyle = 'rgba(220,180,255,0.9)';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText('⚙ GEN DEBUG', px + 8, py2 + 13);
+
+  // Color swatch + gen info
+  var col = getGenColor(generation);
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(px + 8, py2 + 20, 14, 14, 3); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '9px monospace';
+  ctx.fillText('G' + generation + ' — ' + getGenName(generation), px + 26, py2 + 31);
+
+  // pEaten progress bar
+  var barW = pw - 16, barH = 7;
+  var bx = px + 8, barY = py2 + 42;
+  var prog = Math.min(1, pEaten / 300000);
+  ctx.fillStyle = 'rgba(80,40,120,0.8)';
+  ctx.beginPath(); ctx.roundRect(bx, barY, barW, barH, 3); ctx.fill();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(bx, barY, barW * prog, barH, 3); ctx.fill();
+  ctx.fillStyle = '#ccc';
+  ctx.font = '8px monospace';
+  ctx.fillText(pEaten + ' / 300000', bx, barY + barH + 10);
+
+  // Active perks
+  var perks = [
+    { gen: 1, label: '+10% gut cap' },
+    { gen: 2, label: '−15% offline drain' },
+    { gen: 3, label: '×2 sleep regen' },
+    { gen: 4, label: 'cocoon 5d (not 7)' },
+    { gen: 5, label: '+20% bite rate' },
+  ];
+  ctx.font = '8px monospace';
+  for (var pi = 0; pi < perks.length; pi++) {
+    var active = generation >= perks[pi].gen;
+    ctx.fillStyle = active ? '#80ff80' : 'rgba(120,120,120,0.6)';
+    ctx.fillText((active ? '✓ ' : '○ ') + 'G' + perks[pi].gen + ': ' + perks[pi].label, px + 8, py2 + 74 + pi * 13);
+  }
+
+  // Acid state
+  ctx.fillStyle = pAcid > 0.1 ? '#a8d898' : 'rgba(120,120,120,0.6)';
+  ctx.fillText('acid: ' + pAcid.toFixed(2) + (pAcid > 0.1 ? ' ◀ active' : ''), px + 8, py2 + 140);
+}
+
 // ── Generation color palette ──────────────────────────────────────────────
 var GEN_COLORS = [
   '#e8a882', // Gen 0 — Hatchling    (soft pink-peach)
@@ -4877,23 +4856,37 @@ function drawSnoo(ctx, cx, cy, s, sleeping) {
   var headR = s * 5;
   // SVG coordinate system: viewBox 0 0 256 256, head ellipse cx=128.1 cy=149.3 rx=85.3 ry=64
   var SC = headR / 64;
+  var ox = 128.1, oy = 149.3;
+  // headCY = 0 since we translate to cy already; offset so head is centred on (cx,cy)
   var headCY = 0;
-  function svgX(v) { return snooSvgX(v, SC); }
-  function svgY(v) { return snooSvgY(v, SC, headCY); }
+  function svgX(v) { return (v - ox) * SC; }
+  function svgY(v) { return (v - oy) * SC + headCY; }
+
+  function makeSnooGrad(gcx, gcy, gr) {
+    var g = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr * 1.4);
+    g.addColorStop(0,    '#FEFFFF');
+    g.addColorStop(0.4,  '#FEFFFF');
+    g.addColorStop(0.51, '#F9FCFC');
+    g.addColorStop(0.62, '#EDF3F5');
+    g.addColorStop(0.72, '#D8E4E8');
+    g.addColorStop(0.8,  '#C8D5DD');
+    g.addColorStop(0.9,  '#FFEBEF');
+    return g;
+  }
 
   // Ears
   var earR  = 29.9 * SC;
   var earCY = svgY(123.7);
   var lexX = svgX(55.4), rexX = svgX(200.6);
-  ctx.fillStyle = mkGrad(lexX, earCY, earR);
+  ctx.fillStyle = makeSnooGrad(lexX, earCY, earR);
   ctx.beginPath(); ctx.arc(lexX, earCY, earR, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = mkGrad(rexX, earCY, earR);
+  ctx.fillStyle = makeSnooGrad(rexX, earCY, earR);
   ctx.beginPath(); ctx.arc(rexX, earCY, earR, 0, Math.PI*2); ctx.fill();
 
   // Head ellipse
   var hRx = 85.3*SC, hRy = 64*SC;
   var hCX = svgX(128.1), hCY2 = svgY(149.3);
-  ctx.fillStyle = snooHeadGrad(ctx, hCX, hCY2, Math.max(hRx, hRy));
+  ctx.fillStyle = makeSnooGrad(hCX, hCY2, Math.max(hRx, hRy));
   ctx.beginPath(); ctx.ellipse(hCX, hCY2, hRx, hRy, 0, 0, Math.PI*2); ctx.fill();
 
   if (sleeping) {
@@ -4925,8 +4918,15 @@ function drawSnoo(ctx, cx, cy, s, sleeping) {
     ctx.bezierCurveTo(svgX(175.9),svgY(123.9), svgX(183.1),svgY(130.6), svgX(183.6),svgY(141.5));
     ctx.closePath(); ctx.fill();
     // Iris gradient
-    // Left iris — shared snooIrisGrad helper
-    ctx.fillStyle = snooIrisGrad(ctx, svgX(87.8), svgY(141.5), SC);
+    function makeIrisGrad(icx, icy) {
+      var g = ctx.createRadialGradient(icx, icy - 3*SC, 0, icx, icy + 2*SC, 17*SC);
+      g.addColorStop(0,    '#FF6600');
+      g.addColorStop(0.5,  '#FF4500');
+      g.addColorStop(1,    '#D4301F');
+      return g;
+    }
+    // Left iris
+    ctx.fillStyle = makeIrisGrad(svgX(87.8), svgY(141.5));
     ctx.beginPath();
     ctx.moveTo(svgX(102.8), svgY(144.1));
     ctx.bezierCurveTo(svgX(102.3),svgY(154.2), svgX(95.6), svgY(157.9), svgX(87.8), svgY(157.9));
@@ -4935,7 +4935,7 @@ function drawSnoo(ctx, cx, cy, s, sleeping) {
     ctx.bezierCurveTo(svgX(97.3), svgY(125.4), svgX(103.3),svgY(133.9), svgX(102.8),svgY(144.1));
     ctx.closePath(); ctx.fill();
     // Right iris
-    ctx.fillStyle = snooIrisGrad(ctx, svgX(168.3), svgY(141.5), SC);
+    ctx.fillStyle = makeIrisGrad(svgX(168.3), svgY(141.5));
     ctx.beginPath();
     ctx.moveTo(svgX(153.3), svgY(144.1));
     ctx.bezierCurveTo(svgX(153.8),svgY(154.2), svgX(160.5),svgY(157.9), svgX(168.3),svgY(157.9));
@@ -4956,17 +4956,25 @@ function drawSnoo(ctx, cx, cy, s, sleeping) {
     ctx.beginPath(); ctx.ellipse(svgX(94.4), svgY(134.8), 3.3*SC, 3.6*SC, 0, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(svgX(173.3),svgY(134.8), 3.3*SC, 3.6*SC, 0, 0, Math.PI*2); ctx.fill();
     // Mouth
-    // Mouth — shared snooSmilePath helper
-    ctx.fillStyle='#BBCFDA'; snooSmilePath(ctx,165.1,186.0,30.1,SC,headCY); ctx.fill();
-    ctx.fillStyle='#FFFFFF';  snooSmilePath(ctx,167.5,190.1,30.0,SC,headCY); ctx.fill();
+    function smilePath(topSvgY, botSvgY, halfWSvg) {
+      var tx=svgX(128.1), ty=svgY(topSvgY);
+      var hw=halfWSvg*SC, depth=(botSvgY-topSvgY)*SC;
+      ctx.beginPath();
+      ctx.moveTo(tx-hw, ty); ctx.lineTo(tx+hw, ty);
+      ctx.bezierCurveTo(tx+hw, ty+depth*0.4, tx+hw*0.80, ty+depth, tx, ty+depth);
+      ctx.bezierCurveTo(tx-hw*0.80, ty+depth, tx-hw, ty+depth*0.4, tx-hw, ty);
+      ctx.closePath();
+    }
+    ctx.fillStyle='#BBCFDA'; smilePath(165.1,186.0,30.1); ctx.fill();
+    ctx.fillStyle='#FFFFFF';  smilePath(167.5,190.1,30.0); ctx.fill();
     var mG=ctx.createRadialGradient(svgX(128.1),svgY(175),0,svgX(128.1),svgY(166),21*SC);
     mG.addColorStop(0,'#172E35'); mG.addColorStop(0.73,'#030708'); mG.addColorStop(1,'#000000');
-    ctx.fillStyle=mG; snooSmilePath(ctx,166.2,187.2,29.5,SC,headCY); ctx.fill();
+    ctx.fillStyle=mG; smilePath(166.2,187.2,29.5); ctx.fill();
   }
 
   // Antenna — SVG-accurate filled stem + orb
   var orbX = svgX(174.8), orbY = svgY(55.5), orbR = 21.2*SC;
-  ctx.fillStyle = mkGrad(orbX, orbY, orbR);
+  ctx.fillStyle = makeSnooGrad(orbX, orbY, orbR);
   ctx.beginPath(); ctx.arc(orbX, orbY, orbR, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = '#172E35';
   ctx.beginPath();
@@ -4980,7 +4988,7 @@ function drawSnoo(ctx, cx, cy, s, sleeping) {
   // Head-top patch to blend stem base
   ctx.save();
   ctx.beginPath(); ctx.ellipse(hCX, hCY2, hRx, hRy, 0, 0, Math.PI*2); ctx.clip();
-  ctx.fillStyle = snooHeadGrad(ctx, hCX, hCY2, Math.max(hRx, hRy));
+  ctx.fillStyle = makeSnooGrad(hCX, hCY2, Math.max(hRx, hRy));
   ctx.fillRect(hCX - hRx*0.55, hCY2 - hRy*1.05, hRx*1.1, hRy*0.22);
   ctx.restore();
 
@@ -5019,6 +5027,10 @@ function getSoilGradStops(e, mw) {
   return _soilGradCache;
 }
 
+function blendEnrichCol(br, bg, bb, er, eg, eb, e) {
+  var r = Math.round(br + (er-br)*e), g = Math.round(bg + (eg-bg)*e), b2 = Math.round(bb + (eb-bb)*e);
+  return '#'+('0'+r.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+b2.toString(16)).slice(-2);
+}
 function lerpCol(a, c, t) {
   function h(s,i){ return parseInt(s.slice(i,i+2),16); }
   var r  = Math.round(h(a,1) + (h(c,1)-h(a,1))*t);
@@ -6389,40 +6401,31 @@ function draw() {
       opp.x = opp.x + (opp.targetX - opp.x) * 0.08;
       opp.y = opp.y + (opp.targetY - opp.y) * 0.08;
 
-      // Maintain history ring buffer as fallback if segs haven't arrived yet
+      // Push movement into history ring buffer (10 entries) for segment trail
       if (!opp.hist) {
         opp.hist = [];
-        for (var _hi = 0; _hi < 20; _hi++) opp.hist.push({x: opp.x, y: opp.y});
+        for (var _hi = 0; _hi < 10; _hi++) opp.hist.push({x: opp.x, y: opp.y});
       }
       opp.hist.push({x: opp.x, y: opp.y});
-      if (opp.hist.length > 20) opp.hist.shift();
+      if (opp.hist.length > 10) opp.hist.shift();
 
       var osy = opp.y - camY;
       if (osy < -opp.size * 4 || osy > H + opp.size * 4) continue;
 
-      // Use real broadcasted segments if available, else fall back to history trail
-      var drawSegs;
-      if (opp.segs && opp.segs.length >= 2) {
-        // Segs arrive in world coords — use directly
-        drawSegs = opp.segs;
-      } else {
-        // Fallback: build from history ring buffer
-        var _nSeg = Math.max(4, opp.size - 1);
-        drawSegs = [];
-        for (var _gi = 0; _gi < _nSeg; _gi++) {
-          var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
-          drawSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
-        }
+      // Build segments from history so worm faces its direction of travel
+      var _nSeg = Math.max(4, opp.size - 1);
+      var ghostSegs = [];
+      for (var _gi = 0; _gi < _nSeg; _gi++) {
+        var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
+        ghostSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
       }
 
-      // Stale fade — other worms dim as presence updates age toward the 90s prune limit
+      // Stale fade — ghosts dim as they age toward the 90s prune limit
       var _staleSec = (nowOP - opp.lastSeen) / 1000;
       var _staleAlpha = _staleSec > 30 ? Math.max(0.1, 1 - (_staleSec - 30) / 60) : 1;
-      ctx.globalAlpha = _staleAlpha;
+      ctx.globalAlpha = 0.55 * _staleAlpha;
 
-      // Draw exactly like the local worm — same function, real color, real HP
-      var _oppCol = getGenColor(opp.generation || 0);
-      drawWorm(drawSegs, opp.size, _oppCol, opp.sleeping, 0, opp.hp != null ? opp.hp : 1);
+      drawWorm(ghostSegs, opp.size, '#7ab8f5', opp.sleeping, 0);
 
       // Avatar or username above head
       ctx.globalAlpha = 0.80 * _staleAlpha;
@@ -6796,8 +6799,8 @@ function draw() {
   // Two stacked pill bars: HP on top, gut fill below — clean rounded design
   var gutFracHUD  = Math.min(1, pGut / pGutMax);
   var gutIsFullHUD = gutFracHUD >= 0.98;
-  var starvingHUD  = pHunger > 0.8;  // renamed: avoids shadow of updatePlayer's starving
-  var hungerFlash  = starvingHUD && (frame % 30 < 15);
+  var starving     = pHunger > 0.8;
+  var hungerFlash  = starving && (frame % 30 < 15);
 
   var _barX = 10, _barY = 50, _barW = 170, _barH = 10, _barR = 4, _barGap = 4;
 
@@ -6850,7 +6853,7 @@ function draw() {
   if (gutIsFullHUD) {
     _gutR = hungerFlash ? 255 : 220; _gutG = hungerFlash ? 30 : 20; _gutB = 10;
     _gutAlpha = 1.0;
-  } else if (starvingHUD) {
+  } else if (starving) {
     _gutR = hungerFlash ? 255 : 200; _gutG = hungerFlash ? 30 : 20; _gutB = 10;
     _gutAlpha = 1.0;
   } else {
@@ -7206,7 +7209,7 @@ function drawPendingWorms() {
 function drawQueueHUD() {
   if (playerState !== 'queued') return;
   var _qnow = Date.now();
-  var _myPW = findPendingWorm(username);
+  var _myPW = _findPendingWorm(username);
   var _hH   = _myPW && _myPW.hatched;
   var _gFrc  = _myPW ? (_myPW.gutFrac != null ? _myPW.gutFrac : 1.0) : 0;
   var _msL2  = _myPW ? Math.max(0, _myPW.hatchTs - _qnow) : 0;
@@ -7490,7 +7493,7 @@ function updatePendingWorms() {
       var _drainPF = (OFFLINE_DRAIN_PER_SEC_Q * UNCLAIMED_GUT_BURN) / 60;
       _pw.gutFrac = Math.max(0, (_pw.gutFrac != null ? _pw.gutFrac : 1.0) - _drainPF);
       if (_pw.gutFrac <= 0) {
-        postToHost({ type: MSG_UNCLAIMED_WORM_DIED, username: username, x: _pw.x, y: _pw.y });
+        postToHost({ type: 'unclaimedWormDied', username: username, x: _pw.x, y: _pw.y });
         pendingWorms.splice(_ui, 1);
         _ui--;
         window._unclaimedSelf  = true;
@@ -7587,7 +7590,7 @@ function respawnPlayer(usedKarma) {
   mX = respawnX; mY = respawnY;
   deathScreen = false; deathFade = 0;
   saveSession();
-  postToHost({ type: MSG_PRESENCE_UPDATE, username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
+  postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
 }
 
 function tryLayCocoon() {
@@ -7753,7 +7756,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+        postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
       }
     }
 
@@ -7768,7 +7771,7 @@ function tryPoop() {
 // Convert a CSS pixel position (relative to root) to logical canvas coordinates.
 // When the canvas is CSS-scaled to fill the viewport, clicks/touches arrive in
 // CSS pixels and must be divided by the scale factor to get game-world coords.
-function toCanvas(cssX, cssY) {
+function _toCanvas(cssX, cssY) {
   var sx = window._canvasScaleX || 1;
   var sy = window._canvasScaleY || 1;
   return { x: cssX / sx, y: cssY / sy };
@@ -7776,7 +7779,7 @@ function toCanvas(cssX, cssY) {
 
 root.addEventListener('mousemove', function(e) {
   var r = root.getBoundingClientRect();
-  var p = toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var p = _toCanvas(e.clientX - r.left, e.clientY - r.top);
   mX = p.x;
   mY = p.y + camY;
 });
@@ -7789,7 +7792,7 @@ root.addEventListener('wheel', function(e) {
 }, { passive: false });
 root.addEventListener('click', function(e) {
   var r = root.getBoundingClientRect();
-  var _cp = toCanvas(e.clientX - r.left, e.clientY - r.top);
+  var _cp = _toCanvas(e.clientX - r.left, e.clientY - r.top);
   var cx = _cp.x;
   var cy = _cp.y;
   if (!viewMode) { mX = cx; mY = cy + camY; } // don't steer worm while scrolling
@@ -7801,9 +7804,9 @@ root.addEventListener('click', function(e) {
   if (playerState === 'queued' && window._claimBtn) {
     var _cb = window._claimBtn;
     if (cx >= _cb.x && cx <= _cb.x+_cb.w && cy >= _cb.y && cy <= _cb.y+_cb.h) {
-      var _myPWC = findPendingWorm(username);
+      var _myPWC = _findPendingWorm(username);
       if (_myPWC && _myPWC.hatched) {
-        postToHost({ type: MSG_CLAIM_WORM, username: username });
+        postToHost({ type: 'claimWorm', username: username });
       }
       return;
     }
@@ -7852,14 +7855,14 @@ root.addEventListener('click', function(e) {
     var _panelH2 = 240, _btnW2 = Math.min(W * 0.85 * 0.8, 260), _btnH2 = 44;
     var _py2 = H/2 - _panelH2/2;
     var _btn2 = {x: W/2 - _btnW2/2, y: _py2 + 126, w: _btnW2, h: _btnH2};
-    function clickInBtn(b) { return cx >= b.x && cx <= b.x+b.w && cy >= b.y && cy <= b.y+b.h; }
-    if (clickInBtn(_btn2)) {
+    function _clickInBtn(b) { return cx >= b.x && cx <= b.x+b.w && cy >= b.y && cy <= b.y+b.h; }
+    if (_clickInBtn(_btn2)) {
       var _binFull2 = cocoons.length >= COCOON_MAX * 4;
       if (_binFull2) {
         // Bin full — Join Queue (only if not already queued)
         if (playerState !== 'queued') {
           playerState = 'queued';
-          postToHost({ type: MSG_JOIN_QUEUE, username: username });
+          postToHost({ type: 'joinQueue', username: username });
         }
       } else if (cocoons.some(function(c){ return c.owner===username && c.matured; })) {
         respawnPlayer(true);
@@ -7922,7 +7925,7 @@ function drawLongPressRing() {
   ctx.restore();
 }
 
-function cancelLP() {
+function _cancelLP() {
   if (_gesture.lpTimer) { clearTimeout(_gesture.lpTimer); _gesture.lpTimer = null; }
   _gesture.lpActive = false;
 }
@@ -7930,7 +7933,7 @@ function cancelLP() {
 root.addEventListener('touchmove', function(e) {
   e.preventDefault();
   var r = root.getBoundingClientRect();
-  var _tp = toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
   var tx = _tp.x;
   var ty = _tp.y;
 
@@ -7944,7 +7947,7 @@ root.addEventListener('touchmove', function(e) {
     if (_gesture.lpActive) {
       var _vdx = tx - _gesture.lpStartX;
       var _vdy = ty - _gesture.lpStartY;
-      if (Math.sqrt(_vdx*_vdx + _vdy*_vdy) > 15) cancelLP();
+      if (Math.sqrt(_vdx*_vdx + _vdy*_vdy) > 15) _cancelLP();
     }
     return;
   }
@@ -7955,14 +7958,14 @@ root.addEventListener('touchmove', function(e) {
   if (_gesture.lpActive) {
     var dx3 = mX - _gesture.lpStartX;
     var dy3 = ty - _gesture.lpStartY;
-    if (Math.sqrt(dx3*dx3 + dy3*dy3) > 15) cancelLP();
+    if (Math.sqrt(dx3*dx3 + dy3*dy3) > 15) _cancelLP();
   }
 }, {passive: false});
 
 root.addEventListener('touchstart', function(e) {
   e.preventDefault();
   var r   = root.getBoundingClientRect();
-  var _tsp = toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+  var _tsp = _toCanvas(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
   var tx  = _tsp.x;
   var ty  = _tsp.y;
   var now = performance.now();
@@ -7978,9 +7981,9 @@ root.addEventListener('touchstart', function(e) {
   if (playerState === 'queued' && window._claimBtn) {
     var _cbt = window._claimBtn;
     if (tx >= _cbt.x && tx <= _cbt.x+_cbt.w && ty >= _cbt.y && ty <= _cbt.y+_cbt.h) {
-      var _myPWT = findPendingWorm(username);
+      var _myPWT = _findPendingWorm(username);
       if (_myPWT && _myPWT.hatched) {
-        postToHost({ type: MSG_CLAIM_WORM, username: username });
+        postToHost({ type: 'claimWorm', username: username });
       }
       return;
     }
@@ -7995,10 +7998,10 @@ root.addEventListener('touchstart', function(e) {
     _gesture.lpStartX  = tx;
     _gesture.lpStartY  = ty;
     _gesture.lpStart   = now;
-    cancelLP();
+    _cancelLP();
     _gesture.lpActive  = true;
     _gesture.lpTimer   = setTimeout(function() {
-      if (_gesture.lpActive) { cancelLP(); trySleep(); }
+      if (_gesture.lpActive) { _cancelLP(); trySleep(); }
     }, _gesture.lpDur);
     return;
   }
@@ -8008,14 +8011,14 @@ root.addEventListener('touchstart', function(e) {
     var _panelH3 = 240, _btnW3 = Math.min(W * 0.85 * 0.8, 260), _btnH3 = 44;
     var _py3 = H/2 - _panelH3/2;
     var _btn3 = {x: W/2-_btnW3/2, y: _py3+126, w: _btnW3, h: _btnH3};
-    function touchInBtn(b) { return tx>=b.x && tx<=b.x+b.w && ty>=b.y && ty<=b.y+b.h; }
-    if (touchInBtn(_btn3)) {
+    function _touchInBtn(b) { return tx>=b.x && tx<=b.x+b.w && ty>=b.y && ty<=b.y+b.h; }
+    if (_touchInBtn(_btn3)) {
       var _binFull3 = cocoons.length >= COCOON_MAX * 4;
       if (_binFull3) {
         // Bin full — Join Queue (only if not already queued)
         if (playerState !== 'queued') {
           playerState = 'queued';
-          postToHost({ type: MSG_JOIN_QUEUE, username: username });
+          postToHost({ type: 'joinQueue', username: username });
         }
       } else if (cocoons.some(function(c){ return c.owner===username && c.matured; })) {
         respawnPlayer(true);
@@ -8039,7 +8042,7 @@ root.addEventListener('touchstart', function(e) {
     _gesture.lpStartX   = tx;
     _gesture.lpStartY   = ty;
     _gesture.lpStart    = now;
-    cancelLP(); // clear any stale timer first
+    _cancelLP(); // clear any stale timer first
     _gesture.lpActive   = true;
     _gesture.swipeStartX = tx;
     _gesture.swipeStartY = ty;
@@ -8047,7 +8050,7 @@ root.addEventListener('touchstart', function(e) {
     _gesture.swipeLive   = true;
     _gesture.lpTimer = setTimeout(function() {
       if (_gesture.lpActive) {
-        cancelLP();
+        _cancelLP();
         trySleep();
         // Mark that sleep was just triggered by long-press — the finger-lift
         // that immediately follows must not wake the worm again.
@@ -8057,7 +8060,7 @@ root.addEventListener('touchstart', function(e) {
   }
 
   // Cancel long-press the moment a second finger lands
-  if (n >= 2) cancelLP();
+  if (n >= 2) _cancelLP();
 
 }, {passive: false});
 
@@ -8067,7 +8070,7 @@ root.addEventListener('touchend', function(e) {
   var now = performance.now();
   var remaining = e.touches.length; // fingers still down after this lift
 
-  cancelLP();
+  _cancelLP();
 
   // ── View mode — resolve tap-to-wake or end of scroll drag ───────────────
   if (viewMode && pSleeping && remaining === 0) {
@@ -8093,7 +8096,7 @@ root.addEventListener('touchend', function(e) {
     // Single short tap on drain button (not a swipe, not sleeping)
     if (peak === 1 && _gesture.swipeLive) {
       // swipeLive is still true here for short taps — check travel distance
-      var _te0 = toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te0 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
       var ex0  = _te0.x;
       var ey0  = _te0.y;
       var dyT  = Math.abs(_gesture.swipeStartY - ey0);
@@ -8129,7 +8132,7 @@ root.addEventListener('touchend', function(e) {
 
     } else if (peak === 1 && _gesture.swipeLive) {
       // ── Single finger — check for swipe-up (cocoon) ───────────────────────
-      var _te1 = toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
+      var _te1 = _toCanvas(e.changedTouches[0].clientX - r.left, e.changedTouches[0].clientY - r.top);
       var ex  = _te1.x;
       var ey  = _te1.y;
       var dyS = _gesture.swipeStartY - ey;
@@ -8144,7 +8147,7 @@ root.addEventListener('touchend', function(e) {
 }, {passive: false});
 
 root.addEventListener('touchcancel', function() {
-  cancelLP();
+  _cancelLP();
   _gesture._justSlept = false;
   _gesture.peakCount = 0;
   _gesture.swipeLive = false;
@@ -8335,9 +8338,10 @@ window.addEventListener('keydown', function(e) {
     window._floodMsg    = '⚠ FLOOD! Compost waterlogged — liquid pooling in soil!';
     window._floodMsgT   = frame;
     try {
-      if (data) { data.lastFloodTs = Date.now(); saveSession(); }
+      var fs3 = loadSession();
+      if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
     } catch(e2) {}
-    postToHost({ type: MSG_WORLD_UPDATE, tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
@@ -8377,9 +8381,9 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
 
   if (isInIframe) {
     // Tell the host we are ready and waiting for session + username
-    postToHost({ type: MSG_READY });
+    postToHost({ type: 'ready' });
     // Ask host for the current player list (presence) so other worms appear on load
-    postToHost({ type: MSG_REQUEST_PRESENCE });
+    postToHost({ type: 'requestPresence' });
     // Set the pending flag so the message handler can kick off setup()
     window._devvitSetupPending = true;
     // Fallback: if no session arrives within 400ms, start anyway
@@ -8394,4 +8398,3 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     setTimeout(function() { setup(); loop(); }, 100);
   }
 })();
-
