@@ -7231,32 +7231,33 @@ function drawWeatherHUD() {
   var line2 = tempF + '°F  ' + humPct + (raining ? '  ☔' : '');
 
   ctx.save();
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'right';
 
-  // Backdrop pill
+  // Backdrop pill — anchored to upper right
   var padX = 8, padY = 4;
+  ctx.font = 'bold 10px sans-serif';
   var w1 = ctx.measureText(line1).width;
   ctx.font = '10px sans-serif';
   var w2 = ctx.measureText(line2).width;
-  ctx.font = '11px sans-serif';
   var bw = Math.max(w1, w2) + padX * 2 + 4;
   var bh = 32;
+  var bx = W - 6 - bw;
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = '#0a1008';
   ctx.beginPath();
-  ctx.roundRect(6, 6, bw, bh, 5);
+  ctx.roundRect(bx, 6, bw, bh, 5);
   ctx.fill();
   ctx.globalAlpha = 1;
 
   // Date line
   ctx.font = 'bold 10px sans-serif';
   ctx.fillStyle = '#a0c880';
-  ctx.fillText(line1, 6 + padX, 6 + padY + 10);
+  ctx.fillText(line1, W - 6 - padX, 6 + padY + 10);
 
   // Conditions line
   ctx.font = '10px sans-serif';
   ctx.fillStyle = '#d0eab0';
-  ctx.fillText(line2, 6 + padX, 6 + padY + 24);
+  ctx.fillText(line2, W - 6 - padX, 6 + padY + 24);
 
   ctx.restore();
 }
