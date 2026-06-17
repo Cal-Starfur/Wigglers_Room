@@ -21,7 +21,7 @@
  *   queue:{postId}           — pending worm queue JSON array
  */
 
-import { Devvit, useWebView } from '@devvit/public-api';
+import { Devvit, useWebView, useChannel } from '@devvit/public-api';
 
 // ─── Message type constants ───────────────────────────────────────────────────
 // Inbound (webview → host)
@@ -54,9 +54,12 @@ const KV_QUEUE         = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
 
 // ─── Realtime channel helpers ─────────────────────────────────────────────────
-const RT_WORLD    = (postId: string) => `world:${postId}`;
-const RT_PRESENCE = (postId: string) => `presence:${postId}`;
-const RT_FLOOD    = (postId: string) => `flood:${postId}`;
+// useChannel requires names with only [a-zA-Z0-9_] — no colons allowed.
+// postId is 't3_xxxxxxx' (base36) — safe after replacing non-alphanumeric with _.
+const safeId   = (id: string) => id.replace(/[^a-zA-Z0-9_]/g, '_');
+const RT_WORLD    = (postId: string) => `world_${safeId(postId)}`;
+const RT_PRESENCE = (postId: string) => `presence_${safeId(postId)}`;
+const RT_FLOOD    = (postId: string) => `flood_${safeId(postId)}`;
 
 // ─── Anti-cheat clamp helpers ─────────────────────────────────────────────────
 const SCORE_MAX       = 9_999_999;
@@ -256,13 +259,13 @@ Devvit.addCustomPostType({
               if (!username) break;
               await realtime.send(RT_PRESENCE(roomId), JSON.stringify({
                 type: MSG_SET_PRESENCE,
-                player: {
+                players: [{
                   username,
-                  x:       message.x,
-                  y:       message.y,
+                  x:        message.x,
+                  y:        message.y,
                   sleeping: message.sleeping,
-                  size:    message.size,
-                },
+                  size:     message.size,
+                }],
               }));
             } catch (e) {
               // Presence updates are fire-and-forget — don't warn on failure
@@ -436,6 +439,34 @@ Devvit.addCustomPostType({
         console.log('[main] WebView unmounted');
       },
     });
+
+    // ── Realtime channel subscriptions ────────────────────────────────────
+    // Forward broadcasts from any player's host to this viewer's webview.
+    // Must be declared after webView so the closure captures it correctly.
+    // Channel names must be [a-zA-Z0-9_] only — no colons.
+    const presenceChannel = useChannel({
+      name: RT_PRESENCE(roomId),
+      onMessage: (msg: any) => {
+        try { webView.postMessage(msg); } catch (_) {}
+      },
+    });
+    presenceChannel.subscribe();
+
+    const worldChannel = useChannel({
+      name: RT_WORLD(roomId),
+      onMessage: (msg: any) => {
+        try { webView.postMessage(msg); } catch (_) {}
+      },
+    });
+    worldChannel.subscribe();
+
+    const floodChannel = useChannel({
+      name: RT_FLOOD(roomId),
+      onMessage: (msg: any) => {
+        try { webView.postMessage(msg); } catch (_) {}
+      },
+    });
+    floodChannel.subscribe();
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
