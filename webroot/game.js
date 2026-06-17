@@ -1,3 +1,4 @@
+
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
@@ -2184,8 +2185,10 @@ function updateSnooDrain() {
       break;
   }
 
-  // Camera eases down to show sump tier and the below-bin space where Snoo stands
-  var drainCamTarget = 3*H + H*0.25 - H * 0.72;
+  // Camera eases so Snoo's locked world position sits at ~58% of the viewport.
+  // Derived from drainSnooStopY instead of a fixed H multiple — fixes Snoo being
+  // off-screen on short/mobile canvases (Reddit webview H≈400-500px).
+  var drainCamTarget = drainSnooStopY - H * 0.58;
   camY += (drainCamTarget - camY) * 0.06;
   camY = Math.round(camY);
 }
@@ -8398,3 +8401,4 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     setTimeout(function() { setup(); loop(); }, 100);
   }
 })();
+
