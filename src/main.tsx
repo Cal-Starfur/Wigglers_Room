@@ -296,12 +296,16 @@ Devvit.addCustomPostType({
               const eaten  = Math.min(300000, Math.max(0, message.pEaten ?? 0));
               const uname  = message.username ?? username;
 
-              // Headstone years — map pEaten (0–300,000) onto 1920–1999
-              const BIRTH_YEAR = 1920;
-              const deathYear  = BIRTH_YEAR + Math.round((eaten / 300000) * 79);
-              const yearsStr   = eaten < 1000
-                ? `${BIRTH_YEAR} — ${BIRTH_YEAR}`
-                : `${BIRTH_YEAR} — ${deathYear}`;
+              // Headstone dates — birth is Jan 2025 (game launch), death month derived from pEaten
+              // pEaten 0–300,000 mapped across ~24 months (2 year full life)
+              const BIRTH_MONTH = 1, BIRTH_YEAR_S = 25; // Jan '25
+              const lifeMonths  = Math.round((eaten / 300000) * 24);
+              const deathMonth  = ((BIRTH_MONTH - 1 + lifeMonths) % 12) + 1;
+              const deathYearS  = BIRTH_YEAR_S + Math.floor((BIRTH_MONTH - 1 + lifeMonths) / 12);
+              const fmt = (m: number, y: number) => `${m}/${String(y).padStart(2,'0')}`;
+              const yearsStr = eaten < 500
+                ? `${fmt(BIRTH_MONTH, BIRTH_YEAR_S)} — ${fmt(BIRTH_MONTH, BIRTH_YEAR_S)}`
+                : `${fmt(BIRTH_MONTH, BIRTH_YEAR_S)} — ${fmt(deathMonth, deathYearS)}`;
 
               // Generation roman numeral + ordinal life label
               const roman    = ['I','II','III','IV','V','VI','VII','VIII','IX','X'];
