@@ -283,7 +283,16 @@ var _devvitSessionReceived = false;
 // Safe to call at any time; silently does nothing when running standalone.
 function postToHost(msg) {
   try {
-    // Use window.parent if available (web iframe), otherwise window itself (mobile RN WebView)
+    // ── Mobile (Reddit app = React Native WebView) ────────────────────────
+    // RN WebView injects window.ReactNativeWebView; postMessage MUST receive
+    // a string — passing a raw object silently fails on mobile.
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+      return;
+    }
+    // ── Web / iframe (reddit.com desktop or dev server) ───────────────────
+    // window.parent !== window when inside an iframe; use structured clone
+    // (no JSON.stringify needed — browser handles it).
     var target = (window.parent && window.parent !== window) ? window.parent : window;
     target.postMessage(msg, '*');
   } catch(e) {}
@@ -293,8 +302,9 @@ window.addEventListener('message', function(e) {
   // In Devvit, webView.postMessage() arrives from the Devvit platform origin,
   // not necessarily 'https://www.reddit.com'. Drop the strict origin check
   // and rely on the message type/structure for safety instead.
-  // Still reject null-origin and obviously wrong origins in standalone/dev mode.
-  if (!e.origin) return;
+  // NOTE: On the Reddit mobile app (React Native WebView), messages arrive
+  // with an empty/null e.origin — do NOT gate on origin here or mobile breaks.
+  // The old guard `if (!e.origin) return` was silently dropping ALL mobile messages.
 
   // Devvit wraps webView.postMessage() in { type: 'devvit-message', data: { message: ... } }
   // Unwrap it so all handlers below can work with the raw message object.
