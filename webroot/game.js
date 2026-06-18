@@ -1,3 +1,4 @@
+
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
@@ -2234,12 +2235,14 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Snap camY immediately so the tap is at screen H*0.86 before the slide-in starts.
-  // Without this, camY eases during floatin and Snoo's Y drifts — looks like he slides past the tap.
+  // Snap camY so sump floor sits at ~45% down the screen — spout visible above, Snoo below.
+  // ISS-12 fix: old value (H*0.86) placed Snoo AT the tap; bucket mouth was only 2px below spout.
+  // New value (H*0.45) raises the camera so spout is at screen Y~390 and bucket mouth at Y~470.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  camY = Math.round(3*H + H*0.25 - H * 0.86 + 8); // tap at screen H*0.86 from frame 1
-  drainSnooStopX = _b.cx - _SC * 0.127; // X only — stable, bin never scrolls horizontally
+  camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen — ISS-12 fix
+  drainSnooStopX = _b.cx - _SC * 0.127;        // X only — stable, bin never scrolls horizontally
+  drainSnooStopY = H * 0.559 + camY;           // world-Y of torso anchor (screen 55.9% down)
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2253,7 +2256,7 @@ function updateSnooDrain() {
   // Tap in screen space — camY is stable (snapped at trigger), so this is constant each frame.
   var tapSY   = 3*H + H*0.25 - camY + 8;
   var STOP_X  = drainSnooStopX;
-  var STOP_Y  = tapSY - SC * 0.19 + 25; // +25 to lower Snoo so hand aligns with tap
+  var STOP_Y  = H * 0.559; // ISS-12 fix: screen-space torso anchor — bucket mouth 80px below spout
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
@@ -8614,6 +8617,7 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
+
 
 
 
