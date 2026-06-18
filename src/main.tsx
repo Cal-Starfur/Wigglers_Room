@@ -1,4 +1,5 @@
 
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -105,9 +106,11 @@ Devvit.configure({
 
 // Pulsing warm amber glow behind the icon — transparent SVG layered over the bg.
 // Icon swelling is driven separately via iconSize state so it stays a native image tag.
+// Wave multipliers are slow (0.05 / 0.04) so each 100ms tick is a tiny increment,
+// giving a smooth ~12-second breath cycle despite the 10fps update rate.
 function buildGlowDataUrl(tick: number): string {
-  const glow = 0.28 + Math.sin(tick * 0.12) * 0.12;
-  const sc   = 1 + Math.sin(tick * 0.22) * 0.032;
+  const glow = 0.28 + Math.sin(tick * 0.05) * 0.12;
+  const sc   = 1 + Math.sin(tick * 0.05) * 0.032;
   const svg  =
     `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
     `<radialGradient id="g" cx="50%" cy="50%" r="50%">` +
@@ -499,7 +502,7 @@ Devvit.addCustomPostType({
     const anim = useInterval(() => {
       setTick((t: number) => {
         const next  = t + 1;
-        const sc    = 1 + Math.sin(next * 0.22) * 0.032;  // ±3.2% swell
+        const sc    = 1 + Math.sin(next * 0.05) * 0.032;  // same wave as glow, ~12s cycle
         setGlowUrl(buildGlowDataUrl(next));
         setIconSize(Math.round(256 * sc));
         return next;
@@ -543,6 +546,7 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
 
 
