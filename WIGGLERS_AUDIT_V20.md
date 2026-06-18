@@ -1,6 +1,33 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-17 Session 15
+> Last updated: 2026-06-18 Session 16 (pre-implementation — bin persistence plan)
 > Current state: V20 + all Session 14 + Session 15 fixes
+
+---
+
+## Session 16 — 2026-06-18 (Planning)
+
+### Session Summary
+Architecture review and persistence planning session. Pulled fresh repo state, reviewed all three root causes of ISS-1 (weekly drain never fires), and produced a concrete four-move implementation plan. No code shipped yet — plan is documented in both GAME_ARCHITECTURE.md (Bin Persistence section) and this audit (priority queue below). Next session starts directly on Move 1.
+
+### Key Finding: ISS-1 Root Cause Breakdown
+Three separate bugs all prevent the bin's weekly drain from working as a shared persistent event:
+
+1. `weeklyDrain: true` flag sent in `MSG_WORLD_UPDATE` is silently dropped — the handler in main.tsx saves world state but never checks this flag
+2. `KV_WEEK` is never read on post open — each player's `weekStartTs` defaults to `Date.now()`, so every player has an independent 7-day clock
+3. When drain fires and `KV_WEEK` should be updated, the write never happens — the new `weekStartTs` is never persisted or broadcast
+
+### Implementation Plan — Four Moves (next session)
+| Move | File | What | Lines |
+|------|------|------|-------|
+| 1 | main.tsx | Read `KV_WEEK` on open, stamp if missing, send `weekStartTs` in `setWorldState` | ~15 |
+| 2 | game.js | Accept `weekStartTs` from `setWorldState` message, overwrite local value | 1 |
+| 3 | main.tsx | On `weeklyDrain: true` in `MSG_WORLD_UPDATE`, write new `KV_WEEK` | ~8 |
+| 4 | main.tsx | Include `weekStartTs` in Realtime world broadcast on drain | ~2 |
+
+Total estimated: ~26 lines across two files. No physics, no rendering, no renames.
+
+### Commits Shipped
+None — planning session only.
 
 ---
 
@@ -156,8 +183,8 @@ Three bugs prevent weekly drain from ever firing automatically:
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-1 | Weekly drain never fires in Devvit (3 root causes) | P1 |
-| ISS-2 | `KV_WEEK` defined but never read or written | Part of ISS-1 |
+| ISS-1 | Weekly drain never fires in Devvit — 3 root causes (see S16 plan) | P1 — next session |
+| ISS-2 | `KV_WEEK` defined but never read or written — fixed by ISS-1 Move 1+3 | Part of ISS-1 |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
@@ -165,6 +192,7 @@ Three bugs prevent weekly drain from ever firing automatically:
 | ISS-7 | 4 dead functions in codebase | P2 |
 | ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
 | ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
+| ISS-10 | `weeklyContrib` client-authoritative — could be spoofed for tea bonus | P3 (post-ISS-1) |
 
 ---
 
@@ -189,3 +217,4 @@ Three bugs prevent weekly drain from ever firing automatically:
 | Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
+
