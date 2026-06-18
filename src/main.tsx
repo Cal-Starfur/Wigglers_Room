@@ -127,69 +127,46 @@ Devvit.configure({
 // wrapping every 512px. We draw each item twice (at y and y+512) so the seam
 // is always invisible.
 const TRASH_LAYOUT = [
-  // 50 items — 5 staggered passes across 512px width, varied sizes/rotations
-  // Pass A
-  { name: 'pizza',        x:  30, yOff:   0, r: 28, rot:  0.4 },
-  { name: 'banana_peel',  x:  95, yOff: 120, r: 22, rot: -0.3 },
-  { name: 'apple_core',   x: 165, yOff:  55, r: 18, rot:  0.7 },
-  { name: 'lettuce',      x: 235, yOff: 240, r: 26, rot: -0.5 },
-  { name: 'egg_shell',    x: 300, yOff: 330, r: 20, rot:  1.1 },
-  { name: 'tea_bag',      x: 368, yOff:  80, r: 16, rot:  0.2 },
-  { name: 'newspaper',    x: 435, yOff: 390, r: 28, rot: -0.8 },
-  { name: 'watermelon',   x: 498, yOff: 175, r: 30, rot:  0.6 },
-  { name: 'apple_core',   x:  60, yOff: 280, r: 14, rot: -0.4 },
-  { name: 'pizza',        x: 130, yOff: 470, r: 20, rot:  1.0 },
-  // Pass B — offset X by ~25px, Y by ~60px
-  { name: 'lettuce',      x:  18, yOff:  60, r: 18, rot: -1.2 },
-  { name: 'tea_bag',      x:  80, yOff: 190, r: 20, rot:  1.3 },
-  { name: 'egg_shell',    x: 148, yOff: 350, r: 24, rot: -1.0 },
-  { name: 'watermelon',   x: 212, yOff: 140, r: 22, rot:  0.9 },
-  { name: 'banana_peel',  x: 278, yOff: 420, r: 18, rot:  0.3 },
-  { name: 'pizza',        x: 342, yOff:  20, r: 22, rot: -0.6 },
-  { name: 'lettuce',      x: 408, yOff: 300, r: 24, rot:  0.8 },
-  { name: 'newspaper',    x: 472, yOff: 490, r: 26, rot: -0.2 },
-  { name: 'apple_core',   x: 118, yOff:  10, r: 20, rot:  1.5 },
-  { name: 'tea_bag',      x: 385, yOff: 560, r: 14, rot: -0.7 },
-  // Pass C
-  { name: 'watermelon',   x:  45, yOff: 410, r: 18, rot:  0.5 },
-  { name: 'egg_shell',    x: 108, yOff: 100, r: 16, rot: -0.9 },
-  { name: 'banana_peel',  x: 175, yOff: 510, r: 20, rot:  0.6 },
-  { name: 'newspaper',    x: 245, yOff: 320, r: 22, rot: -0.4 },
-  { name: 'apple_core',   x: 315, yOff: 170, r: 18, rot:  1.2 },
-  { name: 'pizza',        x: 380, yOff: 445, r: 16, rot: -0.9 },
-  { name: 'tea_bag',      x: 448, yOff: 230, r: 24, rot:  0.7 },
-  { name: 'lettuce',      x: 508, yOff: 365, r: 20, rot: -0.3 },
-  { name: 'watermelon',   x: 195, yOff:  30, r: 26, rot:  1.0 },
-  { name: 'egg_shell',    x: 268, yOff: 590, r: 14, rot: -0.6 },
-  // Pass D — fills remaining vertical gaps
-  { name: 'banana_peel',  x:  28, yOff: 530, r: 18, rot:  0.4 },
-  { name: 'pizza',        x:  90, yOff: 620, r: 20, rot: -1.1 },
-  { name: 'newspaper',    x: 155, yOff: 200, r: 24, rot:  0.9 },
-  { name: 'apple_core',   x: 222, yOff: 680, r: 16, rot: -0.5 },
-  { name: 'lettuce',      x: 290, yOff:  90, r: 22, rot:  0.3 },
-  { name: 'tea_bag',      x: 358, yOff: 640, r: 16, rot: -0.8 },
-  { name: 'watermelon',   x: 425, yOff: 130, r: 20, rot:  1.4 },
-  { name: 'egg_shell',    x: 490, yOff: 710, r: 18, rot: -0.3 },
-  { name: 'pizza',        x: 330, yOff: 730, r: 16, rot:  0.6 },
-  { name: 'banana_peel',  x: 455, yOff: 760, r: 14, rot: -1.0 },
-  // Pass E — tiny filler items to plug any remaining gaps
-  { name: 'tea_bag',      x:  12, yOff: 155, r: 12, rot:  1.1 },
-  { name: 'apple_core',   x:  72, yOff: 730, r: 12, rot: -0.7 },
-  { name: 'egg_shell',    x: 142, yOff: 455, r: 12, rot:  0.9 },
-  { name: 'lettuce',      x: 205, yOff: 380, r: 14, rot: -1.3 },
-  { name: 'pizza',        x: 258, yOff: 765, r: 12, rot:  0.5 },
-  { name: 'watermelon',   x: 505, yOff: 570, r: 14, rot: -0.4 },
-  { name: 'newspaper',    x: 395, yOff: 800, r: 12, rot:  0.8 },
-  { name: 'banana_peel',  x: 350, yOff: 260, r: 12, rot: -0.6 },
-  { name: 'tea_bag',      x: 462, yOff: 830, r: 12, rot:  1.2 },
-  { name: 'apple_core',   x: 520, yOff:  40, r: 14, rot: -0.2 },
+  // Positions extracted from preview-bg.png (1024px → 512px, ÷2).
+  // Rotations estimated from principal axis of each item's pixel cluster.
+  { name: 'whole_tomato',     x:  19, yOff:  26, r: 22, rot: -0.15 },
+  { name: 'banana_peel',      x:  28, yOff: 362, r: 20, rot: -0.66 },
+  { name: 'bread_crust',      x:  30, yOff: 158, r: 24, rot: -0.24 },
+  { name: 'banana_peel',      x:  43, yOff: 471, r: 28, rot:  0.96 },
+  { name: 'banana_peel',      x:  86, yOff:  40, r: 23, rot: -0.07 },
+  { name: 'tea_bag',          x: 100, yOff: 470, r: 24, rot:  0.80 },
+  { name: 'lettuce',          x: 115, yOff: 350, r: 24, rot: -0.34 },
+  { name: 'newspaper',        x: 118, yOff: 255, r: 25, rot:  0.10 },
+  { name: 'overripe_fruit',   x: 156, yOff: 163, r: 38, rot:  0.62 },
+  { name: 'egg_shell',        x: 191, yOff: 361, r: 24, rot: -0.54 },
+  { name: 'watermelon',       x: 194, yOff: 462, r: 17, rot: -0.62 },
+  { name: 'apple_core',       x: 198, yOff:  51, r: 20, rot:  0.20 },
+  { name: 'whole_tomato',     x: 202, yOff: 278, r: 25, rot: -0.81 },
+  { name: 'egg_shell',        x: 231, yOff: 244, r: 14, rot: -0.30 },
+  { name: 'watermelon',       x: 238, yOff:  30, r: 22, rot: -0.62 },
+  { name: 'egg_shell',        x: 246, yOff: 135, r: 10, rot:  0.40 },
+  { name: 'banana_peel',      x: 246, yOff: 226, r: 17, rot: -0.96 },
+  { name: 'corn_cob',         x: 252, yOff: 386, r: 20, rot:  0.20 },
+  { name: 'banana_peel',      x: 274, yOff: 478, r: 29, rot:  0.08 },
+  { name: 'newspaper',        x: 324, yOff: 271, r: 26, rot:  0.87 },
+  { name: 'banana_peel',      x: 329, yOff:  30, r: 29, rot:  0.08 },
+  { name: 'egg_shell',        x: 332, yOff: 382, r: 22, rot: -0.47 },
+  { name: 'whole_tomato',     x: 336, yOff: 470, r: 14, rot:  0.30 },
+  { name: 'tea_bag',          x: 346, yOff: 183, r: 18, rot:  0.80 },
+  { name: 'banana_peel',      x: 394, yOff: 141, r: 20, rot:  0.10 },
+  { name: 'lettuce',          x: 403, yOff: 387, r: 26, rot: -0.77 },
+  { name: 'bread_crust',      x: 410, yOff: 290, r: 26, rot: -0.67 },
+  { name: 'whole_tomato',     x: 414, yOff:  15, r: 20, rot: -0.10 },
+  { name: 'potato',           x: 451, yOff:  52, r: 16, rot:  0.30 },
+  { name: 'egg_shell',        x: 464, yOff: 256, r: 26, rot: -0.47 },
+  { name: 'pizza',            x: 464, yOff: 368, r: 25, rot: -0.53 },
+  { name: 'bread_crust',      x: 468, yOff: 464, r: 22, rot: -0.24 },
+  { name: 'lettuce',          x: 490, yOff: 173, r: 20, rot: -0.25 },
 ];
 
-// 2px per tick at 100ms = 20px/s — same speed as before but twice the frames.
-// 100ms interval means Devvit renders 10 frames/sec → smooth continuous motion.
+// 2px per tick at 100ms = 20px/s. TILE_H covers all yOff values with buffer.
 const FALL_SPEED = 2;
-// Tile height covers all yOff values plus padding so wrap is always off-screen.
-const TILE_H = 900;
+const TILE_H = 600;
 
 // ── SVG shape builders — one per trash type ───────────────────────────────────
 // Each returns an SVG string of shapes centered at (0,0), scaled by r.
@@ -337,17 +314,100 @@ function svgWatermelon(r: number): string {
 }
 
 // ── Shape dispatcher ──────────────────────────────────────────────────────────
+
+function svgWholeTomato(r: number): string {
+  // Ripe round tomato — red body, highlight, ribbing, green calyx star
+  let ribs = '';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.3;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    ribs += `<path d="M ${(ca*r*0.12).toFixed(1)},${(sa*r*0.12-r*0.72).toFixed(1)} C ${(ca*r*0.5).toFixed(1)},${(sa*r*0.2).toFixed(1)} ${(ca*r*0.6).toFixed(1)},${(sa*r*0.5).toFixed(1)} ${(ca*r*0.55).toFixed(1)},${(sa*r*0.88).toFixed(1)}" fill="none" stroke="#a01818" stroke-width="${(r*0.04).toFixed(1)}"/>`;
+  }
+  let calyx = '';
+  for (let i = 0; i < 5; i++) {
+    const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+    const a2 = a + 0.6;
+    calyx += `<path d="M 0,${(-r*0.8).toFixed(1)} L ${(Math.cos(a)*r*0.32).toFixed(1)},${(Math.sin(a)*r*0.2-r*0.82).toFixed(1)} L ${(Math.cos(a2)*r*0.1).toFixed(1)},${(Math.sin(a2)*r*0.1-r*0.82).toFixed(1)} Z" fill="#286010"/>`;
+  }
+  return (
+    `<path d="M ${-r*0.1},${-r*0.82} C ${r*0.65},${-r*0.78} ${r*0.95},${-r*0.18} ${r*0.92},${r*0.28} C ${r*0.85},${r*0.78} ${r*0.3},${r*0.95} 0,${r*0.95} C ${-r*0.35},${r*0.95} ${-r*0.88},${r*0.72} ${-r*0.92},${r*0.22} C ${-r*0.95},${-r*0.28} ${-r*0.65},${-r*0.8} ${-r*0.1},${-r*0.82} Z" fill="#d02020"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.28}" rx="${r*0.3}" ry="${r*0.2}" fill="rgba(255,160,140,0.35)" transform="rotate(-29)"/>` +
+    ribs + calyx
+  );
+}
+
+function svgBreadCrust(r: number): string {
+  // Chunky bread crust — rounded rect, dark crust top, pale crumb
+  return (
+    `<rect x="${-r*0.8}" y="${-r*0.55}" width="${r*1.6}" height="${r*1.1}" rx="${r*0.22}" fill="#c89840"/>` +
+    `<rect x="${-r*0.8}" y="${-r*0.55}" width="${r*1.6}" height="${r*0.38}" rx="${r*0.22}" fill="#8a5018"/>` +
+    `<ellipse cx="${-r*0.2}" cy="${r*0.08}" rx="${r*0.35}" ry="${r*0.2}" fill="#e8c060" transform="rotate(-8)"/>` +
+    `<ellipse cx="${r*0.3}" cy="${r*0.22}" rx="${r*0.22}" ry="${r*0.14}" fill="#e8c060" transform="rotate(5)"/>`
+  );
+}
+
+function svgOverripeFruit(r: number): string {
+  // Squashed purple overripe plum/fig — dark, oozing
+  return (
+    `<path d="M ${-r*0.1},${-r*0.88} C ${r*0.65},${-r*0.8} ${r*0.92},${-r*0.1} ${r*0.85},${r*0.5} C ${r*0.7},${r*0.92} ${-r*0.4},${r*0.88} ${-r*0.82},${r*0.55} C ${-r*1.0},${r*0.1} ${-r*0.75},${-r*0.62} ${-r*0.1},${-r*0.88} Z" fill="#6a1858"/>` +
+    `<ellipse cx="${r*0.2}" cy="${r*0.3}" rx="${r*0.42}" ry="${r*0.28}" fill="#c03880" transform="rotate(29)"/>` +
+    `<line x1="${-r*0.08}" y1="${-r*0.88}" x2="${r*0.04}" y2="${-r*1.1}" stroke="#3a1808" stroke-width="${r*0.1}" stroke-linecap="round"/>` +
+    `<path d="M ${-r*0.5},${-r*0.3} C ${-r*0.2},${r*0.1} ${r*0.3},0 ${r*0.55},${r*0.4}" fill="none" stroke="rgba(100,10,60,0.4)" stroke-width="${r*0.05}"/>` +
+    `<path d="M ${-r*0.6},${r*0.2} C ${-r*0.1},${r*0.5} ${r*0.2},${r*0.6} ${r*0.5},${r*0.62}" fill="none" stroke="rgba(100,10,60,0.4)" stroke-width="${r*0.05}"/>`
+  );
+}
+
+function svgCornCob(r: number): string {
+  // Corn cob — golden body, kernel rows, silk strands, husk leaf
+  let kernels = '';
+  for (let row = -3; row <= 3; row++) {
+    for (let col = 0; col < 4; col++) {
+      const kx = (col - 1.5) * r * 0.18;
+      const ky = row * r * 0.22;
+      kernels += `<ellipse cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" rx="${(r*0.08).toFixed(1)}" ry="${(r*0.09).toFixed(1)}" fill="#f0cc50"/>`;
+    }
+  }
+  let silk = '';
+  for (let i = 0; i < 5; i++) {
+    const sx = ((i - 2) * r * 0.08).toFixed(1);
+    const sx2 = ((i - 2) * r * 0.12).toFixed(1);
+    silk += `<line x1="${sx}" y1="${(-r*0.88).toFixed(1)}" x2="${sx2}" y2="${(-r*1.15).toFixed(1)}" stroke="#e8c878" stroke-width="${(r*0.03).toFixed(1)}" stroke-linecap="round"/>`;
+  }
+  return (
+    `<ellipse cx="0" cy="0" rx="${r*0.42}" ry="${r*0.9}" fill="#d4a828"/>` +
+    kernels + silk +
+    `<path d="M ${-r*0.42},${r*0.78} C ${-r*0.6},${r*1.1} ${r*0.1},${r*1.2} ${r*0.3},${r*0.9} L ${r*0.42},${r*0.78} Z" fill="#78a028"/>`
+  );
+}
+
+function svgPotato(r: number): string {
+  // Lumpy potato — irregular oval, soil patches, small eye spots
+  return (
+    `<path d="M ${-r*0.15},${-r*0.88} C ${r*0.6},${-r*0.82} ${r*0.95},${-r*0.2} ${r*0.9},${r*0.32} C ${r*0.82},${r*0.82} ${r*0.25},${r*0.95} ${-r*0.05},${r*0.92} C ${-r*0.42},${r*0.88} ${-r*0.92},${r*0.65} ${-r*0.88},${r*0.18} C ${-r*0.85},${-r*0.35} ${-r*0.62},${-r*0.85} ${-r*0.15},${-r*0.88} Z" fill="#b89858"/>` +
+    `<ellipse cx="${r*0.22}" cy="${r*0.18}" rx="${r*0.28}" ry="${r*0.18}" fill="#8a6830" transform="rotate(12)"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.2}" rx="${r*0.18}" ry="${r*0.12}" fill="#8a6830" transform="rotate(-15)"/>` +
+    `<circle cx="${-r*0.05}" cy="${-r*0.6}" r="${r*0.07}" fill="#5a3810"/>` +
+    `<circle cx="${r*0.45}" cy="${r*0.48}" r="${r*0.06}" fill="#5a3810"/>` +
+    `<circle cx="${-r*0.5}" cy="${r*0.38}" r="${r*0.06}" fill="#5a3810"/>`
+  );
+}
+
 function svgTrashShapes(name: string, r: number): string {
   switch (name) {
-    case 'pizza':       return svgPizza(r);
-    case 'banana_peel': return svgBananaPeel(r);
-    case 'apple_core':  return svgAppleCore(r);
-    case 'lettuce':     return svgLettuce(r);
-    case 'egg_shell':   return svgEggShell(r);
-    case 'tea_bag':     return svgTeaBag(r);
-    case 'newspaper':   return svgNewspaper(r);
-    case 'watermelon':  return svgWatermelon(r);
-    default:            return `<circle cx="0" cy="0" r="${r}" fill="#8a6040"/>`;
+    case 'pizza':          return svgPizza(r);
+    case 'banana_peel':    return svgBananaPeel(r);
+    case 'apple_core':     return svgAppleCore(r);
+    case 'lettuce':        return svgLettuce(r);
+    case 'egg_shell':      return svgEggShell(r);
+    case 'tea_bag':        return svgTeaBag(r);
+    case 'newspaper':      return svgNewspaper(r);
+    case 'watermelon':     return svgWatermelon(r);
+    case 'whole_tomato':   return svgWholeTomato(r);
+    case 'bread_crust':    return svgBreadCrust(r);
+    case 'overripe_fruit': return svgOverripeFruit(r);
+    case 'corn_cob':       return svgCornCob(r);
+    case 'potato':         return svgPotato(r);
+    default:               return `<circle cx="0" cy="0" r="${r}" fill="#8a6040"/>`;
   }
 }
 
