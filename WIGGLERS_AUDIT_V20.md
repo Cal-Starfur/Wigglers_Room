@@ -1,9 +1,42 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-18 Session 16 (pre-implementation — bin persistence plan)
-> Current state: V20 + all Session 14 + Session 15 fixes
+> Last updated: 2026-06-18 Session 17 (canvas resize + desktop/fullscreen layout fixed)
+> Current state: V20 + all Session 14 + Session 15 + Session 16 + Session 17 fixes
 
-> Last updated: 2026-06-18 Session 16 (complete)
-> Current state: V20 + all Session 14 + Session 15 + Session 16 fixes
+---
+
+## Session 17 — 2026-06-18 (Canvas Resize + Desktop Layout)
+
+### Session Summary
+Focused session fixing canvas sizing and layout issues that only appeared on desktop and fullscreen. The root cause was a one-time guard in `resizeCanvas()` that prevented `W`/`H` from ever updating after the first paint. Fixing that exposed a chain of coordinate system issues: camX going negative, background fills not covering the full canvas, and background detail elements using `W` (viewport) instead of `WORLD_W` (world width).
+
+### What Shipped
+| Commit | Change |
+|--------|--------|
+| `c18e1cf` | Fix `resizeCanvas()` — remove one-time `if (!W\|\|!H)` guard, always update W/H and canvas dimensions on every resize. Invalidates bin + soil gradient caches. |
+| `db5fb1b` | Fix camX on wide screens — when `W >= WORLD_W`, lock `camX = 0` instead of lerping to a negative value. Fix spawn + respawn snaps. |
+| `2899a9a` | Fix sky/ground fillRects — compensate for `ctx.translate` by starting at `camX` (later superseded). |
+| `6ebd284` | Fix grass tufts, blade fringe, flowers X position — compensate for translate. |
+| `5eeb24b` | Introduce `centreOffsetX` global. Keep `camX >= 0` always. Use `ctx.translate(centreOffsetX - camX)` to centre bin on wide screens without breaking mouse/touch coords. Fix all 15 affected locations (mouse, touch, click, spawn, respawn, sky, ground, grass, flowers). |
+| `058090b` | Fix background detail elements using `W` instead of `WORLD_W` — stars, sun, moon, grass tufts, blade fringe, flowers all switched to `WORLD_W`. |
+| `ddf1e8a` | Fix base green ground fill — `WORLD_W` not `W`. |
+| `beeb7bb` | Fix sky fill and sun/moon clip rect — `WORLD_W` not `W`. |
+
+### Root Causes Found
+1. **`resizeCanvas()` one-time guard** — `if (!W || !H)` meant canvas dimensions and `W`/`H` were only ever set at initial load. On desktop, if the initial load happened at mobile size (or a different size), the canvas stayed at that size forever. Background fills only covered the original dimensions → black bar + half-filled background.
+
+2. **Negative `camX` broke everything** — First attempt at centring on wide screens set `camX = WORLD_W/2 - W/2` (negative). `ctx.translate(-camX)` then shifted the world right, making the bin drift when the worm moved, and `mX = screenX + camX` subtracted instead of added (wrong world coords for steering).
+
+3. **`W` vs `WORLD_W` in background draws** — All sky/ground/garden elements are world-space objects and should span `WORLD_W`. Using `W` (viewport width) made them only cover part of the world on desktop where `W != WORLD_W`.
+
+### The Clean Solution
+- `centreOffsetX = max(0, floor((W - WORLD_W) / 2))` — computed globally, updated each frame in `draw()`
+- `ctx.translate(centreOffsetX - camX, 0)` — combines centring + camera scroll in one transform
+- `camX` stays `>= 0` always — correct for `mX = screenX - centreOffsetX + camX`
+- All world-space background draws use `WORLD_W`, with `x` offset by `-centreOffsetX` where needed
+- On mobile: `centreOffsetX = 0`, behaviour identical to before
+
+### Key Rule Going Forward
+> **If it's part of the sky, ground, or garden — use `WORLD_W`. Only HUD elements and canvas-clearing operations use `W`.**
 
 ---
 
@@ -32,94 +65,30 @@ Big session. Shipped Moves 1 and 2 of the bin persistence plan, added the Bin Re
 - **Feed Snoo camera** — snaps correctly when chaining from drain.
 
 ### What's Broken — ISS-12: Drain Snoo positioning
-The drain Snoo cinematic is not placing Snoo correctly relative to the tap. Root cause is unresolved. Multiple approaches tried:
-
-**Approaches tried (all failed):**
-1. Original two-step math: `_bsy = 3H+H*0.25 - camY`, then `drainSnooStopY = (_gY - offsets) + camY`, then `camY = drainSnooStopY - H*0.58` — double-snap contradicts itself
-2. Single deterministic snap: `camY = 3H+H*0.25 - H*0.68` → tap at wrong screen position
-3. `STOP_Y = H*0.81` with `camY = player bottom scroll` — Snoo at right height but world wrong
-4. Live STOP_Y from tap + camera ease — Y drifts during slide-in as camY catches up
-5. camY snap at trigger + live STOP_Y + -25px offset — still off
-
-**What we know:**
-- Feed Snoo works perfectly — recalculates `snooSY` every frame from `lidSY3 = H*0.5 - camY`
-- Drain Snoo problem: his Y is set during the slide-in while camY may still be transitioning
-- The tap in `drawSnooDrain` is `bsy + 8 = (3H + H*0.25 - camY) + 8`
-- The tap in the main world draw (`drawSump`) is the same formula — they match
-- Snoo's body dimensions: `SC=H*0.16`, `bodyH=SC*0.270`, `legH=SC*0.225`, `bootH=SC*0.058`
-- Right hand reach from torso anchor: `torsoTop + bodyH*0.10 + armLen*0.50 + armLen*0.42`
-
-**Next session approach:**
-Study feed Snoo's pattern exactly — `lidSY3 = H*0.5 - camY` recalculated every frame, camera eases toward it. Apply the same: compute `tapSY = 3H+H*0.25 - camY + 8` each frame, set `STOP_Y = tapSY - [measured hand offset]`. But snap camY at trigger so slide-in is stable. The `[measured hand offset]` needs to be derived from the actual draw geometry in `drawSnooDrain`, not estimated.
-
-### Commits Shipped (docs)
-| Commit | What |
-|--------|------|
-| `cbee640` | GAME_ARCHITECTURE.md — bin persistence plan |
-| `b9b0c43` | WIGGLERS_AUDIT_V20.md — Session 16 planning entry |
-| `89a13ab` | WIGGLERS_AUDIT_V20.md — ISS-11 added |
+The drain Snoo cinematic is not placing Snoo correctly relative to the tap. Root cause is unresolved. Multiple approaches tried — see ISS-12 in Known Issues.
 
 ---
 
 ## Session 15 — 2026-06-17 (Afternoon/Evening)
 
 ### Session Summary
-A massive day. Solved problems that had been blocking the game since the beginning — real username display, real Snoovatar, weather system design decision, and the entire horizontal scrolling architecture. The coordinate system work was particularly deep — required understanding the difference between viewport width, world width, screen space, and world space and getting all four consistent across rendering, physics, and input. Huge leap forward from yesterday's Devvit integration struggles.
+A massive day. Solved real username display, real Snoovatar, weather system design decision, and the entire horizontal scrolling architecture.
 
 ### Commits Shipped
 | SHA | Change |
 |-----|--------|
-| `d180d0d` | Fix: username shown above worm head — was hardcoded `'u/You'` literal, now uses `username` variable |
-| `a1e3ae1` | Hotfix: sync-script header artifact prepended to game.js broke all JS — stripped and re-pushed clean |
-| `cf64c96` | Fix: `user.getSnoovatarUrl()` — correct Devvit API for Reddit Snoovatar (was guessing property names) |
-| `842d754` | Cleanup: remove debug logs from avatar handler |
-| `607d945` | Polish: Snoovatar drawn as circle-clipped portrait — first attempt (too small) |
-| `ce2eb1e` | Fix: Snoovatar drawn full-body portrait at correct aspect ratio |
-| `4a95535` | Fix: pre-render Snoovatar to offscreen canvas on load — eliminates per-frame scaling flicker |
-| `5a704b4` | Remove: MSG_SET_WEATHER dead constant from main.tsx |
-| `f6539b5` | Remove: weather integration — cut setWeather handler, HUD, locName. Nashville defaults → pure sim values |
-| `d624a1e` | Feature: full simulated weather system — seasonal baselines, random events, live HUD |
-| `951293f` | Fix: move weather HUD to upper right — was overlapping karma display |
-| `ceb3d84` | Clean: remove Gen avatar mode, remove flash label, cycle is now Snoo→Names→Hidden |
-| `a6cad43` | Polish: humidity displays as `RH 68%` in weather HUD |
-| `8419e51` | Attempt: cap logical width at 430px — wrong direction, abandoned |
-| `3486cb8` | Attempt: lock to 1024×768 letterbox — pointer offset introduced, abandoned |
-| `2b5bad5` | Fix: pointer/touch coords — account for canvas offset in _toCanvas |
-| `db670c4` | Attempt: 1024px wide, height fills viewport — camX still broken |
-| `7da62c4` | Lock logical resolution to iPad Pro 11" landscape 1194×834 |
-| `424ad15` | Fix root cause: W=viewport width, WORLD_W=1194 fixed — bin always full size, camX scrolls |
-| `a970e17` | Fix: _toCanvas uses root offset, all mX assignments add camX for world coords |
+| `d180d0d` | Fix: username shown above worm head |
+| `cf64c96` | Fix: `user.getSnoovatarUrl()` correct Devvit API |
+| `ce2eb1e` | Fix: Snoovatar drawn full-body portrait |
+| `4a95535` | Fix: pre-render Snoovatar to offscreen canvas |
+| `d624a1e` | Feature: full simulated weather system |
+| `424ad15` | Fix root cause: W=viewport width, WORLD_W=1194 fixed |
+| `a970e17` | Fix: _toCanvas uses root offset, all mX assignments add camX |
 
-### What We Built / Fixed
-- **Username above worm head** — was hardcoded `'u/You'` string literal, now uses the `username` variable
-- **Real Snoovatar** — `user.getSnoovatarUrl()` (correct Devvit API), pre-rendered to offscreen canvas at 44px, drawn full-body above worm
-- **Avatar toggle cleaned up** — Gen mode removed, flash label removed, 3 modes: Snoo→Names→Hidden
-- **Weather system** — fully simulated, no external API. Seasonal baselines + slow drift + random events (rainstorm/dry/heat wave). HUD: date, °F, RH%, rain indicator upper right
-- **Horizontal scrolling** — WORLD_W=1194 fixed bin size, W=viewport, camX follows worm with clamp to bin walls. Mobile side-scrolls ~700px. iPad fits perfectly
-- **Pointer fix** — `_toCanvas` uses `root.getBoundingClientRect()`, all world coord assignments add `camX`
-
-### Lessons Learned This Session
-
-**Sync script adds header artifact**
-`sync_from_github.py read` prepends `[Fresh from GitHub: sha]` to file content. If you use the output directly as a file, that header becomes the first line of your JS — syntax error, game breaks. Always strip or use the GitHub API client directly.
-
-**Devvit avatar API**
-`getCurrentUser()` returns a User object with a `getSnoovatarUrl()` method — not a property. `user.iconImg`, `user.snoovatarUrl`, `user.icon_img` are all wrong. The correct call is `await user.getSnoovatarUrl()`.
-
-**Snoovatar is a full-body portrait, not a headshot**
-Circle-clipping it cuts off the character. Draw it as a standing figure above the worm head, using `naturalWidth/naturalHeight` for aspect ratio, pre-rendered to an offscreen canvas to eliminate per-frame scaling flicker.
-
-**Weather integration via external HTTP is blocked in Devvit**
-`fetch()` to Open-Meteo or any external domain is silently blocked in Devvit's server sandbox. No `http` permission exists in devvit.yaml. Self-contained simulation is the correct approach.
-
-**W vs WORLD_W — the key insight for horizontal scrolling**
-The bin must be wider than the viewport for camX to have any range. If `getBin()` uses `W` (viewport width) to size the bin, then `binWidth ≈ W * 0.88`, and `camXMax = binRight - W ≈ -W * 0.12` — negative, so clamping to max(camXMin, camXMax) forces camX to zero. The fix: `getBin()` uses `WORLD_W` (fixed 1194px). `W` is the viewport. camX range = `WORLD_W - W` ≈ 700px on mobile.
-
-**camX must be initialized at spawn and respawn**
-`camX = 0` at startup puts the camera at the left edge while the worm is at `WORLD_W/2 = 597`. Fix: `camX = startX - W/2` at both initial spawn and respawn.
-
-**All mX/mY world coord assignments need + camX**
-Touch/mouse events return screen coordinates. `mX` is a world coordinate. Every place that sets `mX` from a pointer event must add `camX`: `mX = screenX + camX`. Missed any one of them and the worm tracks incorrectly on the far side of the bin.
+### Lessons Learned
+- `getBin()` must use `WORLD_W` not `W` — bin is fixed width, viewport scrolls
+- All `mX` assignments from pointer events need `+ camX`
+- External HTTP (`fetch()`) is blocked in Devvit sandbox — use self-contained simulation
 
 ---
 
@@ -128,28 +97,12 @@ Touch/mouse events return screen coordinates. `mX` is a world coordinate. Every 
 ### Commits Shipped
 | SHA | Fix |
 |-----|-----|
-| `1a58fae` | Snoo drain invisible on mobile — `drainCamTarget` derived from `drainSnooStopY` not fixed `2.53*H` |
-| `b68d383` | Loading screen icon restored — 512px full-bleed, soil brown bg, icon is tap target |
-| `81d2049` | Snoo push-down/push-up during cinematic — snap `camY` at trigger, `STOP_Y = H * 0.58` screen space |
-| `ee574a2` | Death headstone comment posted to Reddit thread on `playerDied` |
-| `eca5080` | Headstone date format `M/YY` |
-| `2b49f28` | `bornTs` stamped on worm spawn, sent with `playerDied` |
-| `fe8d0b2` | Headstone uses real `bornTs`/`diedTs` — actual join and death dates |
-| `5887af4` | Loading screen icon centered on mobile — `zstack` + 256px |
-| `ea8f791` | Lock Create Wigglers Room to moderators only (`forUserType: 'moderator'`) |
-| `1641bbe` | Preview background — trash chunk wallpaper using real game draw code |
-| `04ad8ac` | `preview-bg.png` added to assets (all 27 trash items on dark soil, vignette) |
-| `6580e10` | Re-pushed preview-bg.png as clean binary (was corrupted in first push) |
-| `5b7548b` | Increased startup fallback timeout 400ms → 2000ms |
+| `1a58fae` | Snoo drain invisible on mobile — camera formula |
+| `81d2049` | Snoo push-down/push-up during cinematic |
+| `ee574a2` | Death headstone comment posted to Reddit thread |
+| `1641bbe` | Preview background — trash chunk wallpaper |
 | `4b0ac87` | Added Devvit message envelope unwrap in game.js |
-| `b7089f4` | Removed strict origin check (www.reddit.com was wrong) |
-
-### What We Built
-- Snoo drain cinematic fully working on mobile
-- Death headstone comments — real RIP posts to Reddit thread
-- Loading screen — 512px worm icon on soil brown, tap to enter
-- Preview card wallpaper — all 27 trash items rendered via real `drawTrashChunk()` code
-- Multiplayer channels wired — useChannel subscriptions for presence, world, flood
+| `b7089f4` | Removed strict origin check |
 
 ---
 
@@ -157,50 +110,51 @@ Touch/mouse events return screen coordinates. `mX` is a world coordinate. Every 
 
 ### Asset Rules
 - ✅ **PNG only** — Devvit asset uploader rejects GIF, JPG, any non-PNG
-- ✅ **Push binary files via GitHub API directly** — sync script corrupts binary files. Use direct `urllib` PUT with `base64.b64encode(bytes)`
-- ✅ **Verify PNG after push** — check `bytes[:8] == b'\x89PNG\r\n\x1a\n'`
+- ✅ **Push binary files via GitHub API directly** — sync script corrupts binary files
 - ✅ **Assets folder** — put all images in `/assets/`, referenced by filename only
 
 ### Devvit API
-- ✅ **`user.getSnoovatarUrl()`** — method call, not a property. Returns the user's Snoovatar URL
-- ✅ **`getCurrentUser()` fields** — only reliable: `username`, `getSnoovatarUrl()`. Do not guess other properties
-- ✅ **External HTTP blocked** — `fetch()` to non-Reddit domains silently fails. No http permission in devvit.yaml. Use self-contained simulation instead
+- ✅ **`user.getSnoovatarUrl()`** — method call, not a property
+- ✅ **External HTTP blocked** — `fetch()` to non-Reddit domains silently fails
 - ✅ **`webView.mount()` only inside `onPress`** — never in render body
-- ✅ **`webView.render()` does not exist** — only `mount()`, `unmount()`, `postMessage()`
 
 ### Realtime / useChannel
 - ✅ **Channel names must be `[a-zA-Z0-9_]` only** — colons crash render
-- ✅ **Declare `useChannel` after `useWebView`** — hooks must run in consistent order
-- ✅ **`presenceUpdate` sends `player: {}` but game expects `players: []`**
+- ✅ **Declare `useChannel` after `useWebView`**
 
 ### Message Bridge
 - ✅ **Devvit wraps `webView.postMessage()` in an envelope** — `{ type: 'devvit-message', data: { message: ... } }`
-- ✅ **Origin of host→webview messages is NOT `https://www.reddit.com`** — removed strict origin check
+- ✅ **Origin of host→webview messages is NOT `https://www.reddit.com`**
 - ✅ **Sync script prepends header to file content** — strip before using as game file
 
 ### Post Lifecycle
 - ✅ **Old posts go read-only after re-upload** — create new post to test
-- ✅ **`devvit install <subreddit>` required after every upload**
 - ✅ **Always `git pull` before `devvit upload`**
+
+### Canvas / Coordinate System (NEW — Session 17)
+- ✅ **`resizeCanvas()` must always update W/H** — never guard with `if (!W || !H)`
+- ✅ **`camX` must always be `>= 0`** — negative camX breaks `ctx.translate` and mouse coords
+- ✅ **Use `centreOffsetX` to centre on wide screens** — not negative camX
+- ✅ **Background elements use `WORLD_W` not `W`** — sky, ground, sun, moon, stars, grass, flowers
+- ✅ **`mX = screenX - centreOffsetX + camX`** — all pointer → world coord conversions need centreOffsetX subtracted
 
 ---
 
 ## Priority Queue — Next Session
 
-### P1 — Weekly Drain Wiring (main.tsx) — ~40 lines
-Three bugs prevent weekly drain from ever firing automatically:
-1. `weeklyDrain` flag silently dropped — `MSG_WORLD_UPDATE` handler ignores it
-2. `KV_WEEK` never read — each player runs independent 7-day clock
-3. New players never get shared `weekStartTs`
+### P1 — ISS-12: Fix Drain Snoo positioning
+Before Moves 3+4 can ship. Study feed Snoo pattern exactly — recalculate `tapSY` every frame from live camY, measure exact hand offset from draw geometry, snap camY at trigger.
 
-**Fix:** Read `KV_WEEK` on open → send `weekStartTs` in `setWorldState` → handle in game → on drain completion write new `weekStartTs` to `KV_WEEK` + broadcast via Realtime
+### P1 — Weekly Drain Moves 3+4 (after ISS-12)
+- Move 3: Persist new `weekStartTs` in `KV_WEEK` when drain fires
+- Move 4: Broadcast new `weekStartTs` via Realtime on drain
 
-### P2 — Re-apply S2–S5 Code Health (game.js)
+### P2 — Code Health (game.js)
 | Task | What |
 |------|------|
-| S2a | 18 raw message strings → `MSG_*` constants matching main.tsx |
+| S2a | 18 raw message strings → `MSG_*` constants |
 | S2b | 5 duplicate Snoo SVG helper pairs → shared functions |
-| S3  | Delete 4 dead functions (`_refreshBin`, `blendEnrichCol`, `drawGenDebugPanel`, `nearestPathIdx`) |
+| S3  | Delete 4 dead functions |
 | S4  | Rename 17 `_underscore` functions → camelCase |
 | S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
 
@@ -213,9 +167,9 @@ Three bugs prevent weekly drain from ever firing automatically:
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-1 | Weekly drain persistence — Moves 1+2 done (shared weekStartTs). Moves 3+4 (persist+broadcast on drain) blocked until ISS-12 resolved | P1 — Session 17 |
-| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-12, do after drain animation fixed | Part of ISS-1 |
-| ISS-12 | Drain Snoo position/camera broken — Snoo doesn't land at tap correctly. Multiple approaches tried, unresolved. See Session 16 notes for full history. Fix before Moves 3+4. | P1 — Session 17 first task |
+| ISS-1 | Weekly drain persistence — Moves 1+2 done. Moves 3+4 blocked on ISS-12 | P1 — Session 18 |
+| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-12 | Part of ISS-1 |
+| ISS-12 | Drain Snoo position/camera broken — Snoo doesn't land at tap correctly. Multiple approaches tried, unresolved. Fix before Moves 3+4. | P1 — Session 18 first task |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
@@ -223,8 +177,8 @@ Three bugs prevent weekly drain from ever firing automatically:
 | ISS-7 | 4 dead functions in codebase | P2 |
 | ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
 | ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
-| ISS-10 | `weeklyContrib` client-authoritative — could be spoofed for tea bonus | P3 (post-ISS-1) |
-| ISS-11 | Drain only fires while a player has the game open — if all players are away when week expires, cinematic fires for first player who opens it. Fix: Devvit scheduler job that fires drain server-side with no active players. | Future / post-launch |
+| ISS-10 | `weeklyContrib` client-authoritative | P3 |
+| ISS-11 | Drain only fires while a player has the game open | Future |
 
 ---
 
@@ -232,16 +186,19 @@ Three bugs prevent weekly drain from ever firing automatically:
 
 | Fix | Session |
 |-----|---------|
+| Canvas only fills half screen on desktop / fullscreen black bar | S17 |
+| Background details (grass, flowers, sun, moon) wrong size on desktop | S17 |
+| camX going negative on wide screens — broke steering and bin position | S17 |
+| resizeCanvas() one-time guard — W/H never updated after first paint | S17 |
 | u/You hardcoded — username variable not used in avatar render | S15 |
-| Snoovatar fetch used wrong Devvit API (property vs method) | S15 |
+| Snoovatar fetch used wrong Devvit API | S15 |
 | Snoovatar circle-cropped — should be full-body portrait | S15 |
-| Snoovatar flicker — per-frame scaling, fixed by offscreen canvas pre-render | S15 |
-| Weather HUD overlapping karma — moved to upper right | S15 |
-| Gen avatar mode did nothing — removed, cycle is now 3 modes | S15 |
+| Snoovatar flicker — per-frame scaling, fixed by offscreen canvas | S15 |
+| Weather HUD overlapping karma | S15 |
 | Weather system dead-ended on external API — replaced with simulation | S15 |
-| Bin size inconsistent across devices — WORLD_W=1194 fixed, viewport scrolls | S15 |
+| Bin size inconsistent across devices — WORLD_W=1194 fixed | S15 |
 | camX never scrolled right — getBin() was using W not WORLD_W | S15 |
-| Pointer/touch offset after coordinate system change — _toCanvas uses root rect + camX | S15 |
+| Pointer/touch offset after coordinate system change | S15 |
 | Snoo drain invisible on mobile (camera formula) | S14 |
 | Snoo push-down/push-up during cinematic | S14 |
 | Loading screen icon lost in revert | S14 |
@@ -249,6 +206,3 @@ Three bugs prevent weekly drain from ever firing automatically:
 | Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
-
-
-
