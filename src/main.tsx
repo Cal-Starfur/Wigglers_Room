@@ -103,19 +103,18 @@ Devvit.configure({
 // ─── Preview animation helpers ────────────────────────────────────────────────
 //
 // The preview screen (shown in the Reddit feed before the user taps to play)
-// animates two layers via useInterval at 100ms (10fps):
+// animates two layers via separate useInterval timers:
 //
-//   Layer 1 — buildBgDataUrl(tick):
+//   Layer 1 — buildBgDataUrl(bgTick):
 //     Dark earth-tone background with SVG trash items (pizza, banana peel, etc.)
-//     falling downward. Items are drawn as pure SVG shapes — no external image
-//     dependency — so they work in sandboxed data: URLs. A dark vignette overlay
-//     preserves the moody bin atmosphere. The 8 items are spread across the 512px
-//     width at staggered Y offsets; their Y positions advance each tick and wrap
-//     seamlessly every 256px (half the SVG height → tiles perfectly).
+//     falling downward. Runs at 200ms (5fps) — slow enough that Devvit doesn't
+//     flicker from rapid image URL churn, fast enough to look like gentle drift.
+//     18 items in two staggered columns fill the screen densely.
+//     A dark vignette overlay preserves the moody bin atmosphere.
 //
-//   Layer 2 — buildGlowDataUrl(tick):
+//   Layer 2 — buildGlowDataUrl(glowTick):
 //     Transparent SVG with a warm amber radial glow + subtle bob behind icon.png.
-//     Already working — unchanged from previous version.
+//     Runs at 100ms (10fps) — smoother breath cycle on the glow only.
 //
 // Why SVG shapes instead of <image href="preview-bg.png">:
 //   SVG data: URLs are sandboxed and cannot resolve relative asset paths.
@@ -128,18 +127,31 @@ Devvit.configure({
 // wrapping every 512px. We draw each item twice (at y and y+512) so the seam
 // is always invisible.
 const TRASH_LAYOUT = [
-  { name: 'pizza',        x:  62, yOff:  30, r: 34, rot:  0.4 },
-  { name: 'banana_peel',  x: 158, yOff: 180, r: 28, rot: -0.3 },
-  { name: 'apple_core',   x: 255, yOff:  80, r: 24, rot:  0.7 },
-  { name: 'lettuce',      x: 350, yOff: 300, r: 36, rot: -0.5 },
-  { name: 'egg_shell',    x:  95, yOff: 390, r: 26, rot:  1.1 },
-  { name: 'tea_bag',      x: 420, yOff: 130, r: 22, rot:  0.2 },
-  { name: 'newspaper',    x: 195, yOff: 460, r: 38, rot: -0.8 },
-  { name: 'watermelon',   x: 310, yOff: 220, r: 42, rot:  0.6 },
+  // ── Column A — spread left-to-right ──────────────────────────────────────
+  { name: 'pizza',        x:  45, yOff:  20, r: 34, rot:  0.4 },
+  { name: 'banana_peel',  x: 128, yOff: 155, r: 28, rot: -0.3 },
+  { name: 'apple_core',   x: 210, yOff:  70, r: 22, rot:  0.7 },
+  { name: 'lettuce',      x: 295, yOff: 290, r: 33, rot: -0.5 },
+  { name: 'egg_shell',    x: 375, yOff: 380, r: 24, rot:  1.1 },
+  { name: 'tea_bag',      x: 460, yOff: 110, r: 20, rot:  0.2 },
+  { name: 'newspaper',    x: 170, yOff: 445, r: 36, rot: -0.8 },
+  { name: 'watermelon',   x: 340, yOff: 210, r: 40, rot:  0.6 },
+  { name: 'apple_core',   x:  85, yOff: 330, r: 18, rot: -0.4 },
+  // ── Column B — interleaved, offset Y so they fill gaps ───────────────────
+  { name: 'tea_bag',      x:  22, yOff: 480, r: 24, rot:  1.3 },
+  { name: 'egg_shell',    x: 105, yOff: 240, r: 30, rot: -1.0 },
+  { name: 'watermelon',   x: 188, yOff: 355, r: 26, rot:  0.9 },
+  { name: 'banana_peel',  x: 255, yOff: 500, r: 22, rot:  0.3 },
+  { name: 'pizza',        x: 318, yOff: 120, r: 28, rot: -0.6 },
+  { name: 'lettuce',      x: 400, yOff: 470, r: 30, rot:  0.8 },
+  { name: 'newspaper',    x: 488, yOff: 280, r: 32, rot: -0.2 },
+  { name: 'apple_core',   x: 148, yOff:  10, r: 26, rot:  1.5 },
+  { name: 'tea_bag',      x: 440, yOff: 600, r: 18, rot: -0.7 },
 ];
 
-// Fall speed: 1.5px per tick at 10fps = 15px/second. 512px / 15px/s ≈ 34s full loop.
-const FALL_SPEED = 1.5;
+// Fall speed: 1.2px per tick at 5fps = 6px/second. 512px / 6px/s ≈ 85s full loop.
+// Slower = smoother, fewer redraws, less flicker.
+const FALL_SPEED = 1.2;
 
 // ── SVG shape builders — one per trash type ───────────────────────────────────
 // Each returns an SVG string of shapes centered at (0,0), scaled by r.
@@ -302,7 +314,7 @@ function svgTrashShapes(name: string, r: number): string {
 }
 
 // ── Scrolling bg builder ──────────────────────────────────────────────────────
-// tick advances at 10fps. Each tick the items move down by FALL_SPEED px.
+// tick advances at 5fps. Each tick the items move down by FALL_SPEED px.
 // We draw each item at (cy % 512) and again at (cy % 512 - 512) for seamless wrap.
 // The SVG has a dark earth-tone solid bg + a dark radial vignette on top to match
 // the moody original preview-bg.png atmosphere.
@@ -743,19 +755,34 @@ Devvit.addCustomPostType({
     floodChannel.subscribe();
 
     // ── Preview animation state ────────────────────────────────────────────
-    const [tick,    setTick]    = useState<number>(0);
-    const [bgUrl,   setBgUrl]   = useState<string>('');
-    const [glowUrl, setGlowUrl] = useState<string>('');
+    // bgTick drives the falling trash — updates at 200ms (5fps).
+    // glowTick drives the icon glow/bob — updates at 100ms (10fps).
+    // Keeping them separate means the bg SVG is only regenerated every 200ms,
+    // which eliminates the image-reload flicker that happened at 100ms.
+    const [bgTick,   setBgTick]   = useState<number>(0);
+    const [glowTick, setGlowTick] = useState<number>(0);
+    const [bgUrl,    setBgUrl]    = useState<string>('');
+    const [glowUrl,  setGlowUrl]  = useState<string>('');
 
-    const anim = useInterval(() => {
-      setTick((t: number) => {
+    // Background — 5fps, slow drift, no flicker
+    const bgAnim = useInterval(() => {
+      setBgTick((t: number) => {
         const next = t + 1;
         setBgUrl(buildBgDataUrl(next));
+        return next;
+      });
+    }, 200);
+    bgAnim.start();
+
+    // Glow — 10fps, smooth breath/bob
+    const glowAnim = useInterval(() => {
+      setGlowTick((t: number) => {
+        const next = t + 1;
         setGlowUrl(buildGlowDataUrl(next));
         return next;
       });
     }, 100);
-    anim.start();
+    glowAnim.start();
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     // Layer order (back → front):
