@@ -2857,7 +2857,7 @@ function initPlayer(saved) {
   var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
   for (var i = 0; i < 20; i++) pHist.push({x: startX, y: startY});
   for (var i = 0; i < Math.max(4, Math.min(8, pSEG)); i++) pSegs.push({x: startX - i * pSR * 2, y: startY});
-  mX = startX; mY = startY; camY = startY - H/2; camX = startX - W/2; // snap camera to worm at spawn
+  mX = startX; mY = startY; camY = startY - H/2; camX = (W >= WORLD_W) ? (WORLD_W / 2 - W / 2) : Math.max(0, startX - W/2); // snap camera to worm at spawn
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
@@ -3865,15 +3865,22 @@ function updatePlayer() {
   if (!viewMode) {
     var tc = head.y - H/2;
     camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
-    // Horizontal camera — follow worm, scroll world within viewport
-    var _b0 = getBinCached();
-    var _binLeft  = _b0.cx - _b0.bw2;
-    var _binRight = _b0.cx + _b0.bw2;
-    var _camXTarget = head.x - W/2;          // center worm in viewport
-    var _camXMin = _binLeft - 20;             // left clamp: don't show beyond bin left
-    var _camXMax = Math.max(_camXMin, _binRight - W + 20); // right clamp
-    camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
-    camX = Math.round(camX);
+    // Horizontal camera — follow worm, scroll world within viewport.
+    // On wide screens (W >= WORLD_W) the whole bin fits — center it, no scroll.
+    if (W >= WORLD_W) {
+      // Lock camX so the bin stays centred in the extra space.
+      camX += ((WORLD_W / 2 - W / 2) - camX) * 0.06;
+      camX = Math.round(camX);
+    } else {
+      var _b0 = getBinCached();
+      var _binLeft  = _b0.cx - _b0.bw2;
+      var _binRight = _b0.cx + _b0.bw2;
+      var _camXTarget = head.x - W/2;          // center worm in viewport
+      var _camXMin = _binLeft - 20;             // left clamp: don't show beyond bin left
+      var _camXMax = Math.max(_camXMin, _binRight - W + 20); // right clamp
+      camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
+      camX = Math.round(camX);
+    }
   }
 }
 
@@ -7811,7 +7818,7 @@ function respawnPlayer(usedKarma) {
   for (var ri = 0; ri < 20; ri++) pHist.push({x: respawnX, y: respawnY});
   for (var ri = 0; ri < Math.max(4, pSEG); ri++) pSegs.push({x: respawnX - ri * pSR * 2, y: respawnY});
   mX = respawnX; mY = respawnY;
-  camX = Math.max(0, respawnX - W/2); // snap camera to worm on respawn
+  camX = (W >= WORLD_W) ? (WORLD_W / 2 - W / 2) : Math.max(0, respawnX - W/2); // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
   saveSession();
   postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
