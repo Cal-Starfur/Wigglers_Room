@@ -127,48 +127,69 @@ Devvit.configure({
 // wrapping every 512px. We draw each item twice (at y and y+512) so the seam
 // is always invisible.
 const TRASH_LAYOUT = [
-  // ── Column A ─────────────────────────────────────────────────────────────
-  { name: 'pizza',        x:  38, yOff:  15, r: 34, rot:  0.4 },
-  { name: 'banana_peel',  x: 112, yOff: 140, r: 28, rot: -0.3 },
-  { name: 'apple_core',   x: 195, yOff:  60, r: 22, rot:  0.7 },
-  { name: 'lettuce',      x: 275, yOff: 270, r: 33, rot: -0.5 },
-  { name: 'egg_shell',    x: 355, yOff: 370, r: 24, rot:  1.1 },
-  { name: 'tea_bag',      x: 445, yOff:  95, r: 20, rot:  0.2 },
-  { name: 'newspaper',    x: 158, yOff: 430, r: 36, rot: -0.8 },
-  { name: 'watermelon',   x: 325, yOff: 195, r: 40, rot:  0.6 },
-  { name: 'apple_core',   x:  75, yOff: 315, r: 18, rot: -0.4 },
-  { name: 'pizza',        x: 490, yOff: 490, r: 26, rot:  1.0 },
-  { name: 'lettuce',      x: 230, yOff: 510, r: 20, rot: -1.2 },
-  // ── Column B — interleaved ────────────────────────────────────────────────
-  { name: 'tea_bag',      x:  18, yOff: 460, r: 24, rot:  1.3 },
-  { name: 'egg_shell',    x:  95, yOff: 225, r: 30, rot: -1.0 },
-  { name: 'watermelon',   x: 175, yOff: 340, r: 26, rot:  0.9 },
-  { name: 'banana_peel',  x: 248, yOff: 490, r: 22, rot:  0.3 },
-  { name: 'pizza',        x: 305, yOff: 108, r: 28, rot: -0.6 },
-  { name: 'lettuce',      x: 388, yOff: 455, r: 30, rot:  0.8 },
-  { name: 'newspaper',    x: 475, yOff: 265, r: 32, rot: -0.2 },
-  { name: 'apple_core',   x: 138, yOff:   5, r: 26, rot:  1.5 },
-  { name: 'tea_bag',      x: 428, yOff: 580, r: 18, rot: -0.7 },
-  { name: 'watermelon',   x:  55, yOff:  80, r: 22, rot:  0.5 },
-  { name: 'egg_shell',    x: 500, yOff: 160, r: 20, rot: -0.9 },
-  // ── Column C — fills remaining gaps ──────────────────────────────────────
-  { name: 'banana_peel',  x: 332, yOff: 540, r: 24, rot:  0.6 },
-  { name: 'newspaper',    x:  28, yOff: 185, r: 28, rot: -0.4 },
-  { name: 'apple_core',   x: 415, yOff: 320, r: 22, rot:  1.2 },
-  { name: 'pizza',        x: 218, yOff: 390, r: 20, rot: -0.9 },
-  { name: 'tea_bag',      x: 360, yOff:  42, r: 30, rot:  0.7 },
-  { name: 'lettuce',      x: 465, yOff: 405, r: 26, rot: -0.3 },
-  { name: 'watermelon',   x: 128, yOff: 560, r: 30, rot:  1.0 },
-  { name: 'egg_shell',    x: 282, yOff:  25, r: 18, rot: -0.6 },
-  { name: 'banana_peel',  x:  62, yOff: 620, r: 22, rot:  0.4 },
-  { name: 'newspaper',    x: 500, yOff: 680, r: 24, rot: -1.1 },
+  // 50 items — 5 staggered passes across 512px width, varied sizes/rotations
+  // Pass A
+  { name: 'pizza',        x:  30, yOff:   0, r: 28, rot:  0.4 },
+  { name: 'banana_peel',  x:  95, yOff: 120, r: 22, rot: -0.3 },
+  { name: 'apple_core',   x: 165, yOff:  55, r: 18, rot:  0.7 },
+  { name: 'lettuce',      x: 235, yOff: 240, r: 26, rot: -0.5 },
+  { name: 'egg_shell',    x: 300, yOff: 330, r: 20, rot:  1.1 },
+  { name: 'tea_bag',      x: 368, yOff:  80, r: 16, rot:  0.2 },
+  { name: 'newspaper',    x: 435, yOff: 390, r: 28, rot: -0.8 },
+  { name: 'watermelon',   x: 498, yOff: 175, r: 30, rot:  0.6 },
+  { name: 'apple_core',   x:  60, yOff: 280, r: 14, rot: -0.4 },
+  { name: 'pizza',        x: 130, yOff: 470, r: 20, rot:  1.0 },
+  // Pass B — offset X by ~25px, Y by ~60px
+  { name: 'lettuce',      x:  18, yOff:  60, r: 18, rot: -1.2 },
+  { name: 'tea_bag',      x:  80, yOff: 190, r: 20, rot:  1.3 },
+  { name: 'egg_shell',    x: 148, yOff: 350, r: 24, rot: -1.0 },
+  { name: 'watermelon',   x: 212, yOff: 140, r: 22, rot:  0.9 },
+  { name: 'banana_peel',  x: 278, yOff: 420, r: 18, rot:  0.3 },
+  { name: 'pizza',        x: 342, yOff:  20, r: 22, rot: -0.6 },
+  { name: 'lettuce',      x: 408, yOff: 300, r: 24, rot:  0.8 },
+  { name: 'newspaper',    x: 472, yOff: 490, r: 26, rot: -0.2 },
+  { name: 'apple_core',   x: 118, yOff:  10, r: 20, rot:  1.5 },
+  { name: 'tea_bag',      x: 385, yOff: 560, r: 14, rot: -0.7 },
+  // Pass C
+  { name: 'watermelon',   x:  45, yOff: 410, r: 18, rot:  0.5 },
+  { name: 'egg_shell',    x: 108, yOff: 100, r: 16, rot: -0.9 },
+  { name: 'banana_peel',  x: 175, yOff: 510, r: 20, rot:  0.6 },
+  { name: 'newspaper',    x: 245, yOff: 320, r: 22, rot: -0.4 },
+  { name: 'apple_core',   x: 315, yOff: 170, r: 18, rot:  1.2 },
+  { name: 'pizza',        x: 380, yOff: 445, r: 16, rot: -0.9 },
+  { name: 'tea_bag',      x: 448, yOff: 230, r: 24, rot:  0.7 },
+  { name: 'lettuce',      x: 508, yOff: 365, r: 20, rot: -0.3 },
+  { name: 'watermelon',   x: 195, yOff:  30, r: 26, rot:  1.0 },
+  { name: 'egg_shell',    x: 268, yOff: 590, r: 14, rot: -0.6 },
+  // Pass D — fills remaining vertical gaps
+  { name: 'banana_peel',  x:  28, yOff: 530, r: 18, rot:  0.4 },
+  { name: 'pizza',        x:  90, yOff: 620, r: 20, rot: -1.1 },
+  { name: 'newspaper',    x: 155, yOff: 200, r: 24, rot:  0.9 },
+  { name: 'apple_core',   x: 222, yOff: 680, r: 16, rot: -0.5 },
+  { name: 'lettuce',      x: 290, yOff:  90, r: 22, rot:  0.3 },
+  { name: 'tea_bag',      x: 358, yOff: 640, r: 16, rot: -0.8 },
+  { name: 'watermelon',   x: 425, yOff: 130, r: 20, rot:  1.4 },
+  { name: 'egg_shell',    x: 490, yOff: 710, r: 18, rot: -0.3 },
+  { name: 'pizza',        x: 330, yOff: 730, r: 16, rot:  0.6 },
+  { name: 'banana_peel',  x: 455, yOff: 760, r: 14, rot: -1.0 },
+  // Pass E — tiny filler items to plug any remaining gaps
+  { name: 'tea_bag',      x:  12, yOff: 155, r: 12, rot:  1.1 },
+  { name: 'apple_core',   x:  72, yOff: 730, r: 12, rot: -0.7 },
+  { name: 'egg_shell',    x: 142, yOff: 455, r: 12, rot:  0.9 },
+  { name: 'lettuce',      x: 205, yOff: 380, r: 14, rot: -1.3 },
+  { name: 'pizza',        x: 258, yOff: 765, r: 12, rot:  0.5 },
+  { name: 'watermelon',   x: 505, yOff: 570, r: 14, rot: -0.4 },
+  { name: 'newspaper',    x: 395, yOff: 800, r: 12, rot:  0.8 },
+  { name: 'banana_peel',  x: 350, yOff: 260, r: 12, rot: -0.6 },
+  { name: 'tea_bag',      x: 462, yOff: 830, r: 12, rot:  1.2 },
+  { name: 'apple_core',   x: 520, yOff:  40, r: 14, rot: -0.2 },
 ];
 
-// Fall speed: 4px per tick at 200ms = 20px/s. Feels like actual falling compost.
-const FALL_SPEED = 4;
-// Tile height — items wrap every TILE_H px. Larger than 512 so items re-enter
-// smoothly before becoming visible at the top again.
-const TILE_H = 768;
+// 2px per tick at 100ms = 20px/s — same speed as before but twice the frames.
+// 100ms interval means Devvit renders 10 frames/sec → smooth continuous motion.
+const FALL_SPEED = 2;
+// Tile height covers all yOff values plus padding so wrap is always off-screen.
+const TILE_H = 900;
 
 // ── SVG shape builders — one per trash type ───────────────────────────────────
 // Each returns an SVG string of shapes centered at (0,0), scaled by r.
@@ -331,7 +352,7 @@ function svgTrashShapes(name: string, r: number): string {
 }
 
 // ── Scrolling bg builder ──────────────────────────────────────────────────────
-// tick advances at 5fps. Each tick the items move down by FALL_SPEED px.
+// tick advances at 10fps. Each tick the items move down by FALL_SPEED px (2px).
 // We draw each item at (cy % 512) and again at (cy % 512 - 512) for seamless wrap.
 // The SVG has a dark earth-tone solid bg + a dark radial vignette on top to match
 // the moody original preview-bg.png atmosphere.
@@ -781,14 +802,14 @@ Devvit.addCustomPostType({
     const [bgUrl,    setBgUrl]    = useState<string>('');
     const [glowUrl,  setGlowUrl]  = useState<string>('');
 
-    // Background — 5fps, slow drift, no flicker
+    // Background — 10fps, smooth continuous motion
     const bgAnim = useInterval(() => {
       setBgTick((t: number) => {
         const next = t + 1;
         setBgUrl(buildBgDataUrl(next));
         return next;
       });
-    }, 200);
+    }, 100);
     bgAnim.start();
 
     // Glow — 10fps, smooth breath/bob
