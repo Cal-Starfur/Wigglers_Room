@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-18 Session 16 (complete — bin persistence Moves 1+2 shipped, drain Snoo ISS-12 open)
+> Last updated: 2026-06-18 Session 17 (canvas resize + desktop/fullscreen layout fixed)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -10,7 +10,7 @@
 Wigglers_Room/
 ├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~500 lines
 ├── webroot/
-│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8570 lines
+│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8644 lines
 │   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
 │   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
@@ -120,38 +120,10 @@ Target state: `KV_WEEK` is the single source of truth for the bin's week epoch. 
 
 ### Four-move implementation plan
 
-**Move 1 — Read `KV_WEEK` on open, send `weekStartTs` to game** *(main.tsx, ~15 lines)*
-In `MSG_READY` handler, after world state load:
-```typescript
-const weekRaw = await kvStore.get(KV_WEEK(roomId));
-let weekStartTs: number;
-if (weekRaw) {
-  const week = typeof weekRaw === 'string' ? JSON.parse(weekRaw) : weekRaw;
-  weekStartTs = typeof week.weekStartTs === 'number' ? week.weekStartTs : serverNow;
-} else {
-  weekStartTs = serverNow;
-  await kvStore.put(KV_WEEK(roomId), JSON.stringify({ weekStartTs, pot: 0, contributors: {} }));
-}
-webView.postMessage({ type: MSG_SET_WORLD_STATE, weekStartTs });
-```
-
-**Move 2 — game.js receives `weekStartTs` from `setWorldState`** *(game.js, 1 line)*
-In `setWorldState` handler:
-```javascript
-if (msg.weekStartTs != null && typeof msg.weekStartTs === 'number') weekStartTs = msg.weekStartTs;
-```
-
-**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)*
-In `MSG_WORLD_UPDATE` handler, add `weeklyDrain` branch:
-```typescript
-if (message.weeklyDrain === true) {
-  const newWeek = { weekStartTs: serverNow, pot: 0, contributors: {} };
-  await kvStore.put(KV_WEEK(roomId), JSON.stringify(newWeek));
-}
-```
-
-**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)*
-In the existing `RT_WORLD` broadcast inside `MSG_WORLD_UPDATE`, include `weekStartTs: serverNow` when `weeklyDrain === true`. All open clients' `setWorldState` handler (Move 2) resets their local clock simultaneously.
+**Move 1 — Read `KV_WEEK` on open, send `weekStartTs` to game** *(main.tsx, ~15 lines)* ✅ SHIPPED S16
+**Move 2 — game.js receives `weekStartTs` from `setWorldState`** *(game.js, 1 line)* ✅ SHIPPED S16
+**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)* — blocked on ISS-12
+**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)* — blocked on ISS-12
 
 ### Data flow after all four moves
 ```
@@ -171,14 +143,6 @@ Next player opens (days later)
   → reads KV_WEEK → correct epoch → correct drain timing
 ```
 
-### What remains unsolved after Move 1–4
-- If ALL players are away for > 7 days, the drain never fires (no active game loop).
-  This is acceptable for v1 — a scheduled server-side tick would require a Devvit scheduler
-  job, which is a separate feature. For now, the first player to open after the week expires
-  sees the drain cinematic immediately, which is the intended behaviour.
-- `weeklyContrib` (per-player contribution to tea bonus) is still client-authoritative.
-  Hardening this is P3 — requires accumulating contributions in `KV_WEEK.contributors`.
-
 ---
 
 Y increases downward. `H` = canvas height. `WORLD_W = 1194` = fixed world width (iPad Pro 11" landscape).
@@ -192,7 +156,7 @@ y = 3H+          Sump    — worm tea reservoir (tLvl 0–1)
 ```
 
 **Bin width:** `getBin()` always uses `WORLD_W * 0.88 ≈ 1051px` regardless of viewport.
-**Camera:** `camY` scrolls vertically, `camX` scrolls horizontally. Both lerp to follow worm.
+**Camera:** `camY` scrolls vertically, `camX` scrolls horizontally on narrow viewports only.
 
 ---
 
@@ -200,12 +164,21 @@ y = 3H+          Sump    — worm tea reservoir (tLvl 0–1)
 
 ```
 World coords:  (x, y) — absolute position in the game world
-Screen coords: (x - camX, y - camY) — what appears on canvas
+Screen coords: (x - camX + centreOffsetX, y - camY) — what appears on canvas
 ```
 
+**`centreOffsetX`** — global, computed each frame in `draw()`:
+```js
+centreOffsetX = W > WORLD_W ? Math.floor((W - WORLD_W) / 2) : 0;
+```
+On mobile/narrow: `0` (no effect). On desktop where `W > WORLD_W`: shifts world right so bin is centred.
+
+**`ctx.translate(centreOffsetX - camX, 0)`** at start of draw() — combines centring + camera scroll.
+
+**`camX`** is always `>= 0`. On wide screens it is locked to `0` (no scroll needed — bin fits).
+
 **`_toCanvas(clientX, clientY)`** converts pointer events to screen coords (subtracts root offset).
-**All mX/mY assignments** add `+ camX` to convert screen → world X.
-**`ctx.translate(-camX, 0)`** at start of draw() shifts entire world render.
+**All mX/mY assignments** use `screenX - centreOffsetX + camX` to convert screen → world X.
 **`ctx.restore()`** before HUD elements — karma, weather, death screen are screen-space.
 
 ---
@@ -214,16 +187,31 @@ Screen coords: (x - camX, y - camY) — what appears on canvas
 
 ```
 WORLD_W = 1194px  — fixed logical world width (iPad Pro 11" landscape)
-W = viewport width — varies per device (390px mobile, 1194px iPad)
-H = viewport height — fills screen vertically
+W = viewport width — varies per device; updated every resize
+H = viewport height — fills screen vertically; updated every resize
 
-On iPad Pro 11" landscape:  W ≈ 1194, camX range ≈ 0 (no scroll needed)
-On mobile (390px wide):     camX range ≈ 700px (worm scrolls bin horizontally)
+On desktop (W > WORLD_W):  centreOffsetX = (W-WORLD_W)/2, camX = 0 (no scroll)
+On iPad Pro 11" landscape: W ≈ WORLD_W, centreOffsetX ≈ 0
+On mobile (390px wide):    centreOffsetX = 0, camX range ≈ 700px (worm scrolls bin)
 ```
 
-**resizeCanvas():** Sets W/H from viewport, no CSS scaling. Canvas matches viewport exactly.
+**resizeCanvas():** Always updates W/H and canvas.width/height on every call. No one-time guard.
 **getBin():** Uses `WORLD_W` not `W` — bin is always 1194px wide.
-**camX clamp:** `binLeft - 20` to `binRight - W + 20`
+**camX clamp (narrow screens only):** `binLeft - 20` to `binRight - W + 20`
+
+### Background Drawing Rules (CRITICAL)
+All sky/ground/detail elements belong to the **world** and use `WORLD_W`, not `W`:
+- Sky `fillRect`: `fillRect(-centreOffsetX, 0, WORLD_W, H)`
+- Ground `fillRect`: `fillRect(-centreOffsetX, gTop, WORLD_W, gH)`
+- Sun/moon clip rect: `ctx.rect(0, 0, WORLD_W, skyHeight)`
+- Stars: `_starPos[si][0] * WORLD_W`
+- Sun X: `WORLD_W * (0.15 + sunT * 0.70)`
+- Moon X: `WORLD_W * (0.12 + moonT * 0.76)`
+- Grass tufts: `gt.xf * WORLD_W`
+- Blade fringe: `bladeCount = WORLD_W / 4`, `gbx = gi * 4 + (gi % 3)`
+- Flowers: `fd.xf * WORLD_W`
+
+**Rule of thumb:** If it's part of the sky, ground, or garden — use `WORLD_W`. Only HUD elements and canvas-clearing operations use `W`.
 
 ---
 
@@ -295,11 +283,12 @@ var deathCause = '';       // 'starvation'|'hunger'|'constipation'|'acidity'|'fl
 var playerState = 'playing'; // 'playing'|'dead'|'queued'|'claiming'
 ```
 
-### Camera
+### Camera / Viewport
 ```js
-var camY = 0;   // vertical scroll — follows worm Y
-var camX = 0;   // horizontal scroll — follows worm X, clamped to bin walls
-var WORLD_W = 1194; // fixed world width
+var camY = 0;              // vertical scroll — follows worm Y
+var camX = 0;              // horizontal scroll — always >= 0. 0 on wide screens.
+var centreOffsetX = 0;     // pixels to shift world right so bin is centred on wide screens
+var WORLD_W = 1194;        // fixed world width — never changes
 ```
 
 ---
@@ -475,5 +464,3 @@ const presenceChannel = useChannel({
 presenceChannel.subscribe();
 ```
 Declared **after** `useWebView` so `webView` is in scope.
-
-
