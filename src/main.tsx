@@ -1,5 +1,6 @@
 
 
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -105,12 +106,10 @@ Devvit.configure({
 // ─── Preview animation helpers ────────────────────────────────────────────────
 
 // Pulsing warm amber glow behind the icon — transparent SVG layered over the bg.
-// Icon swelling is driven separately via iconSize state so it stays a native image tag.
-// Wave multipliers are slow (0.05 / 0.04) so each 100ms tick is a tiny increment,
-// giving a smooth ~12-second breath cycle despite the 10fps update rate.
+// Wave speed 0.10 at 10fps = ~6 second breath cycle — natural and smooth.
 function buildGlowDataUrl(tick: number): string {
-  const glow = 0.28 + Math.sin(tick * 0.05) * 0.12;
-  const sc   = 1 + Math.sin(tick * 0.05) * 0.032;
+  const glow = 0.28 + Math.sin(tick * 0.10) * 0.12;
+  const sc   = 1 + Math.sin(tick * 0.10) * 0.032;
   const svg  =
     `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
     `<radialGradient id="g" cx="50%" cy="50%" r="50%">` +
@@ -495,16 +494,13 @@ Devvit.addCustomPostType({
     floodChannel.subscribe();
 
     // ── Preview animation state ────────────────────────────────────────────
-    const [tick,      setTick]      = useState<number>(0);
-    const [glowUrl,   setGlowUrl]   = useState<string>('');
-    const [iconSize,  setIconSize]  = useState<number>(256);
+    const [tick,    setTick]    = useState<number>(0);
+    const [glowUrl, setGlowUrl] = useState<string>('');
 
     const anim = useInterval(() => {
       setTick((t: number) => {
-        const next  = t + 1;
-        const sc    = 1 + Math.sin(next * 0.05) * 0.032;  // same wave as glow, ~12s cycle
+        const next = t + 1;
         setGlowUrl(buildGlowDataUrl(next));
-        setIconSize(Math.round(256 * sc));
         return next;
       });
     }, 100);
@@ -517,7 +513,7 @@ Devvit.addCustomPostType({
         {glowUrl ? (
           <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         ) : null}
-        <image url="icon.png" imageWidth={iconSize} imageHeight={iconSize} resizeMode="fit" />
+        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
       </zstack>
     );
   },
@@ -546,6 +542,7 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
 
 
