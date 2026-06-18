@@ -2,32 +2,62 @@
 > Last updated: 2026-06-18 Session 16 (pre-implementation — bin persistence plan)
 > Current state: V20 + all Session 14 + Session 15 fixes
 
+> Last updated: 2026-06-18 Session 16 (complete)
+> Current state: V20 + all Session 14 + Session 15 + Session 16 fixes
+
 ---
 
-## Session 16 — 2026-06-18 (Planning)
+## Session 16 — 2026-06-18 (Bin Persistence + HUD + Drain Animation)
 
 ### Session Summary
-Architecture review and persistence planning session. Pulled fresh repo state, reviewed all three root causes of ISS-1 (weekly drain never fires), and produced a concrete four-move implementation plan. No code shipped yet — plan is documented in both GAME_ARCHITECTURE.md (Bin Persistence section) and this audit (priority queue below). Next session starts directly on Move 1.
+Big session. Shipped Moves 1 and 2 of the bin persistence plan, added the Bin Refresh HUD, wired drain→feed chaining, and spent significant time debugging the drain Snoo camera/position system. Moves 3 and 4 (persisting and broadcasting the new weekStartTs on drain completion) are deferred to Session 17 — the drain animation positioning needs to be solved cleanly first.
 
-### Key Finding: ISS-1 Root Cause Breakdown
-Three separate bugs all prevent the bin's weekly drain from working as a shared persistent event:
+### What Shipped
+| Commit | File | What |
+|--------|------|------|
+| `263ead7` | main.tsx | Move 1: Read `KV_WEEK` on open, stamp if missing, send `weekStartTs` via `setWorldState` |
+| `f24bb39` | game.js | Move 2: `setWorldState` handler accepts `weekStartTs`, overwrites local clock |
+| `05efd5a` | game.js | Bin Refresh HUD under clock, drain→feed chain, `weeklyFeedPending` flag, clock reset after feed |
+| `60f5618` | game.js | Feed camera snap when chaining from drain (prevents slow lerp from sump) |
+| `4dafda9` | game.js | Drain camera: single deterministic snap attempt (later superseded) |
+| `a24b874` | game.js | Drain: STOP_Y=H*0.81 attempt |
+| `b44b3c3` | game.js | Drain: live STOP_Y derived from tap each frame + camera ease (matches feed pattern) |
+| `4513fa7` | game.js | Drain: camY snap at trigger + -25px offset attempt |
 
-1. `weeklyDrain: true` flag sent in `MSG_WORLD_UPDATE` is silently dropped — the handler in main.tsx saves world state but never checks this flag
-2. `KV_WEEK` is never read on post open — each player's `weekStartTs` defaults to `Date.now()`, so every player has an independent 7-day clock
-3. When drain fires and `KV_WEEK` should be updated, the write never happens — the new `weekStartTs` is never persisted or broadcast
+### What Works
+- **Bin Refresh HUD** — `🪣 Refresh in 5d 14h 23m` centred under clock, counts down live. Pulses gold during drain and feed cinematics. Resets to 7d after feed completes.
+- **Drain→feed chain** — no gap between cinematics. `weeklyFeedPending` flag gates the clock reset.
+- **Clock reset** — stamps new `weekStartTs` after feed Snoo slides out, saves + broadcasts.
+- **Move 1+2** — all players now receive shared `weekStartTs` from `KV_WEEK` on open.
+- **Feed Snoo camera** — snaps correctly when chaining from drain.
 
-### Implementation Plan — Four Moves (next session)
-| Move | File | What | Lines |
-|------|------|------|-------|
-| 1 | main.tsx | Read `KV_WEEK` on open, stamp if missing, send `weekStartTs` in `setWorldState` | ~15 |
-| 2 | game.js | Accept `weekStartTs` from `setWorldState` message, overwrite local value | 1 |
-| 3 | main.tsx | On `weeklyDrain: true` in `MSG_WORLD_UPDATE`, write new `KV_WEEK` | ~8 |
-| 4 | main.tsx | Include `weekStartTs` in Realtime world broadcast on drain | ~2 |
+### What's Broken — ISS-12: Drain Snoo positioning
+The drain Snoo cinematic is not placing Snoo correctly relative to the tap. Root cause is unresolved. Multiple approaches tried:
 
-Total estimated: ~26 lines across two files. No physics, no rendering, no renames.
+**Approaches tried (all failed):**
+1. Original two-step math: `_bsy = 3H+H*0.25 - camY`, then `drainSnooStopY = (_gY - offsets) + camY`, then `camY = drainSnooStopY - H*0.58` — double-snap contradicts itself
+2. Single deterministic snap: `camY = 3H+H*0.25 - H*0.68` → tap at wrong screen position
+3. `STOP_Y = H*0.81` with `camY = player bottom scroll` — Snoo at right height but world wrong
+4. Live STOP_Y from tap + camera ease — Y drifts during slide-in as camY catches up
+5. camY snap at trigger + live STOP_Y + -25px offset — still off
 
-### Commits Shipped
-None — planning session only.
+**What we know:**
+- Feed Snoo works perfectly — recalculates `snooSY` every frame from `lidSY3 = H*0.5 - camY`
+- Drain Snoo problem: his Y is set during the slide-in while camY may still be transitioning
+- The tap in `drawSnooDrain` is `bsy + 8 = (3H + H*0.25 - camY) + 8`
+- The tap in the main world draw (`drawSump`) is the same formula — they match
+- Snoo's body dimensions: `SC=H*0.16`, `bodyH=SC*0.270`, `legH=SC*0.225`, `bootH=SC*0.058`
+- Right hand reach from torso anchor: `torsoTop + bodyH*0.10 + armLen*0.50 + armLen*0.42`
+
+**Next session approach:**
+Study feed Snoo's pattern exactly — `lidSY3 = H*0.5 - camY` recalculated every frame, camera eases toward it. Apply the same: compute `tapSY = 3H+H*0.25 - camY + 8` each frame, set `STOP_Y = tapSY - [measured hand offset]`. But snap camY at trigger so slide-in is stable. The `[measured hand offset]` needs to be derived from the actual draw geometry in `drawSnooDrain`, not estimated.
+
+### Commits Shipped (docs)
+| Commit | What |
+|--------|------|
+| `cbee640` | GAME_ARCHITECTURE.md — bin persistence plan |
+| `b9b0c43` | WIGGLERS_AUDIT_V20.md — Session 16 planning entry |
+| `89a13ab` | WIGGLERS_AUDIT_V20.md — ISS-11 added |
 
 ---
 
@@ -183,8 +213,9 @@ Three bugs prevent weekly drain from ever firing automatically:
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-1 | Weekly drain never fires in Devvit — 3 root causes (see S16 plan) | P1 — next session |
-| ISS-2 | `KV_WEEK` defined but never read or written — fixed by ISS-1 Move 1+3 | Part of ISS-1 |
+| ISS-1 | Weekly drain persistence — Moves 1+2 done (shared weekStartTs). Moves 3+4 (persist+broadcast on drain) blocked until ISS-12 resolved | P1 — Session 17 |
+| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-12, do after drain animation fixed | Part of ISS-1 |
+| ISS-12 | Drain Snoo position/camera broken — Snoo doesn't land at tap correctly. Multiple approaches tried, unresolved. See Session 16 notes for full history. Fix before Moves 3+4. | P1 — Session 17 first task |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
@@ -218,5 +249,6 @@ Three bugs prevent weekly drain from ever firing automatically:
 | Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
+
 
 
