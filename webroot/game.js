@@ -8549,12 +8549,8 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     try { return window.self !== window.top; } catch(e) { return true; }
   })();
 
-// Register message handler on all surfaces for cross-platform coverage:
-// - window (standard web + iOS React Native WebView)
-// - window capture phase (Android React Native WebView dispatches on document)
-// - document (Android fallback)
+// Register on window (standard) + document (Android RN WebView fallback)
 window.addEventListener('message', _handleHostMessage, false);
-window.addEventListener('message', _handleHostMessage, true);
 document.addEventListener('message', _handleHostMessage, false);
 
   if (isInIframe) {
