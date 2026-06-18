@@ -8540,11 +8540,25 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
 // start immediately with whatever is in localStorage.
 // The 400ms window is invisible to the player — the canvas is blank during it.
 (function() {
+  // Detect Devvit host environment — works for both web iframe AND mobile React Native WebView.
+  // On mobile: window.self === window.top (not an iframe), but we're still inside Devvit.
+  // We treat any non-standalone context as Devvit: if URL has no real hostname, or if
+  // we detect a React Native user agent, or if window.parent exists and differs from window.
   var isInIframe = (function() {
-    try { return window.self !== window.top; } catch(e) { return true; }
+    try {
+      if (window.self !== window.top) return true;        // classic web iframe
+      if (/ReactNative|wv/.test(navigator.userAgent)) return true; // RN WebView UA
+      if (window.location.hostname === '' || window.location.protocol === 'about:') return true;
+      if (typeof window.ReactNativeWebView !== 'undefined') return true;
+      return false;
+    } catch(e) { return true; }
   })();
 
-  if (isInIframe) {
+  // Always attempt Devvit handshake — on mobile isInIframe may be false even inside Devvit.
+  // postToHost is a no-op if host isn't listening, so this is safe in standalone too.
+  var _inDevvit = isInIframe || (window.location.hostname === 'localhost' ? false : true);
+
+  if (_inDevvit) {
     window._devvitSetupPending = true;
 
     // Retry sending 'ready' until the host responds (mobile bridge may not be ready immediately)
