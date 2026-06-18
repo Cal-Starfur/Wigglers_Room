@@ -2234,15 +2234,16 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Camera: snap so the sump tap (world Y = 3H + H*0.25) sits at screen H*0.68.
-  // Snoo stands at STOP_Y = H*0.58 (fixed in updateSnooDrain) — 80px above the tap.
-  // One deterministic snap — no two-step calculation that fights itself.
+  // Camera: use the same camY the player sees when fully scrolled to the bottom of the world.
+  // This puts the sump floor at screen Y ~H*0.86 — matching what the player expects.
+  // STOP_Y = H*0.81 (set in updateSnooDrain) puts Snoo's torso at 81% down the screen,
+  // which places his right hand ~17px above the tap at H*0.86 — correct operating position.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  camY = Math.round(3*H + H*0.25 - H * 0.68);
+  camY = Math.round(3*H + H*0.25 - H + 120);
   drainSnooStopX = _b.cx - _SC * 0.127;
-  // drainSnooStopY is world-Y of Snoo torso anchor = screen STOP_Y + camY
-  drainSnooStopY = H * 0.58 + camY;
+  // drainSnooStopY is world-Y of Snoo torso anchor = STOP_Y (H*0.81) + camY
+  drainSnooStopY = H * 0.81 + camY;
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2252,10 +2253,10 @@ function updateSnooDrain() {
 
   var b       = getBin();
   var SC      = H * 0.16;             // Snoo scale — same constant used at trigger time
-  // Snoo always sits at H*0.58 in screen space — camera was snapped to this at trigger time.
-  // Using screen-space directly avoids any push/drift if camY ever micro-adjusts.
+  // Snoo torso anchor at H*0.81 in screen space — hand reaches tap at H*0.86.
+  // Camera was snapped to 3H+H*0.25-H+120 at trigger time (player bottom-scroll position).
   var STOP_X  = drainSnooStopX;
-  var STOP_Y  = H * 0.58;
+  var STOP_Y  = H * 0.81;
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
