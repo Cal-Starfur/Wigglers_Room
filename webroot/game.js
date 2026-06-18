@@ -5313,7 +5313,7 @@ function draw() {
       var twinkle = 0.5 + 0.5*Math.sin(frame*0.04 + si*1.7);
       ctx.globalAlpha = starAlpha * (0.4 + 0.6*twinkle);
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(_starPos[si][0]*W, _starPos[si][1]*skyHeight, 1.2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(_starPos[si][0]*WORLD_W, _starPos[si][1]*skyHeight, 1.2, 0, Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
@@ -5322,7 +5322,7 @@ function draw() {
   var isDay = dayTime >= 0.25 && dayTime <= 0.75;
   if (isDay) {
     var sunT = (dayTime - 0.25) / 0.50; // 0=rise, 0.5=noon, 1=set
-    var sunX = W * (0.15 + sunT * 0.70);
+    var sunX = WORLD_W * (0.15 + sunT * 0.70);
     // Rises from and sets at horizScreenY, peaks high above
     var sunY = horizScreenY - Math.sin(sunT * Math.PI) * H * 1.2;
     if (sunY < H + 30 && sunY > -80) {
@@ -5352,7 +5352,7 @@ function draw() {
   } else {
     var moonT = (((dayTime - 0.75) % 1 + 1) % 1) / 0.50;
     moonT = Math.min(1, Math.max(0, moonT));
-    var moonX = W * (0.12 + moonT * 0.76);
+    var moonX = WORLD_W * (0.12 + moonT * 0.76);
     var moonY = horizScreenY - Math.sin(moonT * Math.PI) * H * 1.0;
     if (moonY < H + 20 && moonY > -60) {
       ctx.globalAlpha = 0.9;
@@ -5389,7 +5389,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var ti2 = 0; ti2 < gardenTufts.length; ti2++) {
         var gt = gardenTufts[ti2];
-        var tx2 = -centreOffsetX + gt.xf * W;
+        var tx2 = gt.xf * WORLD_W;
         var ty2 = gt.wy - camY;
         if (ty2 < -10 || ty2 > H + 10) continue;
         ctx.fillStyle = gt.col;
@@ -5406,9 +5406,9 @@ function draw() {
 
     // Denser blade fringe at the horizon line — only when horizon is on screen
     if (horizScreenY > -10 && horizScreenY < H) {
-      var bladeCount = Math.floor(W / 4);
+      var bladeCount = Math.floor(WORLD_W / 4);
       for (var gi = 0; gi < bladeCount; gi++) {
-        var gbx = -centreOffsetX + gi * 4 + (gi % 3);
+        var gbx = gi * 4 + (gi % 3);
         var gbh = 6 + (gi % 6) * 2;
         ctx.fillStyle = (gi%4===0) ? '#5aaa28' : (gi%4===1) ? '#4a9020' : (gi%4===2) ? '#68c030' : '#3a8018';
         ctx.beginPath();
@@ -5424,7 +5424,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var fi = 0; fi < gardenFlowers.length; fi++) {
         var fd = gardenFlowers[fi];
-        var fx2 = -centreOffsetX + fd.xf * W;
+        var fx2 = fd.xf * WORLD_W;
         var fy2 = fd.wy - camY;
         if (fy2 < -20 || fy2 > H + 20) continue;
         ctx.strokeStyle = '#3a7818'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
