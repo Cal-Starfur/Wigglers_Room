@@ -3043,13 +3043,16 @@ var WORLD_W = 1194;
 function resizeCanvas() {
   var vw = root.offsetWidth;
   var vh = root.offsetHeight;
-  if (!W || !H) {
-    W = vw;   // logical viewport width — varies per device
-    H = vh;   // logical viewport height
-    canvas.width  = W;
-    canvas.height = H;
-  }
-  // No CSS scaling needed — canvas always matches the viewport exactly.
+  // Always update W/H and canvas size to match the viewport.
+  // The old one-time guard (!W || !H) caused desktop/fullscreen to stay
+  // stuck at the initial size, leaving a black bar and half-filled background.
+  W = vw;
+  H = vh;
+  canvas.width  = W;
+  canvas.height = H;
+  // Canvas always fills the viewport exactly — no CSS scaling needed.
+  canvas.style.width  = vw + 'px';
+  canvas.style.height = vh + 'px';
   canvas.style.transform = '';
   canvas.style.left = '0px';
   canvas.style.top  = '0px';
@@ -3058,6 +3061,10 @@ function resizeCanvas() {
   window._canvasOffsetY = 0;
   window._canvasScaleX  = 1;
   window._canvasScaleY  = 1;
+  // Invalidate bin cache so geometry recalculates for new W
+  _binCacheW = -1;
+  // Invalidate soil gradient cache
+  _soilGradMW = -1;
 }
 
 function setup() {
