@@ -5386,7 +5386,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var ti2 = 0; ti2 < gardenTufts.length; ti2++) {
         var gt = gardenTufts[ti2];
-        var tx2 = gt.xf * W;
+        var tx2 = camX + gt.xf * W;
         var ty2 = gt.wy - camY;
         if (ty2 < -10 || ty2 > H + 10) continue;
         ctx.fillStyle = gt.col;
@@ -5405,7 +5405,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H) {
       var bladeCount = Math.floor(W / 4);
       for (var gi = 0; gi < bladeCount; gi++) {
-        var gbx = gi * 4 + (gi % 3);
+        var gbx = camX + gi * 4 + (gi % 3);
         var gbh = 6 + (gi % 6) * 2;
         ctx.fillStyle = (gi%4===0) ? '#5aaa28' : (gi%4===1) ? '#4a9020' : (gi%4===2) ? '#68c030' : '#3a8018';
         ctx.beginPath();
@@ -5421,7 +5421,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var fi = 0; fi < gardenFlowers.length; fi++) {
         var fd = gardenFlowers[fi];
-        var fx2 = fd.xf * W;
+        var fx2 = camX + fd.xf * W;
         var fy2 = fd.wy - camY;
         if (fy2 < -20 || fy2 > H + 20) continue;
         ctx.strokeStyle = '#3a7818'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
