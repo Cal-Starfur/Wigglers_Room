@@ -283,9 +283,9 @@ var _devvitSessionReceived = false;
 // Safe to call at any time; silently does nothing when running standalone.
 function postToHost(msg) {
   try {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage(msg, '*');
-    }
+    // Use window.parent if available (web iframe), otherwise window itself (mobile RN WebView)
+    var target = (window.parent && window.parent !== window) ? window.parent : window;
+    target.postMessage(msg, '*');
   } catch(e) {}
 }
 
