@@ -193,6 +193,7 @@ Three bugs prevent weekly drain from ever firing automatically:
 | ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
 | ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
 | ISS-10 | `weeklyContrib` client-authoritative — could be spoofed for tea bonus | P3 (post-ISS-1) |
+| ISS-11 | Drain only fires while a player has the game open — if all players are away when week expires, cinematic fires for first player who opens it. Fix: Devvit scheduler job that fires drain server-side with no active players. | Future / post-launch |
 
 ---
 
@@ -217,4 +218,5 @@ Three bugs prevent weekly drain from ever firing automatically:
 | Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
+
 
