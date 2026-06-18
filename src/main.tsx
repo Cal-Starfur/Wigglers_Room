@@ -1,6 +1,3 @@
-
-
-
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -104,9 +101,261 @@ Devvit.configure({
 });
 
 // ─── Preview animation helpers ────────────────────────────────────────────────
+//
+// The preview screen (shown in the Reddit feed before the user taps to play)
+// animates two layers via useInterval at 100ms (10fps):
+//
+//   Layer 1 — buildBgDataUrl(tick):
+//     Dark earth-tone background with SVG trash items (pizza, banana peel, etc.)
+//     falling downward. Items are drawn as pure SVG shapes — no external image
+//     dependency — so they work in sandboxed data: URLs. A dark vignette overlay
+//     preserves the moody bin atmosphere. The 8 items are spread across the 512px
+//     width at staggered Y offsets; their Y positions advance each tick and wrap
+//     seamlessly every 256px (half the SVG height → tiles perfectly).
+//
+//   Layer 2 — buildGlowDataUrl(tick):
+//     Transparent SVG with a warm amber radial glow + subtle bob behind icon.png.
+//     Already working — unchanged from previous version.
+//
+// Why SVG shapes instead of <image href="preview-bg.png">:
+//   SVG data: URLs are sandboxed and cannot resolve relative asset paths.
+//   Pure SVG shapes have zero external dependencies and render correctly.
 
-// Pulsing warm amber glow behind the icon — transparent SVG layered over the bg.
-// Wave speed 0.10 at 10fps = ~6 second breath cycle — natural and smooth.
+// ── Falling trash item layout ─────────────────────────────────────────────────
+// 8 items with fixed X positions spread across 512px, staggered Y offsets, and
+// different radii/rotations so they feel naturally scattered.
+// yOff is the starting Y within the 512px tile (0–511). Items fall downward,
+// wrapping every 512px. We draw each item twice (at y and y+512) so the seam
+// is always invisible.
+const TRASH_LAYOUT = [
+  { name: 'pizza',        x:  62, yOff:  30, r: 34, rot:  0.4 },
+  { name: 'banana_peel',  x: 158, yOff: 180, r: 28, rot: -0.3 },
+  { name: 'apple_core',   x: 255, yOff:  80, r: 24, rot:  0.7 },
+  { name: 'lettuce',      x: 350, yOff: 300, r: 36, rot: -0.5 },
+  { name: 'egg_shell',    x:  95, yOff: 390, r: 26, rot:  1.1 },
+  { name: 'tea_bag',      x: 420, yOff: 130, r: 22, rot:  0.2 },
+  { name: 'newspaper',    x: 195, yOff: 460, r: 38, rot: -0.8 },
+  { name: 'watermelon',   x: 310, yOff: 220, r: 42, rot:  0.6 },
+];
+
+// Fall speed: 1.5px per tick at 10fps = 15px/second. 512px / 15px/s ≈ 34s full loop.
+const FALL_SPEED = 1.5;
+
+// ── SVG shape builders — one per trash type ───────────────────────────────────
+// Each returns an SVG string of shapes centered at (0,0), scaled by r.
+// No ctx calls — pure declarative SVG elements.
+// Bezier paths are converted from the canvas drawTrashChunk() equivalents.
+
+function svgPizza(r: number): string {
+  const r09 = r * 0.9; const r085 = r * 0.85; const r072 = r * 0.72;
+  const r062 = r * 0.62; const r065 = r * 0.65;
+  return (
+    // Crust outer triangle
+    `<polygon points="0,${-r09} ${-r085},${r072} ${r085},${r072}" fill="#d4936a"/>` +
+    // Dough fill
+    `<polygon points="0,${-r062} ${-r065},${r062} ${r065},${r062}" fill="#f0c888"/>` +
+    // Tomato sauce
+    `<ellipse cx="${-r*0.15}" cy="${r*0.1}" rx="${r*0.32}" ry="${r*0.22}" transform="rotate(17)" fill="#c03020"/>` +
+    `<ellipse cx="${r*0.2}" cy="${-r*0.15}" rx="${r*0.2}" ry="${r*0.16}" transform="rotate(-29)" fill="#c03020"/>` +
+    // Cheese
+    `<ellipse cx="${r*0.05}" cy="${r*0.05}" rx="${r*0.18}" ry="${r*0.12}" transform="rotate(46)" fill="#f0d060"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.08}" rx="${r*0.13}" ry="${r*0.09}" transform="rotate(-17)" fill="#f0d060"/>` +
+    // Pepperoni
+    `<circle cx="${-r*0.05}" cy="${-r*0.28}" r="${r*0.12}" fill="#8a2010"/>` +
+    `<circle cx="${r*0.3}" cy="${r*0.28}" r="${r*0.09}" fill="#8a2010"/>` +
+    // Crust ridge
+    `<line x1="${-r085}" y1="${r072}" x2="${r085}" y2="${r072}" stroke="#b87040" stroke-width="${r*0.09}" stroke-linecap="round"/>`
+  );
+}
+
+function svgBananaPeel(r: number): string {
+  // Four splayed peel lobes at different angles
+  const lobeAngles = [-0.7, 0.2, 1.1, 2.0];
+  const lobeCols = ['#d4a808', '#c09808', '#e8c010', '#b88800'];
+  let s = '';
+  for (let i = 0; i < 4; i++) {
+    const deg = lobeAngles[i] * 180 / Math.PI;
+    // Outer lobe shape approximated as a tapered ellipse
+    s += `<g transform="rotate(${deg.toFixed(1)})">` +
+      `<path d="M 0,0 C ${r*0.2},${-r*0.3} ${r*0.5},${-r*1.0} ${r*0.15},${-r*1.1} C ${-r*0.2},${-r*1.0} ${-r*0.4},${-r*0.4} 0,0 Z" fill="${lobeCols[i]}"/>` +
+      `<path d="M 0,${-r*0.05} C ${r*0.1},${-r*0.3} ${r*0.3},${-r*0.85} ${r*0.1},${-r*0.95} C ${-r*0.1},${-r*0.82} ${-r*0.22},${-r*0.32} 0,${-r*0.05} Z" fill="#f5e090"/>` +
+      `</g>`;
+  }
+  // Brown tip nub
+  s += `<circle cx="0" cy="0" r="${r*0.15}" fill="#5a3a00"/>`;
+  return s;
+}
+
+function svgAppleCore(r: number): string {
+  return (
+    // Core body
+    `<ellipse cx="0" cy="0" rx="${r*0.38}" ry="${r*0.9}" fill="#d4c8a0"/>` +
+    // Red flesh patches
+    `<ellipse cx="${-r*0.25}" cy="${-r*0.3}" rx="${r*0.22}" ry="${r*0.35}" transform="rotate(23)" fill="#d83020"/>` +
+    `<ellipse cx="${r*0.22}" cy="${r*0.2}" rx="${r*0.18}" ry="${r*0.28}" transform="rotate(-17)" fill="#d83020"/>` +
+    // Seeds
+    `<ellipse cx="${-r*0.12}" cy="${-r*0.12}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    `<ellipse cx="0" cy="${r*0.06}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    `<ellipse cx="${r*0.12}" cy="${r*0.24}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    // Stem
+    `<line x1="0" y1="${-r*0.9}" x2="${r*0.08}" y2="${-r*1.15}" stroke="#5a3010" stroke-width="${r*0.1}" stroke-linecap="round"/>` +
+    // Calyx
+    `<line x1="${-r*0.12}" y1="${r*0.88}" x2="${r*0.12}" y2="${r*0.95}" stroke="#5a3010" stroke-width="${r*0.08}" stroke-linecap="round"/>`
+  );
+}
+
+function svgLettuce(r: number): string {
+  // Ruffled lettuce head — layered leaf shapes
+  return (
+    `<ellipse cx="0" cy="${r*0.1}" rx="${r*0.88}" ry="${r*0.72}" fill="#3a9020"/>` +
+    `<ellipse cx="${-r*0.3}" cy="${-r*0.1}" rx="${r*0.55}" ry="${r*0.45}" fill="#50b830"/>` +
+    `<ellipse cx="${r*0.25}" cy="${-r*0.05}" rx="${r*0.48}" ry="${r*0.4}" fill="#60c838"/>` +
+    `<ellipse cx="0" cy="${-r*0.15}" rx="${r*0.35}" ry="${r*0.3}" fill="#78e040"/>` +
+    // Midrib
+    `<line x1="0" y1="${-r*0.55}" x2="0" y2="${r*0.55}" stroke="#286010" stroke-width="${r*0.06}" stroke-linecap="round"/>` +
+    // Veins
+    `<line x1="0" y1="${-r*0.2}" x2="${-r*0.5}" y2="${r*0.1}" stroke="#286010" stroke-width="${r*0.03}" stroke-linecap="round"/>` +
+    `<line x1="0" y1="${r*0.1}" x2="${r*0.5}" y2="${r*0.35}" stroke="#286010" stroke-width="${r*0.03}" stroke-linecap="round"/>`
+  );
+}
+
+function svgEggShell(r: number): string {
+  return (
+    // Bottom half shell
+    `<path d="M ${-r*0.75},${r*0.1} C ${-r*0.8},${r*0.8} ${r*0.8},${r*0.8} ${r*0.75},${r*0.1} Z" fill="#ede8d8"/>` +
+    // Yolk residue
+    `<ellipse cx="0" cy="${r*0.5}" rx="${r*0.3}" ry="${r*0.2}" fill="#d4a820"/>` +
+    // Top half, tilted (-20 deg)
+    `<g transform="rotate(-20)">` +
+    `<path d="M ${-r*0.6},${-r*0.8} C ${-r*0.72},${-r*0.1} ${r*0.72},${-r*0.1} ${r*0.6},${-r*0.8} Z" fill="#f0ead8"/>` +
+    // Jagged crack
+    `<polyline points="${-r*0.6},${-r*0.8} ${-r*0.3},${-r*0.65} ${-r*0.1},${-r*0.78} ${r*0.15},${-r*0.6} ${r*0.35},${-r*0.72} ${r*0.6},${-r*0.8}" fill="none" stroke="#c8c0a8" stroke-width="${r*0.05}"/>` +
+    `</g>`
+  );
+}
+
+function svgTeaBag(r: number): string {
+  const rr = r * 0.12; // corner radius approximated as small
+  return (
+    // Bag body (rounded rect)
+    `<rect x="${-r*0.55}" y="${r*0.0}" width="${r*1.1}" height="${r*0.85}" rx="${rr}" fill="#c8a060"/>` +
+    // Tea stain
+    `<ellipse cx="0" cy="${r*0.45}" rx="${r*0.32}" ry="${r*0.25}" fill="#7a4820"/>` +
+    // Tag
+    `<rect x="${-r*0.22}" y="${-r*0.88}" width="${r*0.44}" height="${r*0.28}" rx="${r*0.06}" fill="#e8e0c8"/>` +
+    // String
+    `<path d="M 0,${-r*0.6} Q ${r*0.3},${-r*0.35} ${r*0.05},0" fill="none" stroke="#a08060" stroke-width="${r*0.05}" stroke-linecap="round"/>` +
+    // Staple
+    `<line x1="${-r*0.1}" y1="${-r*0.6}" x2="${r*0.1}" y2="${-r*0.6}" stroke="#888" stroke-width="${r*0.07}" stroke-linecap="round"/>`
+  );
+}
+
+function svgNewspaper(r: number): string {
+  return (
+    // Paper body (irregular polygon)
+    `<polygon points="${-r*0.9},${-r*0.7} ${-r*0.5},${-r*0.95} ${r*0.3},${-r*0.88} ${r*0.95},${-r*0.55} ${r*0.85},${r*0.4} ${r*0.4},${r*0.92} ${-r*0.4},${r*0.88} ${-r*0.92},${r*0.5}" fill="#d8d4b8"/>` +
+    // Text lines
+    `<line x1="${-r*0.7}" y1="${-r*0.44}" x2="${r*0.68}" y2="${-r*0.44}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${-r*0.22}" x2="${r*0.66}" y2="${-r*0.21}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.0}" x2="${r*0.70}" y2="${r*0.01}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.22}" x2="${r*0.65}" y2="${r*0.23}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.44}" x2="${r*0.67}" y2="${r*0.43}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    // Headline block
+    `<rect x="${-r*0.65}" y="${-r*0.62}" width="${r*1.3}" height="${r*0.18}" fill="#555048"/>` +
+    // Crease
+    `<line x1="${-r*0.8}" y1="${-r*0.2}" x2="${r*0.8}" y2="${r*0.1}" stroke="#a8a490" stroke-width="${r*0.06}"/>`
+  );
+}
+
+function svgWatermelon(r: number): string {
+  return (
+    // Green rind outer triangle
+    `<polygon points="0,${-r*0.15} ${-r*0.95},${r*0.82} ${r*0.95},${r*0.82}" fill="#3a8818"/>` +
+    // White pith
+    `<polygon points="0,${-r*0.08} ${-r*0.82},${r*0.75} ${r*0.82},${r*0.75}" fill="#e8f4d8"/>` +
+    // Red flesh
+    `<polygon points="0,${r*0.05} ${-r*0.68},${r*0.72} ${r*0.68},${r*0.72}" fill="#e82840"/>` +
+    // Seeds
+    `<ellipse cx="${-r*0.28}" cy="${r*0.38}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${r*0.18}" cy="${r*0.28}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${-r*0.05}" cy="${r*0.52}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${r*0.4}" cy="${r*0.48}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    // Rind stripe
+    `<line x1="${-r*0.5}" y1="${r*0.42}" x2="${-r*0.72}" y2="${r*0.78}" stroke="#285a10" stroke-width="${r*0.06}"/>` +
+    `<line x1="${r*0.38}" y1="${r*0.38}" x2="${r*0.58}" y2="${r*0.78}" stroke="#285a10" stroke-width="${r*0.06}"/>`
+  );
+}
+
+// ── Shape dispatcher ──────────────────────────────────────────────────────────
+function svgTrashShapes(name: string, r: number): string {
+  switch (name) {
+    case 'pizza':       return svgPizza(r);
+    case 'banana_peel': return svgBananaPeel(r);
+    case 'apple_core':  return svgAppleCore(r);
+    case 'lettuce':     return svgLettuce(r);
+    case 'egg_shell':   return svgEggShell(r);
+    case 'tea_bag':     return svgTeaBag(r);
+    case 'newspaper':   return svgNewspaper(r);
+    case 'watermelon':  return svgWatermelon(r);
+    default:            return `<circle cx="0" cy="0" r="${r}" fill="#8a6040"/>`;
+  }
+}
+
+// ── Scrolling bg builder ──────────────────────────────────────────────────────
+// tick advances at 10fps. Each tick the items move down by FALL_SPEED px.
+// We draw each item at (cy % 512) and again at (cy % 512 - 512) for seamless wrap.
+// The SVG has a dark earth-tone solid bg + a dark radial vignette on top to match
+// the moody original preview-bg.png atmosphere.
+function buildBgDataUrl(tick: number): string {
+  const totalFall = tick * FALL_SPEED;
+
+  let items = '';
+  for (const item of TRASH_LAYOUT) {
+    // Y position — wraps every 512px
+    const rawY = (item.yOff + totalFall) % 512;
+    const rot = (item.rot * 180 / Math.PI).toFixed(2);
+    const r = item.r;
+
+    // Draw item at its wrapped position
+    items += `<g transform="translate(${item.x},${rawY.toFixed(1)}) rotate(${rot})">` +
+      svgTrashShapes(item.name, r) +
+      `</g>`;
+    // Draw again 512px above/below for seamless tile
+    const wrapY = rawY < 256 ? rawY + 512 : rawY - 512;
+    items += `<g transform="translate(${item.x},${wrapY.toFixed(1)}) rotate(${rot})">` +
+      svgTrashShapes(item.name, r) +
+      `</g>`;
+  }
+
+  const svg =
+    // Dark earth-tone background — matches the original preview-bg.png palette
+    `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
+    // Background fill — deep warm dark brown
+    `<rect width="512" height="512" fill="#2a1a0a"/>` +
+    // Subtle soil texture bands
+    `<rect width="512" height="512" fill="url(#soilGrad)"/>` +
+    `<defs>` +
+    `<radialGradient id="soilGrad" cx="50%" cy="50%" r="70%">` +
+    `<stop offset="0%" stop-color="#3d2510" stop-opacity="0.0"/>` +
+    `<stop offset="100%" stop-color="#1a0a00" stop-opacity="0.6"/>` +
+    `</radialGradient>` +
+    `<radialGradient id="vignette" cx="50%" cy="50%" r="72%">` +
+    `<stop offset="35%" stop-color="#000" stop-opacity="0"/>` +
+    `<stop offset="100%" stop-color="#000" stop-opacity="0.72"/>` +
+    `</radialGradient>` +
+    `</defs>` +
+    // Trash items (falling)
+    items +
+    // Dark vignette overlay — preserves the moody bin feel
+    `<rect width="512" height="512" fill="url(#vignette)"/>` +
+    `</svg>`;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+// ── Pulsing warm amber glow builder ──────────────────────────────────────────
+// Transparent SVG layered over the bg → warm amber radial glow + gentle bob.
+// Wave speed 0.10 at 10fps ≈ 6 second breath cycle.
 function buildGlowDataUrl(tick: number): string {
   const glow = 0.28 + Math.sin(tick * 0.10) * 0.12;
   const sc   = 1 + Math.sin(tick * 0.10) * 0.032;
@@ -495,11 +744,13 @@ Devvit.addCustomPostType({
 
     // ── Preview animation state ────────────────────────────────────────────
     const [tick,    setTick]    = useState<number>(0);
+    const [bgUrl,   setBgUrl]   = useState<string>('');
     const [glowUrl, setGlowUrl] = useState<string>('');
 
     const anim = useInterval(() => {
       setTick((t: number) => {
         const next = t + 1;
+        setBgUrl(buildBgDataUrl(next));
         setGlowUrl(buildGlowDataUrl(next));
         return next;
       });
@@ -507,9 +758,17 @@ Devvit.addCustomPostType({
     anim.start();
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
+    // Layer order (back → front):
+    //   1. bgUrl   — animated dark background with falling trash SVG shapes
+    //   2. glowUrl — warm amber pulsing glow (transparent SVG)
+    //   3. icon.png — worm icon, tap to launch
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
-        <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
+        {bgUrl ? (
+          <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
+        ) : (
+          <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
+        )}
         {glowUrl ? (
           <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         ) : null}
@@ -542,8 +801,3 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
-
-
-
-
-
