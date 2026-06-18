@@ -773,7 +773,7 @@ Devvit.addCustomPostType({
         setBgUrl(buildBgDataUrl(next));
         return next;
       });
-    }, 500);
+    }, 200);
     anim.start();
 
     return (
