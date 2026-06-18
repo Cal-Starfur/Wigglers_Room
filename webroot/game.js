@@ -310,6 +310,8 @@ window.addEventListener('message', function(e) {
   // Devvit host sends: { type: 'setUsername', username: 'u/SoilKing42' }
   if (msg.type === 'setUsername' && msg.username) {
     username = msg.username;
+    // Bridge is alive — stop retrying ready
+    window._devvitSetupPending = false;
   }
 
   // ── setSession — server-authoritative save data ───────────────────────────
@@ -8543,20 +8545,30 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
   })();
 
   if (isInIframe) {
-    // Tell the host we are ready and waiting for session + username
-    postToHost({ type: 'ready' });
-    // Ask host for the current player list (presence) so other worms appear on load
-    postToHost({ type: 'requestPresence' });
-    // Set the pending flag so the message handler can kick off setup()
     window._devvitSetupPending = true;
-    // Fallback: if no session arrives within 2000ms, start anyway.
-    // 400ms was too short — getCurrentUser() + KV reads can take 1-2s on cold load.
+
+    // Retry sending 'ready' until the host responds (mobile bridge may not be ready immediately)
+    // Stops as soon as setSession or setUsername is received.
+    var _readyAttempts = 0;
+    function _sendReady() {
+      if (!window._devvitSetupPending) return; // already got a response
+      postToHost({ type: 'ready' });
+      postToHost({ type: 'requestPresence' });
+      _readyAttempts++;
+      if (_readyAttempts < 10) {
+        // Retry with backoff: 200ms, 400ms, 600ms... up to 10 attempts
+        setTimeout(_sendReady, 200 * _readyAttempts);
+      }
+    }
+    _sendReady();
+
+    // Hard fallback: if no session arrives within 5000ms, start anyway
     window._devvitSetupTimer = setTimeout(function() {
       if (window._devvitSetupPending) {
         window._devvitSetupPending = false;
         setup(); loop();
       }
-    }, 2000);
+    }, 5000);
   } else {
     // Not in an iframe — local dev or standalone. Start immediately.
     setTimeout(function() { setup(); loop(); }, 100);
