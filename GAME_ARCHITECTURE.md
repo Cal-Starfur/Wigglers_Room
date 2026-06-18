@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-18 Session 16 (pre-implementation — bin persistence plan)
+> Last updated: 2026-06-18 Session 16 (complete — bin persistence Moves 1+2 shipped, drain Snoo ISS-12 open)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -334,12 +334,18 @@ Ate 11,240 / 300,000 bites · 4% of a full life
 ### Weekly Drain (Snoo Cinematic)
 Fires in `updatePhysics()` when `nowW - weekStartTs >= WEEK_DRAIN_MS`.
 
-**Camera fix (S14):** Snapped instantly to `drainSnooStopY - H * 0.58` at trigger time in `triggerSnooDrain()`.
-`STOP_Y = H * 0.58` hardcoded in screen space inside `updateSnooDrain()` — never re-derived from world coords.
-This prevents push-down/push-up jitter from per-frame camera easing lag.
+**S16 status:** Moves 1+2 shipped — all players now share `weekStartTs` from `KV_WEEK`. Moves 3+4 (persist+broadcast on drain) blocked on ISS-12.
 
-**⚠️ ISS-1:** `weekStartTs` is per-player session, not shared. `KV_WEEK` never read/sent. Weekly drain
-only fires for players who've been logged in 7 real days — not a true shared world event. Fix is P1.
+**⚠️ ISS-12 — Drain Snoo positioning (unresolved S16)**
+Drain Snoo does not land correctly at the tap. Multiple approaches failed — see Session 16 in audit.
+
+Key facts for next session:
+- Feed Snoo works: `snooSY = lidSY3 - bodyH - legH - bootH*0.5` where `lidSY3 = H*0.5 - camY`, recalculated every frame. Camera eases to `targetCam = H*0.5 - H*0.65`.
+- Drain tap: `TAP_SY = bsy + 8` where `bsy = 3*H + H*0.25 - camY` — same in `drawSnooDrain` and `drawSump`.
+- Snoo body: `SC=H*0.16`, `bodyH=SC*0.270`, `legH=SC*0.225`, `bootH=SC*0.058`, `armLen=SC*0.165`
+- Right hand from torso `sy`: `sy + bodyH*0.10 + armLen*0.50 + armLen*0.42`
+- `drainSnooStopX = b.cx - SC*0.127` (stable — bin never scrolls horizontally)
+- **Next session fix:** Measure exact offset from torso anchor `sy` to tap in `drawSnooDrain`. Set `STOP_Y = TAP_SY - measured_offset`. Snap camY at trigger so slide-in is stable. No two-step world-Y math.
 
 ### Drain Cinematic Phases
 `floatin → pause → openvalve → draining → closevalve → floatout`
@@ -469,4 +475,5 @@ const presenceChannel = useChannel({
 presenceChannel.subscribe();
 ```
 Declared **after** `useWebView` so `webView` is in scope.
+
 
