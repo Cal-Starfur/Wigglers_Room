@@ -799,8 +799,10 @@ Devvit.addCustomPostType({
     // which eliminates the image-reload flicker that happened at 100ms.
     const [bgTick,   setBgTick]   = useState<number>(0);
     const [glowTick, setGlowTick] = useState<number>(0);
-    const [bgUrl,    setBgUrl]    = useState<string>('');
-    const [glowUrl,  setGlowUrl]  = useState<string>('');
+    // Pre-build frame 0 so the very first render already has the animated bg —
+    // no flash of the static preview-bg.png fallback on load.
+    const [bgUrl,    setBgUrl]    = useState<string>(() => buildBgDataUrl(0));
+    const [glowUrl,  setGlowUrl]  = useState<string>(() => buildGlowDataUrl(0));
 
     // Background — 10fps, smooth continuous motion
     const bgAnim = useInterval(() => {
@@ -829,11 +831,7 @@ Devvit.addCustomPostType({
     //   3. icon.png — worm icon, tap to launch
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
-        {bgUrl ? (
-          <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        ) : (
-          <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
-        )}
+        <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         {glowUrl ? (
           <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         ) : null}
