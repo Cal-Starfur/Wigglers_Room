@@ -2234,16 +2234,11 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Camera: use the same camY the player sees when fully scrolled to the bottom of the world.
-  // This puts the sump floor at screen Y ~H*0.86 — matching what the player expects.
-  // STOP_Y = H*0.81 (set in updateSnooDrain) puts Snoo's torso at 81% down the screen,
-  // which places his right hand ~17px above the tap at H*0.86 — correct operating position.
+  // Snoo position is now derived live from the tap each frame in updateSnooDrain —
+  // same pattern as feed Snoo on the lid. No camera snap needed at trigger time.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  camY = Math.round(3*H + H*0.25 - H + 120);
-  drainSnooStopX = _b.cx - _SC * 0.127;
-  // drainSnooStopY is world-Y of Snoo torso anchor = STOP_Y (H*0.81) + camY
-  drainSnooStopY = H * 0.81 + camY;
+  drainSnooStopX = _b.cx - _SC * 0.127; // X only — stable, bin never scrolls horizontally
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2252,11 +2247,21 @@ function updateSnooDrain() {
   drainPT++;
 
   var b       = getBin();
-  var SC      = H * 0.16;             // Snoo scale — same constant used at trigger time
-  // Snoo torso anchor at H*0.81 in screen space — hand reaches tap at H*0.86.
-  // Camera was snapped to 3H+H*0.25-H+120 at trigger time (player bottom-scroll position).
-  var STOP_X  = drainSnooStopX;
-  var STOP_Y  = H * 0.81;
+  var SC      = H * 0.16;
+
+  // Derive Snoo's position from the tap every frame — same pattern as feed Snoo on the lid.
+  // Tap is at world Y = 3H + H*0.25, screen Y = bsy + 8 = (3H + H*0.25 - camY) + 8.
+  // Snoo torso anchor sits just above the tap so his hand reaches it:
+  //   torso = tap_screen - bodyH*0.10 - arm offsets ≈ tap_screen - SC*0.19
+  var tapSY   = 3*H + H*0.25 - camY + 8;   // tap in screen space, live each frame
+  var STOP_X  = drainSnooStopX;             // X is stable (bin never scrolls horizontally)
+  var STOP_Y  = tapSY - SC * 0.19;          // torso anchor just above the tap
+
+  // Camera eases to keep the tap visible in the lower portion of the screen —
+  // same approach as feed Snoo's camera ease toward the lid.
+  var targetCam = 3*H + H*0.25 - H * 0.86 + 8; // tap at screen H*0.86
+  camY += (targetCam - camY) * 0.06;
+  camY = Math.round(camY);
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
@@ -2334,9 +2339,6 @@ function updateSnooDrain() {
       }
       break;
   }
-
-  // Camera was snapped to drainSnooStopY - H*0.58 at trigger time in triggerSnooDrain().
-  // No per-frame easing needed — holding it steady prevents any residual drift.
 }
 
 // ── Draw drain cinematic ──────────────────────────────────────────────────
