@@ -380,13 +380,15 @@ window.addEventListener('message', function(e) {
 
   // ── setWorldState — authoritative shared world from KV store ──────────────
   // Sent by host on post open with the current shared bin state.
-  // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1 }
+  // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
     if (msg.pooled           != null) pooled             = Math.max(0, Math.min(1, +msg.pooled           || 0));
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
     if (msg.scrapsLevel      != null) window._hostScrapsLevel = Math.max(0, Math.min(1, +msg.scrapsLevel || 1));
+    // weekStartTs — server-authoritative bin epoch, overrides local clock
+    if (msg.weekStartTs != null && typeof msg.weekStartTs === 'number') weekStartTs = msg.weekStartTs;
   }
 
   // ── setPresence — list of other players currently in the bin ──────────────
@@ -8575,5 +8577,6 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
+
 
 
