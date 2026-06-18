@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-17 Session 15
+> Last updated: 2026-06-18 Session 16 (pre-implementation — bin persistence plan)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -94,7 +94,7 @@ Shown before user taps to enter. Lives entirely in `main.tsx` render function.
 KV_WORM_SESSION(username)  — per-player session (position, HP, gut, karma, bornTs, weekStartTs...)
 KV_WORLD(postId)           — shared bin state (tLvl, pooled, castingEnrichment, scrapsLevel)
 KV_COCOONS(postId)         — all players' cocoons
-KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← DEFINED, NEVER READ (ISS-2)
+KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← P1 persistence target (see below)
 KV_QUEUE(postId)           — pending worm queue
 ```
 
@@ -112,7 +112,74 @@ Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pS
 
 ---
 
-## World Layout — The Bin
+## Bin Persistence — Weekly Drain (P1 Target — Session 16)
+
+The bin's weekly drain cycle must persist independently of any player being logged in.
+Current state: `weekStartTs` lives in per-player `KV_WORM_SESSION` — each player runs their own 7-day clock.
+Target state: `KV_WEEK` is the single source of truth for the bin's week epoch. All players share it.
+
+### Four-move implementation plan
+
+**Move 1 — Read `KV_WEEK` on open, send `weekStartTs` to game** *(main.tsx, ~15 lines)*
+In `MSG_READY` handler, after world state load:
+```typescript
+const weekRaw = await kvStore.get(KV_WEEK(roomId));
+let weekStartTs: number;
+if (weekRaw) {
+  const week = typeof weekRaw === 'string' ? JSON.parse(weekRaw) : weekRaw;
+  weekStartTs = typeof week.weekStartTs === 'number' ? week.weekStartTs : serverNow;
+} else {
+  weekStartTs = serverNow;
+  await kvStore.put(KV_WEEK(roomId), JSON.stringify({ weekStartTs, pot: 0, contributors: {} }));
+}
+webView.postMessage({ type: MSG_SET_WORLD_STATE, weekStartTs });
+```
+
+**Move 2 — game.js receives `weekStartTs` from `setWorldState`** *(game.js, 1 line)*
+In `setWorldState` handler:
+```javascript
+if (msg.weekStartTs != null && typeof msg.weekStartTs === 'number') weekStartTs = msg.weekStartTs;
+```
+
+**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)*
+In `MSG_WORLD_UPDATE` handler, add `weeklyDrain` branch:
+```typescript
+if (message.weeklyDrain === true) {
+  const newWeek = { weekStartTs: serverNow, pot: 0, contributors: {} };
+  await kvStore.put(KV_WEEK(roomId), JSON.stringify(newWeek));
+}
+```
+
+**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)*
+In the existing `RT_WORLD` broadcast inside `MSG_WORLD_UPDATE`, include `weekStartTs: serverNow` when `weeklyDrain === true`. All open clients' `setWorldState` handler (Move 2) resets their local clock simultaneously.
+
+### Data flow after all four moves
+```
+Player opens post
+  → main.tsx reads KV_WEEK → gets shared weekStartTs
+  → sends setWorldState { ..., weekStartTs }
+  → game.js sets weekStartTs = server value
+
+7 real days pass (bin clock ticks while any player is open)
+  → updatePhysics() fires triggerSnooDrain()
+  → game.js sends worldUpdate { weeklyDrain: true, tLvl: 0, ... }
+  → main.tsx writes new KV_WEEK { weekStartTs: now }
+  → main.tsx broadcasts RT_WORLD { weekStartTs: now } to all viewers
+  → all open clients reset their local weekStartTs
+
+Next player opens (days later)
+  → reads KV_WEEK → correct epoch → correct drain timing
+```
+
+### What remains unsolved after Move 1–4
+- If ALL players are away for > 7 days, the drain never fires (no active game loop).
+  This is acceptable for v1 — a scheduled server-side tick would require a Devvit scheduler
+  job, which is a separate feature. For now, the first player to open after the week expires
+  sees the drain cinematic immediately, which is the intended behaviour.
+- `weeklyContrib` (per-player contribution to tea bonus) is still client-authoritative.
+  Hardening this is P3 — requires accumulating contributions in `KV_WEEK.contributors`.
+
+---
 
 Y increases downward. `H` = canvas height. `WORLD_W = 1194` = fixed world width (iPad Pro 11" landscape).
 
@@ -402,3 +469,4 @@ const presenceChannel = useChannel({
 presenceChannel.subscribe();
 ```
 Declared **after** `useWebView` so `webView` is in scope.
+
