@@ -148,6 +148,7 @@ var valveDrips  = []; // screen-space tea drips falling from spout to grass [{x,
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
 var weekStartTs        = 0;       // timestamp of current week start
 var weeklyContrib      = 0;       // player's contribution this week
+var weeklyFeedPending  = false;   // true when feed cinematic was chained from weekly drain — resets clock on completion
 var floodActive        = false;   // flood event in progress — drives UI signals (valve colour, warning, tap state)
 var drainBonusPopups   = [];      // [{text, x, y, alpha, vy}] floating bonus text
 var scrapsLevel = 1.0;
@@ -2143,6 +2144,14 @@ function updateSnoo() {
       if (snooT >= snooPhaseDur.slideout) {
         snooPhase = 'done'; snooScene = null; snooT = 0;
         snooGamePaused = false;
+        // If this feed was chained from the weekly drain, stamp the new week epoch now
+        if (weeklyFeedPending) {
+          weeklyFeedPending = false;
+          weekStartTs = Date.now();
+          weeklyContrib = 0;
+          saveSession();
+          postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
+        }
         // Ease camera back to where the player is
         // camY will naturally follow the player again via updatePlayer
       }
@@ -4709,8 +4718,9 @@ function triggerWeeklyDrain() {
 
   // Reset sump for next week — pooled stays (compost saturation is independent of sump drain)
   tLvl = 0; tapReady = false;
-  weekStartTs = Date.now();
-  weeklyContrib = 0;
+  // NOTE: weekStartTs and weeklyContrib are NOT reset here — they reset after the
+  // feed cinematic completes in the snoo slideout (weeklyFeedPending path).
+  // This keeps the HUD showing "Refreshing now!" through both cinematics.
   // Flood always clears — weekly drain empties the sump by definition.
   // Valve accounting is only wiped if the valve was NOT the thing that drained it;
   // if the player drained it manually, closeDrainTap() handles valve cleanup separately.
@@ -4725,6 +4735,9 @@ function triggerWeeklyDrain() {
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
   postToHost({ type: 'worldUpdate', tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  // Chain feed cinematic immediately — no gap between drain and refill
+  weeklyFeedPending = true;
+  triggerSnoo('feed');
 }
 
 function drawPath(path) {
@@ -6939,6 +6952,31 @@ function draw() {
   ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(clockStr, W/2, 26);
+
+  // Bin Refresh countdown — centred directly under clock
+  var _refreshStr;
+  if (drainScene || (snooScene === 'feed' && weeklyFeedPending) || (weekStartTs > 0 && (weekStartTs + WEEK_DRAIN_MS) <= Date.now())) {
+    // Cinematic running OR week already expired (drain fires this frame) — show refreshing
+    _refreshStr = (frame % 40 < 20) ? '\uD83E\uDEA3 Refreshing now!' : '\uD83E\uDEA3 Refreshing now\u2026';
+    ctx.fillStyle = 'rgba(255,220,100,' + (0.7 + Math.sin(frame * 0.15) * 0.3) + ')';
+  } else {
+    var _msLeft = (weekStartTs + WEEK_DRAIN_MS) - Date.now();
+    var _totalSec = Math.floor(_msLeft / 1000);
+    var _rDays    = Math.floor(_totalSec / 86400);
+    var _rHrs     = Math.floor((_totalSec % 86400) / 3600);
+    var _rMins    = Math.floor((_totalSec % 3600) / 60);
+    if (_rDays > 0) {
+      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rDays + 'd ' + _rHrs + 'h ' + _rMins + 'm';
+    } else if (_rHrs > 0) {
+      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rHrs + 'h ' + _rMins + 'm';
+    } else {
+      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rMins + 'm';
+    }
+    ctx.fillStyle = 'rgba(200,210,160,0.75)';
+  }
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(_refreshStr, W/2, 38);
 
   // --- Cocoon status in HUD ---
   var myCocHUD = cocoons.filter(function(c){ return c.owner === username; });
