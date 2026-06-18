@@ -2234,19 +2234,15 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Snap camera to sump view FIRST so Snoo position is calculated from the correct camY,
-  // regardless of where the player was scrolled when the drain triggered.
-  // drainSnooStopY = world Y of Snoo torso anchor, derived from sump floor position.
+  // Camera: snap so the sump tap (world Y = 3H + H*0.25) sits at screen H*0.68.
+  // Snoo stands at STOP_Y = H*0.58 (fixed in updateSnooDrain) — 80px above the tap.
+  // One deterministic snap — no two-step calculation that fights itself.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  // Temporarily snap camY so _bsy resolves to the sump floor on screen
-  camY = Math.round(3*H + H*0.25 - H * 0.72);  // sump floor at screen Y = H*0.72
-  var _bsy  = 3*H + H*0.25 - camY;              // now always H*0.72
-  var _gY   = _bsy + 80;
+  camY = Math.round(3*H + H*0.25 - H * 0.68);
   drainSnooStopX = _b.cx - _SC * 0.127;
-  drainSnooStopY = (_gY - _SC*0.225 - _SC*0.270 - _SC*0.058 + 100) + camY;  // world-Y
-  // Final camera position: Snoo sits at H*0.58 in screen space
-  camY = Math.round(drainSnooStopY - H * 0.58);
+  // drainSnooStopY is world-Y of Snoo torso anchor = screen STOP_Y + camY
+  drainSnooStopY = H * 0.58 + camY;
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
