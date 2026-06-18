@@ -20,7 +20,7 @@
  *   queue:{postId}           — pending worm queue JSON array
  */
 
-import { Devvit, useWebView, useChannel } from '@devvit/public-api';
+import { Devvit, useWebView, useChannel, useState, useInterval } from '@devvit/public-api';
 
 // ─── Message type constants ───────────────────────────────────────────────────
 // Inbound (webview → host)
@@ -100,16 +100,292 @@ Devvit.configure({
   realtime: true,
 });
 
-// ─── Preview note ─────────────────────────────────────────────────────────────
+// ─── Preview animation helpers ────────────────────────────────────────────────
 //
-// The preview animation (falling trash items, amber glow) now runs entirely inside
-// the webview canvas — see the previewMode block at the top of webroot/game.js.
-// Auto-mounting the webview eliminates the Chrome hover-flicker that occurred when
-// regenerating data:image/svg+xml URLs every 100ms via useInterval.
-//
-// Architecture: webview mounts immediately on render. game.js starts in preview
-// mode (dark bg + falling items + worm icon), transitions to full game when
-// MSG_SET_USERNAME is received (after Devvit auth resolves ~200ms later).
+// The preview screen (shown in the Reddit feed before the user taps to play)
+// shows 33 trash items falling over a dark earth-tone background with a warm
+// amber glow. Items are pure SVG shapes — no external asset dependencies.
+// Interval slowed to 500ms (2fps) to minimise Chrome hover-flicker from
+// data:image/svg+xml URL churn. The canvas preview in game.js takes over at
+// 60fps once the user taps and the webview mounts.
+
+const TRASH_LAYOUT = [
+  { name: 'whole_tomato',   x:  19, yOff:  26, r: 22, rot: -0.15 },
+  { name: 'banana_peel',    x:  28, yOff: 362, r: 20, rot: -0.66 },
+  { name: 'bread_crust',    x:  30, yOff: 158, r: 24, rot: -0.24 },
+  { name: 'banana_peel',    x:  43, yOff: 471, r: 28, rot:  0.96 },
+  { name: 'banana_peel',    x:  86, yOff:  40, r: 23, rot: -0.07 },
+  { name: 'tea_bag',        x: 100, yOff: 470, r: 24, rot:  0.80 },
+  { name: 'lettuce',        x: 115, yOff: 350, r: 24, rot: -0.34 },
+  { name: 'newspaper',      x: 118, yOff: 255, r: 25, rot:  0.10 },
+  { name: 'overripe_fruit', x: 156, yOff: 163, r: 38, rot:  0.62 },
+  { name: 'egg_shell',      x: 191, yOff: 361, r: 24, rot: -0.54 },
+  { name: 'watermelon',     x: 194, yOff: 462, r: 17, rot: -0.62 },
+  { name: 'apple_core',     x: 198, yOff:  51, r: 20, rot:  0.20 },
+  { name: 'whole_tomato',   x: 202, yOff: 278, r: 25, rot: -0.81 },
+  { name: 'egg_shell',      x: 231, yOff: 244, r: 14, rot: -0.30 },
+  { name: 'watermelon',     x: 238, yOff:  30, r: 22, rot: -0.62 },
+  { name: 'egg_shell',      x: 246, yOff: 135, r: 10, rot:  0.40 },
+  { name: 'banana_peel',    x: 246, yOff: 226, r: 17, rot: -0.96 },
+  { name: 'corn_cob',       x: 252, yOff: 386, r: 20, rot:  0.20 },
+  { name: 'banana_peel',    x: 274, yOff: 478, r: 29, rot:  0.08 },
+  { name: 'newspaper',      x: 324, yOff: 271, r: 26, rot:  0.87 },
+  { name: 'banana_peel',    x: 329, yOff:  30, r: 29, rot:  0.08 },
+  { name: 'egg_shell',      x: 332, yOff: 382, r: 22, rot: -0.47 },
+  { name: 'whole_tomato',   x: 336, yOff: 470, r: 14, rot:  0.30 },
+  { name: 'tea_bag',        x: 346, yOff: 183, r: 18, rot:  0.80 },
+  { name: 'banana_peel',    x: 394, yOff: 141, r: 20, rot:  0.10 },
+  { name: 'lettuce',        x: 403, yOff: 387, r: 26, rot: -0.77 },
+  { name: 'bread_crust',    x: 410, yOff: 290, r: 26, rot: -0.67 },
+  { name: 'whole_tomato',   x: 414, yOff:  15, r: 20, rot: -0.10 },
+  { name: 'potato',         x: 451, yOff:  52, r: 16, rot:  0.30 },
+  { name: 'egg_shell',      x: 464, yOff: 256, r: 26, rot: -0.47 },
+  { name: 'pizza',          x: 464, yOff: 368, r: 25, rot: -0.53 },
+  { name: 'bread_crust',    x: 468, yOff: 464, r: 22, rot: -0.24 },
+  { name: 'lettuce',        x: 490, yOff: 173, r: 20, rot: -0.25 },
+];
+
+const FALL_SPEED = 2;
+const TILE_H = 512;
+
+function svgPizza(r: number): string {
+  const r09 = r * 0.9; const r085 = r * 0.85; const r072 = r * 0.72;
+  const r062 = r * 0.62; const r065 = r * 0.65;
+  return (
+    `<polygon points="0,${-r09} ${-r085},${r072} ${r085},${r072}" fill="#d4936a"/>` +
+    `<polygon points="0,${-r062} ${-r065},${r062} ${r065},${r062}" fill="#f0c888"/>` +
+    `<ellipse cx="${-r*0.15}" cy="${r*0.1}" rx="${r*0.32}" ry="${r*0.22}" transform="rotate(17)" fill="#c03020"/>` +
+    `<ellipse cx="${r*0.2}" cy="${-r*0.15}" rx="${r*0.2}" ry="${r*0.16}" transform="rotate(-29)" fill="#c03020"/>` +
+    `<ellipse cx="${r*0.05}" cy="${r*0.05}" rx="${r*0.18}" ry="${r*0.12}" transform="rotate(46)" fill="#f0d060"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.08}" rx="${r*0.13}" ry="${r*0.09}" transform="rotate(-17)" fill="#f0d060"/>` +
+    `<circle cx="${-r*0.05}" cy="${-r*0.28}" r="${r*0.12}" fill="#8a2010"/>` +
+    `<circle cx="${r*0.3}" cy="${r*0.28}" r="${r*0.09}" fill="#8a2010"/>` +
+    `<line x1="${-r085}" y1="${r072}" x2="${r085}" y2="${r072}" stroke="#b87040" stroke-width="${r*0.09}" stroke-linecap="round"/>`
+  );
+}
+
+function svgBananaPeel(r: number): string {
+  const lobeAngles = [-0.7, 0.2, 1.1, 2.0];
+  const lobeCols = ['#d4a808', '#c09808', '#e8c010', '#b88800'];
+  let s = '';
+  for (let i = 0; i < 4; i++) {
+    const deg = lobeAngles[i] * 180 / Math.PI;
+    s += `<g transform="rotate(${deg.toFixed(1)})">` +
+      `<path d="M 0,0 C ${r*0.2},${-r*0.3} ${r*0.5},${-r*1.0} ${r*0.15},${-r*1.1} C ${-r*0.2},${-r*1.0} ${-r*0.4},${-r*0.4} 0,0 Z" fill="${lobeCols[i]}"/>` +
+      `<path d="M 0,${-r*0.05} C ${r*0.1},${-r*0.3} ${r*0.3},${-r*0.85} ${r*0.1},${-r*0.95} C ${-r*0.1},${-r*0.82} ${-r*0.22},${-r*0.32} 0,${-r*0.05} Z" fill="#f5e090"/>` +
+      `</g>`;
+  }
+  s += `<circle cx="0" cy="0" r="${r*0.15}" fill="#5a3a00"/>`;
+  return s;
+}
+
+function svgAppleCore(r: number): string {
+  return (
+    `<ellipse cx="0" cy="0" rx="${r*0.38}" ry="${r*0.9}" fill="#d4c8a0"/>` +
+    `<ellipse cx="${-r*0.25}" cy="${-r*0.3}" rx="${r*0.22}" ry="${r*0.35}" transform="rotate(23)" fill="#d83020"/>` +
+    `<ellipse cx="${r*0.22}" cy="${r*0.2}" rx="${r*0.18}" ry="${r*0.28}" transform="rotate(-17)" fill="#d83020"/>` +
+    `<ellipse cx="${-r*0.12}" cy="${-r*0.12}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    `<ellipse cx="0" cy="${r*0.06}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    `<ellipse cx="${r*0.12}" cy="${r*0.24}" rx="${r*0.06}" ry="${r*0.1}" transform="rotate(11)" fill="#3a2008"/>` +
+    `<line x1="0" y1="${-r*0.9}" x2="${r*0.08}" y2="${-r*1.15}" stroke="#5a3010" stroke-width="${r*0.1}" stroke-linecap="round"/>` +
+    `<line x1="${-r*0.12}" y1="${r*0.88}" x2="${r*0.12}" y2="${r*0.95}" stroke="#5a3010" stroke-width="${r*0.08}" stroke-linecap="round"/>`
+  );
+}
+
+function svgLettuce(r: number): string {
+  return (
+    `<ellipse cx="0" cy="${r*0.1}" rx="${r*0.88}" ry="${r*0.72}" fill="#3a9020"/>` +
+    `<ellipse cx="${-r*0.3}" cy="${-r*0.1}" rx="${r*0.55}" ry="${r*0.45}" fill="#50b830"/>` +
+    `<ellipse cx="${r*0.25}" cy="${-r*0.05}" rx="${r*0.48}" ry="${r*0.4}" fill="#60c838"/>` +
+    `<ellipse cx="0" cy="${-r*0.15}" rx="${r*0.35}" ry="${r*0.3}" fill="#78e040"/>` +
+    `<line x1="0" y1="${-r*0.55}" x2="0" y2="${r*0.55}" stroke="#286010" stroke-width="${r*0.06}" stroke-linecap="round"/>` +
+    `<line x1="0" y1="${-r*0.2}" x2="${-r*0.5}" y2="${r*0.1}" stroke="#286010" stroke-width="${r*0.03}" stroke-linecap="round"/>` +
+    `<line x1="0" y1="${r*0.1}" x2="${r*0.5}" y2="${r*0.35}" stroke="#286010" stroke-width="${r*0.03}" stroke-linecap="round"/>`
+  );
+}
+
+function svgEggShell(r: number): string {
+  return (
+    `<path d="M ${-r*0.75},${r*0.1} C ${-r*0.8},${r*0.8} ${r*0.8},${r*0.8} ${r*0.75},${r*0.1} Z" fill="#ede8d8"/>` +
+    `<ellipse cx="0" cy="${r*0.5}" rx="${r*0.3}" ry="${r*0.2}" fill="#d4a820"/>` +
+    `<g transform="rotate(-20)">` +
+    `<path d="M ${-r*0.6},${-r*0.8} C ${-r*0.72},${-r*0.1} ${r*0.72},${-r*0.1} ${r*0.6},${-r*0.8} Z" fill="#f0ead8"/>` +
+    `<polyline points="${-r*0.6},${-r*0.8} ${-r*0.3},${-r*0.65} ${-r*0.1},${-r*0.78} ${r*0.15},${-r*0.6} ${r*0.35},${-r*0.72} ${r*0.6},${-r*0.8}" fill="none" stroke="#c8c0a8" stroke-width="${r*0.05}"/>` +
+    `</g>`
+  );
+}
+
+function svgTeaBag(r: number): string {
+  const rr = r * 0.12;
+  return (
+    `<rect x="${-r*0.55}" y="${r*0.0}" width="${r*1.1}" height="${r*0.85}" rx="${rr}" fill="#c8a060"/>` +
+    `<ellipse cx="0" cy="${r*0.45}" rx="${r*0.32}" ry="${r*0.25}" fill="#7a4820"/>` +
+    `<rect x="${-r*0.22}" y="${-r*0.88}" width="${r*0.44}" height="${r*0.28}" rx="${r*0.06}" fill="#e8e0c8"/>` +
+    `<path d="M 0,${-r*0.6} Q ${r*0.3},${-r*0.35} ${r*0.05},0" fill="none" stroke="#a08060" stroke-width="${r*0.05}" stroke-linecap="round"/>` +
+    `<line x1="${-r*0.1}" y1="${-r*0.6}" x2="${r*0.1}" y2="${-r*0.6}" stroke="#888" stroke-width="${r*0.07}" stroke-linecap="round"/>`
+  );
+}
+
+function svgNewspaper(r: number): string {
+  return (
+    `<polygon points="${-r*0.9},${-r*0.7} ${-r*0.5},${-r*0.95} ${r*0.3},${-r*0.88} ${r*0.95},${-r*0.55} ${r*0.85},${r*0.4} ${r*0.4},${r*0.92} ${-r*0.4},${r*0.88} ${-r*0.92},${r*0.5}" fill="#d8d4b8"/>` +
+    `<line x1="${-r*0.7}" y1="${-r*0.44}" x2="${r*0.68}" y2="${-r*0.44}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${-r*0.22}" x2="${r*0.66}" y2="${-r*0.21}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.0}" x2="${r*0.70}" y2="${r*0.01}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.22}" x2="${r*0.65}" y2="${r*0.23}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<line x1="${-r*0.7}" y1="${r*0.44}" x2="${r*0.67}" y2="${r*0.43}" stroke="#888070" stroke-width="${r*0.04}"/>` +
+    `<rect x="${-r*0.65}" y="${-r*0.62}" width="${r*1.3}" height="${r*0.18}" fill="#555048"/>` +
+    `<line x1="${-r*0.8}" y1="${-r*0.2}" x2="${r*0.8}" y2="${r*0.1}" stroke="#a8a490" stroke-width="${r*0.06}"/>`
+  );
+}
+
+function svgWatermelon(r: number): string {
+  return (
+    `<polygon points="0,${-r*0.15} ${-r*0.95},${r*0.82} ${r*0.95},${r*0.82}" fill="#3a8818"/>` +
+    `<polygon points="0,${-r*0.08} ${-r*0.82},${r*0.75} ${r*0.82},${r*0.75}" fill="#e8f4d8"/>` +
+    `<polygon points="0,${r*0.05} ${-r*0.68},${r*0.72} ${r*0.68},${r*0.72}" fill="#e82840"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${r*0.38}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${r*0.18}" cy="${r*0.28}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${-r*0.05}" cy="${r*0.52}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<ellipse cx="${r*0.4}" cy="${r*0.48}" rx="${r*0.04}" ry="${r*0.07}" transform="rotate(17)" fill="#1a1008"/>` +
+    `<line x1="${-r*0.5}" y1="${r*0.42}" x2="${-r*0.72}" y2="${r*0.78}" stroke="#285a10" stroke-width="${r*0.06}"/>` +
+    `<line x1="${r*0.38}" y1="${r*0.38}" x2="${r*0.58}" y2="${r*0.78}" stroke="#285a10" stroke-width="${r*0.06}"/>`
+  );
+}
+
+function svgWholeTomato(r: number): string {
+  let ribs = '';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.3;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    ribs += `<path d="M ${(ca*r*0.12).toFixed(1)},${(sa*r*0.12-r*0.72).toFixed(1)} C ${(ca*r*0.5).toFixed(1)},${(sa*r*0.2).toFixed(1)} ${(ca*r*0.6).toFixed(1)},${(sa*r*0.5).toFixed(1)} ${(ca*r*0.55).toFixed(1)},${(sa*r*0.88).toFixed(1)}" fill="none" stroke="#a01818" stroke-width="${(r*0.04).toFixed(1)}"/>`;
+  }
+  let calyx = '';
+  for (let i = 0; i < 5; i++) {
+    const a = i * Math.PI * 2 / 5 - Math.PI / 2;
+    const a2 = a + 0.6;
+    calyx += `<path d="M 0,${(-r*0.8).toFixed(1)} L ${(Math.cos(a)*r*0.32).toFixed(1)},${(Math.sin(a)*r*0.2-r*0.82).toFixed(1)} L ${(Math.cos(a2)*r*0.1).toFixed(1)},${(Math.sin(a2)*r*0.1-r*0.82).toFixed(1)} Z" fill="#286010"/>`;
+  }
+  return (
+    `<path d="M ${-r*0.1},${-r*0.82} C ${r*0.65},${-r*0.78} ${r*0.95},${-r*0.18} ${r*0.92},${r*0.28} C ${r*0.85},${r*0.78} ${r*0.3},${r*0.95} 0,${r*0.95} C ${-r*0.35},${r*0.95} ${-r*0.88},${r*0.72} ${-r*0.92},${r*0.22} C ${-r*0.95},${-r*0.28} ${-r*0.65},${-r*0.8} ${-r*0.1},${-r*0.82} Z" fill="#d02020"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.28}" rx="${r*0.3}" ry="${r*0.2}" fill="rgba(255,160,140,0.35)" transform="rotate(-29)"/>` +
+    ribs + calyx
+  );
+}
+
+function svgBreadCrust(r: number): string {
+  return (
+    `<rect x="${-r*0.8}" y="${-r*0.55}" width="${r*1.6}" height="${r*1.1}" rx="${r*0.22}" fill="#c89840"/>` +
+    `<rect x="${-r*0.8}" y="${-r*0.55}" width="${r*1.6}" height="${r*0.38}" rx="${r*0.22}" fill="#8a5018"/>` +
+    `<ellipse cx="${-r*0.2}" cy="${r*0.08}" rx="${r*0.35}" ry="${r*0.2}" fill="#e8c060" transform="rotate(-8)"/>` +
+    `<ellipse cx="${r*0.3}" cy="${r*0.22}" rx="${r*0.22}" ry="${r*0.14}" fill="#e8c060" transform="rotate(5)"/>`
+  );
+}
+
+function svgOverripeFruit(r: number): string {
+  return (
+    `<path d="M ${-r*0.1},${-r*0.88} C ${r*0.65},${-r*0.8} ${r*0.92},${-r*0.1} ${r*0.85},${r*0.5} C ${r*0.7},${r*0.92} ${-r*0.4},${r*0.88} ${-r*0.82},${r*0.55} C ${-r*1.0},${r*0.1} ${-r*0.75},${-r*0.62} ${-r*0.1},${-r*0.88} Z" fill="#6a1858"/>` +
+    `<ellipse cx="${r*0.2}" cy="${r*0.3}" rx="${r*0.42}" ry="${r*0.28}" fill="#c03880" transform="rotate(29)"/>` +
+    `<line x1="${-r*0.08}" y1="${-r*0.88}" x2="${r*0.04}" y2="${-r*1.1}" stroke="#3a1808" stroke-width="${r*0.1}" stroke-linecap="round"/>` +
+    `<path d="M ${-r*0.5},${-r*0.3} C ${-r*0.2},${r*0.1} ${r*0.3},0 ${r*0.55},${r*0.4}" fill="none" stroke="rgba(100,10,60,0.4)" stroke-width="${r*0.05}"/>` +
+    `<path d="M ${-r*0.6},${r*0.2} C ${-r*0.1},${r*0.5} ${r*0.2},${r*0.6} ${r*0.5},${r*0.62}" fill="none" stroke="rgba(100,10,60,0.4)" stroke-width="${r*0.05}"/>`
+  );
+}
+
+function svgCornCob(r: number): string {
+  let kernels = '';
+  for (let row = -3; row <= 3; row++) {
+    for (let col = 0; col < 4; col++) {
+      const kx = (col - 1.5) * r * 0.18;
+      const ky = row * r * 0.22;
+      kernels += `<ellipse cx="${kx.toFixed(1)}" cy="${ky.toFixed(1)}" rx="${(r*0.08).toFixed(1)}" ry="${(r*0.09).toFixed(1)}" fill="#f0cc50"/>`;
+    }
+  }
+  let silk = '';
+  for (let i = 0; i < 5; i++) {
+    const sx = ((i - 2) * r * 0.08).toFixed(1);
+    const sx2 = ((i - 2) * r * 0.12).toFixed(1);
+    silk += `<line x1="${sx}" y1="${(-r*0.88).toFixed(1)}" x2="${sx2}" y2="${(-r*1.15).toFixed(1)}" stroke="#e8c878" stroke-width="${(r*0.03).toFixed(1)}" stroke-linecap="round"/>`;
+  }
+  return (
+    `<ellipse cx="0" cy="0" rx="${r*0.42}" ry="${r*0.9}" fill="#d4a828"/>` +
+    kernels + silk +
+    `<path d="M ${-r*0.42},${r*0.78} C ${-r*0.6},${r*1.1} ${r*0.1},${r*1.2} ${r*0.3},${r*0.9} L ${r*0.42},${r*0.78} Z" fill="#78a028"/>`
+  );
+}
+
+function svgPotato(r: number): string {
+  return (
+    `<path d="M ${-r*0.15},${-r*0.88} C ${r*0.6},${-r*0.82} ${r*0.95},${-r*0.2} ${r*0.9},${r*0.32} C ${r*0.82},${r*0.82} ${r*0.25},${r*0.95} ${-r*0.05},${r*0.92} C ${-r*0.42},${r*0.88} ${-r*0.92},${r*0.65} ${-r*0.88},${r*0.18} C ${-r*0.85},${-r*0.35} ${-r*0.62},${-r*0.85} ${-r*0.15},${-r*0.88} Z" fill="#b89858"/>` +
+    `<ellipse cx="${r*0.22}" cy="${r*0.18}" rx="${r*0.28}" ry="${r*0.18}" fill="#8a6830" transform="rotate(12)"/>` +
+    `<ellipse cx="${-r*0.28}" cy="${-r*0.2}" rx="${r*0.18}" ry="${r*0.12}" fill="#8a6830" transform="rotate(-15)"/>` +
+    `<circle cx="${-r*0.05}" cy="${-r*0.6}" r="${r*0.07}" fill="#5a3810"/>` +
+    `<circle cx="${r*0.45}" cy="${r*0.48}" r="${r*0.06}" fill="#5a3810"/>` +
+    `<circle cx="${-r*0.5}" cy="${r*0.38}" r="${r*0.06}" fill="#5a3810"/>`
+  );
+}
+
+function svgTrashShapes(name: string, r: number): string {
+  switch (name) {
+    case 'pizza':          return svgPizza(r);
+    case 'banana_peel':    return svgBananaPeel(r);
+    case 'apple_core':     return svgAppleCore(r);
+    case 'lettuce':        return svgLettuce(r);
+    case 'egg_shell':      return svgEggShell(r);
+    case 'tea_bag':        return svgTeaBag(r);
+    case 'newspaper':      return svgNewspaper(r);
+    case 'watermelon':     return svgWatermelon(r);
+    case 'whole_tomato':   return svgWholeTomato(r);
+    case 'bread_crust':    return svgBreadCrust(r);
+    case 'overripe_fruit': return svgOverripeFruit(r);
+    case 'corn_cob':       return svgCornCob(r);
+    case 'potato':         return svgPotato(r);
+    default:               return `<circle cx="0" cy="0" r="${r}" fill="#8a6040"/>`;
+  }
+}
+
+function buildBgDataUrl(tick: number): string {
+  const totalFall = tick * FALL_SPEED;
+  const glow  = 0.28 + Math.sin(tick * 0.25) * 0.12;
+  const sc    = 1    + Math.sin(tick * 0.25) * 0.032;
+  const glowRx  = (160 * sc).toFixed(1);
+  const glowRy  = (145 * sc).toFixed(1);
+  const glowOp  = glow.toFixed(3);
+  const glowOp2 = (glow * 0.45).toFixed(3);
+
+  let items = '';
+  for (const item of TRASH_LAYOUT) {
+    const rawY = (item.yOff + totalFall) % TILE_H;
+    const rot  = (item.rot * 180 / Math.PI).toFixed(2);
+    const r    = item.r;
+    items += `<g transform="translate(${item.x},${rawY.toFixed(1)}) rotate(${rot})">` +
+      svgTrashShapes(item.name, r) + `</g>`;
+    const wrapY = rawY - TILE_H;
+    items += `<g transform="translate(${item.x},${wrapY.toFixed(1)}) rotate(${rot})">` +
+      svgTrashShapes(item.name, r) + `</g>`;
+  }
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
+    `<defs>` +
+    `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +
+    `<stop offset="35%" stop-color="#000" stop-opacity="0"/>` +
+    `<stop offset="100%" stop-color="#000" stop-opacity="0.72"/>` +
+    `</radialGradient>` +
+    `<radialGradient id="glow" cx="50%" cy="50%" r="50%">` +
+    `<stop offset="0%"   stop-color="#d4a060" stop-opacity="${glowOp}"/>` +
+    `<stop offset="60%"  stop-color="#c07820" stop-opacity="${glowOp2}"/>` +
+    `<stop offset="100%" stop-color="#804010" stop-opacity="0"/>` +
+    `</radialGradient>` +
+    `</defs>` +
+    `<rect width="512" height="512" fill="#2a1a0a"/>` +
+    items +
+    `<rect width="512" height="512" fill="url(#vig)"/>` +
+    `<ellipse cx="256" cy="256" rx="${glowRx}" ry="${glowRy}" fill="url(#glow)"/>` +
+    `</svg>`;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
 Devvit.addCustomPostType({
   name: 'Wigglers Room',
@@ -482,20 +758,28 @@ Devvit.addCustomPostType({
     });
     floodChannel.subscribe();
 
-    // ── Auto-mount webview immediately ────────────────────────────────────────
-    // The webview is now the preview. game.js starts in preview mode (falling
-    // trash animation + worm icon on canvas) and transitions to the full game
-    // when MSG_SET_USERNAME arrives. This eliminates the Chrome hover-flicker
-    // that was caused by regenerating data:image/svg+xml URLs every 100ms.
-    // No useInterval, no useState, no data URL churn — requestAnimationFrame
-    // inside the webview handles animation natively at 60fps.
-    webView.mount();
+    // ── Preview animation ─────────────────────────────────────────────────────
+    // Interval slowed to 500ms (2fps) — reduces data:image/svg+xml URL churn
+    // which is the root cause of Chrome hover-flicker. At 2fps the fall speed
+    // is 4px/s (barely perceptible drift), but no flicker on hover.
+    // The canvas preview in game.js (requestAnimationFrame) takes over at 60fps
+    // the moment the user taps and the webview mounts.
+    const [tick,  setTick]  = useState<number>(0);
+    const [bgUrl, setBgUrl] = useState<string>(() => buildBgDataUrl(0));
 
-    // Render a minimal loading backdrop while the webview paints its first frame.
-    // The webview overlays this instantly (< 1 frame on desktop).
+    const anim = useInterval(() => {
+      setTick((t: number) => {
+        const next = t + 1;
+        setBgUrl(buildBgDataUrl(next));
+        return next;
+      });
+    }, 500);
+    anim.start();
+
     return (
-      <zstack width="100%" height="100%" alignment="center middle">
-        <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
+      <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
+        <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
+        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
       </zstack>
     );
   },
