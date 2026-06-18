@@ -5295,13 +5295,13 @@ function draw() {
   skyGrad.addColorStop(1, '#2a1e0c');
   ctx.fillStyle = skyGrad;
   // Start at -centreOffsetX (left edge of canvas in translated world space) and span W.
-  ctx.fillRect(-centreOffsetX, 0, W, H);
+  ctx.fillRect(-centreOffsetX, 0, WORLD_W, H);
 
   // Sun/Moon are clipped to above the lid only
   var skyHeight = Math.max(0, lidScreenY);
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, 0, W, Math.max(1, skyHeight));
+  ctx.rect(0, 0, WORLD_W, Math.max(1, skyHeight));
   ctx.clip();
 
   // Stars (night only)
