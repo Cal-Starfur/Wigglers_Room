@@ -2,6 +2,7 @@
 
 
 
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -504,18 +505,16 @@ Devvit.addCustomPostType({
     floodChannel.subscribe();
 
     // ── Preview animation state ────────────────────────────────────────────
-    // Fetch icon.png as base64 once at mount — lets us embed it inside the SVG
-    // so icon scaling happens inside the data URL (no Devvit layout re-render).
-    const [isClient, setIsClient] = useState<boolean>(false);
+    // Fetch icon.png as base64 once — embed it inside the glow SVG so the icon
+    // scales without triggering a Devvit block layout re-render.
+    // Runs unconditionally (no depends trick) so it fires on first client render.
     const { data: iconB64 } = useAsync(async () => {
-      const res = await fetch('icon.png');
-      const buf = await res.arrayBuffer();
+      const res   = await fetch('icon.png');
+      const buf   = await res.arrayBuffer();
       const bytes = new Uint8Array(buf);
       let str = '';
       for (let i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
       return btoa(str);
-    }, {
-      depends: [isClient],
     });
 
     const [tick,    setTick]    = useState<number>(0);
@@ -530,19 +529,17 @@ Devvit.addCustomPostType({
     }, 100);
     anim.start();
 
-    // Trigger client-side mount so useAsync fires
-    useState<null>(() => { setIsClient(true); return null; });
-
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
         <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
-        {/* Glow + icon combined in one SVG — single data URL swap, no layout jank */}
+        {/* Static icon always visible as the base layer — never disappears */}
+        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
+        {/* Glow SVG on top — transparent until interval fires, then includes
+            a scaled copy of the icon embedded as base64 once iconB64 loads */}
         {glowUrl ? (
           <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        ) : (
-          <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
-        )}
+        ) : null}
       </zstack>
     );
   },
@@ -571,6 +568,7 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
 
 
