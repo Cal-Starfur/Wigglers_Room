@@ -5382,7 +5382,7 @@ function draw() {
     var gH = H - gTop;
     if (gH > 0) {
       ctx.fillStyle = '#3a8018';
-      ctx.fillRect(-centreOffsetX, gTop, W, gH);
+      ctx.fillRect(-centreOffsetX, gTop, WORLD_W, gH);
     }
 
     // Scatter static grass tufts — world Y converted to screen (only when near horizon)
