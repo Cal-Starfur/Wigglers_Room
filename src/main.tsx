@@ -576,6 +576,30 @@ Devvit.addCustomPostType({
               console.warn('[main] World state load failed:', e);
             }
 
+            // Load shared week epoch — drives the bin's weekly drain clock
+            // KV_WEEK is the single source of truth for weekStartTs across all players.
+            // If it doesn't exist yet (first player ever on this post), we stamp it now.
+            try {
+              const weekRaw = await kvStore.get(KV_WEEK(roomId));
+              let weekStartTs: number;
+              if (weekRaw) {
+                const week = typeof weekRaw === 'string' ? JSON.parse(weekRaw) : weekRaw;
+                weekStartTs = typeof week.weekStartTs === 'number' ? week.weekStartTs : serverNow;
+              } else {
+                // First open ever — stamp the epoch and persist it
+                weekStartTs = serverNow;
+                await kvStore.put(KV_WEEK(roomId), JSON.stringify({
+                  weekStartTs,
+                  pot: 0,
+                  contributors: {},
+                }));
+              }
+              // Send separately so it merges cleanly with any prior setWorldState
+              webView.postMessage({ type: MSG_SET_WORLD_STATE, weekStartTs });
+            } catch (e) {
+              console.warn('[main] Week state load failed:', e);
+            }
+
             // Load and send pending worm queue
             try {
               const queueRaw = await kvStore.get(KV_QUEUE(roomId));
@@ -913,3 +937,4 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
