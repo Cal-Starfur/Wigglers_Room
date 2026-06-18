@@ -310,8 +310,6 @@ window.addEventListener('message', function(e) {
   // Devvit host sends: { type: 'setUsername', username: 'u/SoilKing42' }
   if (msg.type === 'setUsername' && msg.username) {
     username = msg.username;
-    // Bridge is alive — stop retrying ready
-    window._devvitSetupPending = false;
   }
 
   // ── setSession — server-authoritative save data ───────────────────────────
@@ -8538,55 +8536,34 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
 // We wait up to 400ms for that message. If it arrives, setup() is called from
 // the message handler above. If nothing arrives (local dev, plain HTML), we
 // start immediately with whatever is in localStorage.
-// The 400ms window is invisible to the player — the canvas is blank during it.
+// Boot: always attempt Devvit handshake (works for web iframe AND mobile RN WebView).
+// postToHost is safe to call anywhere — it's a no-op if no host is listening.
+// The game starts via fallback timer regardless, so standalone mode still works.
 (function() {
-  // Detect Devvit host environment — works for both web iframe AND mobile React Native WebView.
-  // On mobile: window.self === window.top (not an iframe), but we're still inside Devvit.
-  // We treat any non-standalone context as Devvit: if URL has no real hostname, or if
-  // we detect a React Native user agent, or if window.parent exists and differs from window.
-  var isInIframe = (function() {
-    try {
-      if (window.self !== window.top) return true;        // classic web iframe
-      if (/ReactNative|wv/.test(navigator.userAgent)) return true; // RN WebView UA
-      if (window.location.hostname === '' || window.location.protocol === 'about:') return true;
-      if (typeof window.ReactNativeWebView !== 'undefined') return true;
-      return false;
-    } catch(e) { return true; }
-  })();
+  // Always send ready — host will respond with setSession if it's listening
+  postToHost({ type: 'ready' });
+  postToHost({ type: 'requestPresence' });
+  window._devvitSetupPending = true;
 
-  // Always attempt Devvit handshake — on mobile isInIframe may be false even inside Devvit.
-  // postToHost is a no-op if host isn't listening, so this is safe in standalone too.
-  var _inDevvit = isInIframe || (window.location.hostname === 'localhost' ? false : true);
-
-  if (_inDevvit) {
-    window._devvitSetupPending = true;
-
-    // Retry sending 'ready' until the host responds (mobile bridge may not be ready immediately)
-    // Stops as soon as setSession or setUsername is received.
-    var _readyAttempts = 0;
-    function _sendReady() {
-      if (!window._devvitSetupPending) return; // already got a response
-      postToHost({ type: 'ready' });
-      postToHost({ type: 'requestPresence' });
-      _readyAttempts++;
-      if (_readyAttempts < 10) {
-        // Retry with backoff: 200ms, 400ms, 600ms... up to 10 attempts
-        setTimeout(_sendReady, 200 * _readyAttempts);
-      }
+  // Start game after timeout whether or not host responds.
+  // If host sends setSession before timeout, that triggers setup() early and cancels timer.
+  window._devvitSetupTimer = setTimeout(function() {
+    if (window._devvitSetupPending) {
+      window._devvitSetupPending = false;
+      setup(); loop();
     }
-    _sendReady();
+  }, 3000);
 
-    // Hard fallback: if no session arrives within 5000ms, start anyway
-    window._devvitSetupTimer = setTimeout(function() {
-      if (window._devvitSetupPending) {
-        window._devvitSetupPending = false;
-        setup(); loop();
-      }
-    }, 5000);
-  } else {
-    // Not in an iframe — local dev or standalone. Start immediately.
-    setTimeout(function() { setup(); loop(); }, 100);
-  }
+  // On mobile the bridge may not be ready immediately — retry ready a few times
+  var _retries = 0;
+  var _retryReady = setInterval(function() {
+    if (!window._devvitSetupPending || _retries >= 5) {
+      clearInterval(_retryReady);
+      return;
+    }
+    postToHost({ type: 'ready' });
+    _retries++;
+  }, 500);
 })();
 
 
