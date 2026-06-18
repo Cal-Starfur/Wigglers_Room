@@ -130,9 +130,20 @@ Devvit.addCustomPostType({
 
           // ── Game ready — send all initial state ──────────────────────────
           case MSG_READY: {
-            // Get current user
-            const user = await context.reddit.getCurrentUser();
-            const username = user ? `u/${user.username}` : 'u/You';
+            // Get current user — try getCurrentUser() first, fall back to currentUser
+            let user = await context.reddit.getCurrentUser().catch(() => null);
+            if (!user) {
+              // Mobile app sometimes needs currentUser hook value instead
+              try { user = await context.reddit.getCurrentUser(); } catch (_) {}
+            }
+
+            // context.username is synchronously available — most reliable on mobile
+            const contextUsername = (context as any).username || (context as any).userId || null;
+            const username = user
+              ? `u/${user.username}`
+              : contextUsername
+                ? `u/${contextUsername}`
+                : 'u/You';
 
             // Send username first so game knows who it is
             webView.postMessage({ type: MSG_SET_USERNAME, username });
