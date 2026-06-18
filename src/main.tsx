@@ -1,6 +1,7 @@
 
 
 
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -23,7 +24,7 @@
  *   queue:{postId}           — pending worm queue JSON array
  */
 
-import { Devvit, useWebView, useChannel, useState, useInterval } from '@devvit/public-api';
+import { Devvit, useWebView, useChannel, useState, useInterval, useAsync } from '@devvit/public-api';
 
 // ─── Message type constants ───────────────────────────────────────────────────
 // Inbound (webview → host)
@@ -107,17 +108,26 @@ Devvit.configure({
 
 // Pulsing warm amber glow behind the icon — transparent SVG layered over the bg.
 // Wave speed 0.10 at 10fps = ~6 second breath cycle — natural and smooth.
-function buildGlowDataUrl(tick: number): string {
-  const glow = 0.28 + Math.sin(tick * 0.10) * 0.12;
-  const sc   = 1 + Math.sin(tick * 0.10) * 0.032;
-  const svg  =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
+// Pulsing glow + icon embedded as base64 inside a single SVG — one data URL swap per tick,
+// no Devvit block layout re-render. Icon and glow share the same sine wave so they
+// breathe in perfect sync. iconB64 is fetched once at mount via useAsync.
+function buildGlowDataUrl(tick: number, iconB64: string): string {
+  const glow    = 0.28 + Math.sin(tick * 0.10) * 0.12;
+  const sc      = 1 + Math.sin(tick * 0.10) * 0.032;
+  const iSize   = (256 * sc).toFixed(1);
+  const iOffset = ((512 - 256 * sc) / 2).toFixed(1);
+  const iconTag = iconB64
+    ? `<image href="data:image/png;base64,${iconB64}" x="${iOffset}" y="${iOffset}" width="${iSize}" height="${iSize}"/>`
+    : `<image href="icon.png" x="${iOffset}" y="${iOffset}" width="${iSize}" height="${iSize}"/>`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">` +
     `<radialGradient id="g" cx="50%" cy="50%" r="50%">` +
     `<stop offset="0%"   stop-color="#d4a060" stop-opacity="${glow.toFixed(3)}"/>` +
     `<stop offset="60%"  stop-color="#c07820" stop-opacity="${(glow * 0.45).toFixed(3)}"/>` +
     `<stop offset="100%" stop-color="#804010" stop-opacity="0"/>` +
     `</radialGradient>` +
     `<ellipse cx="256" cy="256" rx="${(160 * sc).toFixed(1)}" ry="${(145 * sc).toFixed(1)}" fill="url(#g)"/>` +
+    iconTag +
     `</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -494,26 +504,45 @@ Devvit.addCustomPostType({
     floodChannel.subscribe();
 
     // ── Preview animation state ────────────────────────────────────────────
+    // Fetch icon.png as base64 once at mount — lets us embed it inside the SVG
+    // so icon scaling happens inside the data URL (no Devvit layout re-render).
+    const [isClient, setIsClient] = useState<boolean>(false);
+    const { data: iconB64 } = useAsync(async () => {
+      const res = await fetch('icon.png');
+      const buf = await res.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let str = '';
+      for (let i = 0; i < bytes.byteLength; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str);
+    }, {
+      depends: [isClient],
+    });
+
     const [tick,    setTick]    = useState<number>(0);
     const [glowUrl, setGlowUrl] = useState<string>('');
 
     const anim = useInterval(() => {
       setTick((t: number) => {
         const next = t + 1;
-        setGlowUrl(buildGlowDataUrl(next));
+        setGlowUrl(buildGlowDataUrl(next, iconB64 ?? ''));
         return next;
       });
     }, 100);
     anim.start();
 
+    // Trigger client-side mount so useAsync fires
+    useState<null>(() => { setIsClient(true); return null; });
+
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
         <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
+        {/* Glow + icon combined in one SVG — single data URL swap, no layout jank */}
         {glowUrl ? (
           <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        ) : null}
-        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
+        ) : (
+          <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
+        )}
       </zstack>
     );
   },
@@ -542,6 +571,7 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
 
 
