@@ -1,3 +1,4 @@
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -102,170 +103,20 @@ Devvit.configure({
 
 // ─── Preview animation helpers ────────────────────────────────────────────────
 
-// 27 trash items with their SVG colours and sizes (matches game.js TRASH_TYPES)
-const PREVIEW_TRASH = [
-  { name: 'pizza',            col: '#d4936a', col2: '#f0c888', sz: 24 },
-  { name: 'banana_peel',      col: '#c8a810', col2: '#f0d040', sz: 19 },
-  { name: 'apple_core',       col: '#c84030', col2: '#f06050', sz: 15 },
-  { name: 'egg_shell',        col: '#d8d0b0', col2: '#f0e8c8', sz: 17 },
-  { name: 'tea_bag',          col: '#7a4820', col2: '#b07840', sz: 13 },
-  { name: 'orange_peel',      col: '#c86010', col2: '#f09030', sz: 20 },
-  { name: 'lettuce',          col: '#60a830', col2: '#90d050', sz: 23 },
-  { name: 'broccoli',         col: '#3a8828', col2: '#60b840', sz: 19 },
-  { name: 'watermelon_chunk', col: '#e03040', col2: '#60c040', sz: 24 },
-  { name: 'mushroom',         col: '#c8a880', col2: '#f0e0c0', sz: 17 },
-  { name: 'whole_tomato',     col: '#c82020', col2: '#f04040', sz: 18 },
-  { name: 'corn_cob',         col: '#d4a020', col2: '#f0cc60', sz: 19 },
-  { name: 'dried_leaves',     col: '#8a6020', col2: '#c09040', sz: 21 },
-  { name: 'bread_crust',      col: '#c89840', col2: '#e8c060', sz: 20 },
-  { name: 'melon_rind',       col: '#60a828', col2: '#f0e8a0', sz: 26 },
-  { name: 'grass_clippings',  col: '#508020', col2: '#80c030', sz: 19 },
-  { name: 'dead_flower',      col: '#b06820', col2: '#e09840', sz: 18 },
-];
-
-// Deterministic pseudo-random using a seed (so server + client agree on initial state)
-function seededRand(seed: number): number {
-  const x = Math.sin(seed + 1) * 43758.5453123;
-  return x - Math.floor(x);
-}
-
-// Build the initial scrap particle list (positions staggered so they fill screen on load)
-function initScraps(): ScrapParticle[] {
-  const COUNT = 18;
-  const particles: ScrapParticle[] = [];
-  for (let i = 0; i < COUNT; i++) {
-    const t = PREVIEW_TRASH[i % PREVIEW_TRASH.length];
-    particles.push({
-      x:    seededRand(i * 7)   * 480,
-      y:    seededRand(i * 13)  * 512,       // spread across full height initially
-      vy:   0.55 + seededRand(i * 3) * 1.1,
-      vx:   (seededRand(i * 5) - 0.5) * 0.4,
-      rot:  seededRand(i * 11)  * 360,
-      vrot: (seededRand(i * 17) - 0.5) * 3.5,
-      name: t.name,
-      col:  t.col,
-      col2: t.col2,
-      r:    t.sz * (0.75 + seededRand(i * 19) * 0.5),
-    });
-  }
-  return particles;
-}
-
-type ScrapParticle = {
-  x: number; y: number; vy: number; vx: number;
-  rot: number; vrot: number;
-  name: string; col: string; col2: string; r: number;
-};
-
-// Advance particle physics by one tick
-function tickScraps(prev: ScrapParticle[]): ScrapParticle[] {
-  return prev.map(p => {
-    let x   = p.x   + p.vx;
-    let y   = p.y   + p.vy;
-    const rot = (p.rot + p.vrot + 360) % 360;
-    if (y  > 512 + p.r * 2)  { y = -p.r * 2; }
-    if (x  < -p.r * 2)       { x = 480 + p.r; }
-    if (x  > 480 + p.r * 2)  { x = -p.r; }
-    return { ...p, x, y, rot };
-  });
-}
-
-// SVG shape for each trash item (SVG paths centred at 0,0 scaled by r)
-function trashSVG(name: string, col: string, col2: string, r: number): string {
-  const c = col, c2 = col2;
-  switch (name) {
-    case 'pizza':
-      return `<polygon points="0,${-r*.9} ${-r*.85},${r*.72} ${r*.85},${r*.72}" fill="${c}"/>
-              <polygon points="0,${-r*.6} ${-r*.62},${r*.6} ${r*.62},${r*.6}" fill="${c2}"/>
-              <ellipse cx="${-r*.15}" cy="${r*.1}" rx="${r*.28}" ry="${r*.18}" fill="#c03020" transform="rotate(17)"/>`;
-    case 'banana_peel':
-      return `<path d="M${-r*.5},${r*.7} Q${r*.6},${r*.1} ${r*.3},${-r*.8}" stroke="${c}" stroke-width="${r*.38}" fill="none" stroke-linecap="round"/>
-              <path d="M${-r*.2},${r*.8} Q${r*.8},${r*.2} ${r*.5},${-r*.7}" stroke="${c2}" stroke-width="${r*.16}" fill="none" stroke-linecap="round"/>`;
-    case 'apple_core':
-      return `<ellipse cx="0" cy="0" rx="${r*.45}" ry="${r*.72}" fill="${c2}"/>
-              <ellipse cx="0" cy="0" rx="${r*.2}" ry="${r*.32}" fill="${c}"/>
-              <rect x="${-r*.06}" y="${-r*.8}" width="${r*.12}" height="${r*.22}" fill="#3a2010"/>
-              <rect x="${-r*.06}" y="${r*.58}" width="${r*.12}" height="${r*.22}" fill="#3a2010"/>`;
-    case 'egg_shell':
-      return `<ellipse cx="0" cy="${r*.1}" rx="${r*.5}" ry="${r*.62}" fill="${c2}"/>
-              <path d="M${-r*.5},${r*.1} C${-r*.3},${-r*.25} ${r*.3},${-r*.25} ${r*.5},${r*.1}" stroke="${c}" stroke-width="1.5" fill="none"/>`;
-    case 'tea_bag':
-      return `<rect x="${-r*.4}" y="${-r*.5}" width="${r*.8}" height="${r*.9}" fill="${c2}" rx="2"/>
-              <rect x="${-r*.28}" y="${-r*.42}" width="${r*.56}" height="${r*.74}" fill="${c}" rx="2"/>
-              <line x1="0" y1="${-r*.5}" x2="0" y2="${-r*.9}" stroke="${c2}" stroke-width="1.5"/>`;
-    case 'orange_peel':
-      return `<path d="M${r*.5*Math.cos(0.3)},${r*.5*Math.sin(0.3)} A${r*.5},${r*.5} 0 1,1 ${r*.5*Math.cos(Math.PI*1.7)},${r*.5*Math.sin(Math.PI*1.7)}" stroke="${c}" stroke-width="${r*.42}" fill="none" stroke-linecap="round"/>
-              <path d="M${r*.5*Math.cos(0.3)},${r*.5*Math.sin(0.3)} A${r*.5},${r*.5} 0 1,1 ${r*.5*Math.cos(Math.PI*1.7)},${r*.5*Math.sin(Math.PI*1.7)}" stroke="${c2}" stroke-width="${r*.16}" fill="none" stroke-linecap="round"/>`;
-    case 'lettuce':
-      return [0,1,2,3,4].map(i =>
-        `<ellipse cx="${Math.sin(i*1.2)*r*.3}" cy="${Math.cos(i*1.2)*r*.3-r*.1}" rx="${r*.5}" ry="${r*.32}" fill="${i%2===0?c:c2}" opacity="0.9"/>`
-      ).join('');
-    case 'broccoli':
-      return `<rect x="${-r*.12}" y="${r*.1}" width="${r*.24}" height="${r*.7}" fill="#6a4820"/>
-              ${[0,1,2,3,4].map(i => `<circle cx="${Math.sin(i*1.3)*r*.4}" cy="${Math.cos(i*1.3)*r*.35-r*.15}" r="${r*.32}" fill="${i%2===0?c:c2}"/>`).join('')}`;
-    case 'watermelon_chunk':
-      return `<path d="M${-r},0 A${r},${r} 0 0,1 ${r},0 Z" fill="${c2}"/>
-              <path d="M${-r*.82},0 A${r*.82},${r*.82} 0 0,1 ${r*.82},0 Z" fill="${c}"/>
-              ${[-r*.4,-r*.13,r*.13,r*.4].map(x=>`<ellipse cx="${x}" cy="${-r*.12}" rx="${r*.05}" ry="${r*.22}" fill="#1a2a10"/>`).join('')}`;
-    case 'mushroom':
-      return `<rect x="${-r*.18}" y="${-r*.08}" width="${r*.36}" height="${r*.72}" fill="${c2}" rx="3"/>
-              <ellipse cx="0" cy="${-r*.2}" rx="${r*.6}" ry="${r*.52}" fill="${c}"/>
-              <ellipse cx="${-r*.18}" cy="${-r*.1}" rx="${r*.12}" ry="${r*.08}" fill="${c2}"/>
-              <ellipse cx="${r*.18}" cy="${-r*.1}" rx="${r*.12}" ry="${r*.08}" fill="${c2}"/>`;
-    case 'whole_tomato':
-      return `<circle cx="0" cy="${r*.08}" r="${r*.72}" fill="${c}"/>
-              <polygon points="0,${-r*.3} ${-r*.35},${-r*.65} ${-r*.1},${-r*.28}" fill="#2a6010"/>
-              <polygon points="0,${-r*.3} ${r*.35},${-r*.65} ${r*.1},${-r*.28}" fill="#2a6010"/>`;
-    case 'corn_cob':
-      return `<ellipse cx="0" cy="0" rx="${r*.35}" ry="${r*.72}" fill="${c2}"/>
-              ${[-r*.2,-0,r*.2].flatMap(x=>[-r*.5,-r*.24,r*.02,r*.26,r*.5].map(y=>`<ellipse cx="${x}" cy="${y}" rx="${r*.1}" ry="${r*.08}" fill="${c}"/>`)).join('')}
-              <path d="M${-r*.38},${-r*.5} Q${-r*.6},${-r*.9} 0,${-r*.8} Q${r*.1},${-r*.5} 0,${-r*.5}Z" fill="#60a828"/>`;
-    case 'bread_crust':
-      return `<ellipse cx="0" cy="0" rx="${r*.62}" ry="${r*.48}" fill="${c}"/>
-              <ellipse cx="0" cy="0" rx="${r*.45}" ry="${r*.34}" fill="${c2}"/>`;
-    case 'melon_rind':
-      return `<path d="M${-r},0 A${r},${r} 0 0,0 ${r},0 Z" fill="${c}"/>
-              <path d="M${-r*.82},0 A${r*.82},${r*.82} 0 0,0 ${r*.82},0 Z" fill="${c2}"/>
-              <path d="M${-r*.6},0 A${r*.6},${r*.6} 0 0,0 ${r*.6},0 Z" fill="#388020"/>`;
-    case 'grass_clippings':
-      return [0,1,2,3,4].map(i => {
-        const bx = (i-2)*r*.28, by = r*.4;
-        return `<path d="M${bx},${by} Q${bx+(i%2===0?r*.2:-r*.2)},${-r*.3} ${bx+(i%2===0?r*.1:-r*.1)},${-r*.7}" stroke="${i%2===0?c:c2}" stroke-width="${r*.18}" fill="none" stroke-linecap="round"/>`;
-      }).join('');
-    case 'dead_flower':
-      return `<path d="M0,${r*.7} Q${-r*.6},0 0,${-r*.7} Q${r*.6},0 0,${r*.7}Z" fill="${c}" stroke="${c2}" stroke-width="1.5"/>
-              <line x1="0" y1="${r*.7}" x2="0" y2="${-r*.7}" stroke="${c}" stroke-width="1.5"/>
-              <circle cx="0" cy="${-r*.7}" r="${r*.22}" fill="${c2}"/>`;
-    default:
-      return `<circle cx="0" cy="0" r="${r*.6}" fill="${c}"/>`;
-  }
-}
-
-// Build the full scraps SVG data URL from current particle state
-function buildScrapsDataUrl(particles: ScrapParticle[]): string {
-  const shapes = particles.map(p => {
-    const inner = trashSVG(p.name, p.col, p.col2, p.r);
-    return `<g transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)}) rotate(${p.rot.toFixed(1)})" opacity="0.88">${inner}</g>`;
-  }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">${shapes}</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-// Build the glow + bobbing icon SVG (icon.png embedded via data URL not available in Blocks,
-// so we approximate the worm icon as an SVG ellipse blob with face — glows behind it)
-function buildIconDataUrl(tick: number): string {
-  const bob    = Math.sin(tick * 0.18) * 6;            // gentle vertical bob ±6px
-  const glow   = 0.28 + Math.sin(tick * 0.12) * 0.12;  // pulsing glow opacity 0.16–0.40
-  const scale  = 1 + Math.sin(tick * 0.22) * 0.025;    // subtle breathe ±2.5%
-  const cx = 256, cy = 256 + bob;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#d4a060" stop-opacity="${glow}"/>
-      <stop offset="60%"  stop-color="#c07820" stop-opacity="${(glow*0.5).toFixed(3)}"/>
-      <stop offset="100%" stop-color="#804010" stop-opacity="0"/>
-    </radialGradient>
-    <ellipse cx="${cx}" cy="${cy}" rx="${160*scale}" ry="${145*scale}" fill="url(#glow)"/>
-  </svg>`;
+// Pulsing warm amber glow behind the icon — transparent SVG layered over the bg.
+// Icon swelling is driven separately via iconSize state so it stays a native image tag.
+function buildGlowDataUrl(tick: number): string {
+  const glow = 0.28 + Math.sin(tick * 0.12) * 0.12;
+  const sc   = 1 + Math.sin(tick * 0.22) * 0.032;
+  const svg  =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
+    `<radialGradient id="g" cx="50%" cy="50%" r="50%">` +
+    `<stop offset="0%"   stop-color="#d4a060" stop-opacity="${glow.toFixed(3)}"/>` +
+    `<stop offset="60%"  stop-color="#c07820" stop-opacity="${(glow * 0.45).toFixed(3)}"/>` +
+    `<stop offset="100%" stop-color="#804010" stop-opacity="0"/>` +
+    `</radialGradient>` +
+    `<ellipse cx="256" cy="256" rx="${(160 * sc).toFixed(1)}" ry="${(145 * sc).toFixed(1)}" fill="url(#g)"/>` +
+    `</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -641,21 +492,16 @@ Devvit.addCustomPostType({
     floodChannel.subscribe();
 
     // ── Preview animation state ────────────────────────────────────────────
-    const [scraps,    setScraps]    = useState<ScrapParticle[]>(() => initScraps());
     const [tick,      setTick]      = useState<number>(0);
-    const [scrapsUrl, setScrapsUrl] = useState<string>('');
-    const [iconUrl,   setIconUrl]   = useState<string>('');
+    const [glowUrl,   setGlowUrl]   = useState<string>('');
+    const [iconSize,  setIconSize]  = useState<number>(256);
 
-    // Drive both animations from one 100ms interval (10fps — smooth enough for falling scraps)
     const anim = useInterval(() => {
-      setScraps((prev: ScrapParticle[]) => {
-        const next = tickScraps(prev);
-        setScrapsUrl(buildScrapsDataUrl(next));
-        return next;
-      });
       setTick((t: number) => {
-        const next = t + 1;
-        setIconUrl(buildIconDataUrl(next));
+        const next  = t + 1;
+        const sc    = 1 + Math.sin(next * 0.22) * 0.032;  // ±3.2% swell
+        setGlowUrl(buildGlowDataUrl(next));
+        setIconSize(Math.round(256 * sc));
         return next;
       });
     }, 100);
@@ -663,19 +509,12 @@ Devvit.addCustomPostType({
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     return (
-      <zstack width="100%" height="100%" alignment="center middle">
-        {/* Static background — the rich dark brown with vignette */}
+      <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
         <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
-        {/* Falling scraps layer — transparent SVG over the bg */}
-        {scrapsUrl ? (
-          <image url={scrapsUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
+        {glowUrl ? (
+          <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         ) : null}
-        {/* Pulsing glow behind the icon */}
-        {iconUrl ? (
-          <image url={iconUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        ) : null}
-        {/* Icon — bobbing driven by the SVG glow layer; icon.png itself stays centred */}
-        <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" onPress={() => webView.mount()} />
+        <image url="icon.png" imageWidth={iconSize} imageHeight={iconSize} resizeMode="fit" />
       </zstack>
     );
   },
@@ -704,5 +543,6 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
 
