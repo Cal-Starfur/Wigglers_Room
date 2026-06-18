@@ -283,20 +283,13 @@ var _devvitSessionReceived = false;
 // Safe to call at any time; silently does nothing when running standalone.
 function postToHost(msg) {
   try {
-    var payload = typeof msg === 'string' ? msg : JSON.stringify(msg);
-    // Reddit mobile app (React Native WebView) — use ReactNativeWebView bridge
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(payload);
-    } else if (window.top && window.top.ReactNativeWebView) {
-      window.top.ReactNativeWebView.postMessage(payload);
-    } else if (window.parent && window.parent !== window) {
-      // Web / desktop fallback
+    if (window.parent && window.parent !== window) {
       window.parent.postMessage(msg, '*');
     }
   } catch(e) {}
 }
 
-function _handleHostMessage(e) {
+window.addEventListener('message', function(e) {
   // In Devvit, webView.postMessage() arrives from the Devvit platform origin,
   // not necessarily 'https://www.reddit.com'. Drop the strict origin check
   // and rely on the message type/structure for safety instead.
@@ -8548,10 +8541,6 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
   var isInIframe = (function() {
     try { return window.self !== window.top; } catch(e) { return true; }
   })();
-
-// Register on window (standard) + document (Android RN WebView fallback)
-window.addEventListener('message', _handleHostMessage, false);
-document.addEventListener('message', _handleHostMessage, false);
 
   if (isInIframe) {
     // Tell the host we are ready and waiting for session + username
