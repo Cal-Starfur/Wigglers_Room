@@ -852,35 +852,37 @@ Devvit.addCustomPostType({
     });
     floodChannel.subscribe();
 
-    // ── Preview animation state ────────────────────────────────────────────
-    // bgTick drives the falling trash — updates at 200ms (5fps).
-    // glowTick drives the icon glow/bob — updates at 100ms (10fps).
-    // Keeping them separate means the bg SVG is only regenerated every 200ms,
-    // which eliminates the image-reload flicker that happened at 100ms.
-    const [bgTick,   setBgTick]   = useState<number>(0);
-    const [glowTick, setGlowTick] = useState<number>(0);
-    // Pre-build frame 0 so the very first render already has the animated bg —
-    // no flash of the static preview-bg.png fallback on load.
-    const [bgUrl,    setBgUrl]    = useState<string>(() => buildBgDataUrl(0));
-    const [glowUrl,  setGlowUrl]  = useState<string>(() => buildGlowDataUrl(0));
+    // ── Preview animation — pre-computed frame pools ────────────────────────
+    // Root cause of hover flicker: every new data: URL string forces Devvit to
+    // tear down and reload the <image> element, even if the content is similar.
+    // Fix: pre-build a fixed pool of N URL strings at render time. The interval
+    // only cycles an integer index — the URL strings themselves never change after
+    // the first render, so Devvit can cache them and hover causes no reload.
+    //
+    // BG_FRAMES: 64 frames @ 100ms = 6.4s loop, 2px/frame = 128px of travel
+    // (TILE_H=512, so ~4 loops before seamless repeat of exact same URLs)
+    // GLOW_FRAMES: 63 frames @ 100ms = 6.3s breath cycle (irrational vs bg loop
+    // so glow phase never syncs visibly with bg — feels more organic)
+    const BG_FRAMES   = 64;
+    const GLOW_FRAMES = 63;
 
-    // Background — 10fps, smooth continuous motion
+    const [bgFrames]   = useState<string[]>(() =>
+      Array.from({ length: BG_FRAMES },   (_, i) => buildBgDataUrl(i))
+    );
+    const [glowFrames] = useState<string[]>(() =>
+      Array.from({ length: GLOW_FRAMES }, (_, i) => buildGlowDataUrl(i))
+    );
+
+    const [bgIdx,   setBgIdx]   = useState<number>(0);
+    const [glowIdx, setGlowIdx] = useState<number>(0);
+
     const bgAnim = useInterval(() => {
-      setBgTick((t: number) => {
-        const next = t + 1;
-        setBgUrl(buildBgDataUrl(next));
-        return next;
-      });
+      setBgIdx((i: number) => (i + 1) % BG_FRAMES);
     }, 100);
     bgAnim.start();
 
-    // Glow — 10fps, smooth breath/bob
     const glowAnim = useInterval(() => {
-      setGlowTick((t: number) => {
-        const next = t + 1;
-        setGlowUrl(buildGlowDataUrl(next));
-        return next;
-      });
+      setGlowIdx((i: number) => (i + 1) % GLOW_FRAMES);
     }, 100);
     glowAnim.start();
 
@@ -891,10 +893,8 @@ Devvit.addCustomPostType({
     //   3. icon.png — worm icon, tap to launch
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
-        <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        {glowUrl ? (
-          <image url={glowUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        ) : null}
+        <image url={bgFrames[bgIdx]} imageWidth={512} imageHeight={512} resizeMode="cover" />
+        <image url={glowFrames[glowIdx]} imageWidth={512} imageHeight={512} resizeMode="cover" />
         <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
       </zstack>
     );
