@@ -419,45 +419,48 @@ function svgTrashShapes(name: string, r: number): string {
 function buildBgDataUrl(tick: number): string {
   const totalFall = tick * FALL_SPEED;
 
+  // Glow baked in — warm amber pulse behind the icon, same wave as before
+  const glow = 0.28 + Math.sin(tick * 0.10) * 0.12;
+  const sc   = 1   + Math.sin(tick * 0.10) * 0.032;
+  const glowRx = (160 * sc).toFixed(1);
+  const glowRy = (145 * sc).toFixed(1);
+  const glowOp = glow.toFixed(3);
+  const glowOp2 = (glow * 0.45).toFixed(3);
+
   let items = '';
   for (const item of TRASH_LAYOUT) {
-    // Y position — wraps every TILE_H px (768 > 512 so items cycle off-screen before re-entry)
     const rawY = (item.yOff + totalFall) % TILE_H;
     const rot = (item.rot * 180 / Math.PI).toFixed(2);
     const r = item.r;
-
-    // Draw item at its wrapped position
     items += `<g transform="translate(${item.x},${rawY.toFixed(1)}) rotate(${rot})">` +
-      svgTrashShapes(item.name, r) +
-      `</g>`;
-    // Draw again at rawY - TILE_H so there's always a copy visible in the 512px viewport
+      svgTrashShapes(item.name, r) + `</g>`;
     const wrapY = rawY - TILE_H;
     items += `<g transform="translate(${item.x},${wrapY.toFixed(1)}) rotate(${rot})">` +
-      svgTrashShapes(item.name, r) +
-      `</g>`;
+      svgTrashShapes(item.name, r) + `</g>`;
   }
 
   const svg =
-    // Dark earth-tone background — matches the original preview-bg.png palette
     `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">` +
-    // Background fill — deep warm dark brown
-    `<rect width="512" height="512" fill="#2a1a0a"/>` +
-    // Subtle soil texture bands
-    `<rect width="512" height="512" fill="url(#soilGrad)"/>` +
     `<defs>` +
-    `<radialGradient id="soilGrad" cx="50%" cy="50%" r="70%">` +
+    `<radialGradient id="soil" cx="50%" cy="50%" r="70%">` +
     `<stop offset="0%" stop-color="#3d2510" stop-opacity="0.0"/>` +
     `<stop offset="100%" stop-color="#1a0a00" stop-opacity="0.6"/>` +
     `</radialGradient>` +
-    `<radialGradient id="vignette" cx="50%" cy="50%" r="72%">` +
+    `<radialGradient id="vig" cx="50%" cy="50%" r="72%">` +
     `<stop offset="35%" stop-color="#000" stop-opacity="0"/>` +
     `<stop offset="100%" stop-color="#000" stop-opacity="0.72"/>` +
     `</radialGradient>` +
+    `<radialGradient id="glow" cx="50%" cy="50%" r="50%">` +
+    `<stop offset="0%"   stop-color="#d4a060" stop-opacity="${glowOp}"/>` +
+    `<stop offset="60%"  stop-color="#c07820" stop-opacity="${glowOp2}"/>` +
+    `<stop offset="100%" stop-color="#804010" stop-opacity="0"/>` +
+    `</radialGradient>` +
     `</defs>` +
-    // Trash items (falling)
+    `<rect width="512" height="512" fill="#2a1a0a"/>` +
+    `<rect width="512" height="512" fill="url(#soil)"/>` +
     items +
-    // Dark vignette overlay — preserves the moody bin feel
-    `<rect width="512" height="512" fill="url(#vignette)"/>` +
+    `<rect width="512" height="512" fill="url(#vig)"/>` +
+    `<ellipse cx="256" cy="256" rx="${glowRx}" ry="${glowRy}" fill="url(#glow)"/>` +
     `</svg>`;
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -852,39 +855,21 @@ Devvit.addCustomPostType({
     });
     floodChannel.subscribe();
 
-    // ── Preview animation — pre-computed frame pools ────────────────────────
-    // Root cause of hover flicker: every new data: URL string forces Devvit to
-    // tear down and reload the <image> element, even if the content is similar.
-    // Fix: pre-build a fixed pool of N URL strings at render time. The interval
-    // only cycles an integer index — the URL strings themselves never change after
-    // the first render, so Devvit can cache them and hover causes no reload.
-    //
-    // BG_FRAMES: 64 frames @ 100ms = 6.4s loop, 2px/frame = 128px of travel
-    // (TILE_H=512, so ~4 loops before seamless repeat of exact same URLs)
-    // GLOW_FRAMES: 63 frames @ 100ms = 6.3s breath cycle (irrational vs bg loop
-    // so glow phase never syncs visibly with bg — feels more organic)
-    const BG_FRAMES   = 64;
-    const GLOW_FRAMES = 63;
+    // ── Preview animation — single tick, single URL ─────────────────────────
+    // One useInterval, one useState string. The glow is baked into the bg SVG
+    // so there is only ever ONE animated <image> element — halving re-renders
+    // and keeping the payload small enough for Devvit's state limits.
+    const [tick,   setTick]   = useState<number>(0);
+    const [bgUrl,  setBgUrl]  = useState<string>(() => buildBgDataUrl(0));
 
-    const [bgFrames]   = useState<string[]>(() =>
-      Array.from({ length: BG_FRAMES },   (_, i) => buildBgDataUrl(i))
-    );
-    const [glowFrames] = useState<string[]>(() =>
-      Array.from({ length: GLOW_FRAMES }, (_, i) => buildGlowDataUrl(i))
-    );
-
-    const [bgIdx,   setBgIdx]   = useState<number>(0);
-    const [glowIdx, setGlowIdx] = useState<number>(0);
-
-    const bgAnim = useInterval(() => {
-      setBgIdx((i: number) => (i + 1) % BG_FRAMES);
+    const anim = useInterval(() => {
+      setTick((t: number) => {
+        const next = t + 1;
+        setBgUrl(buildBgDataUrl(next));
+        return next;
+      });
     }, 100);
-    bgAnim.start();
-
-    const glowAnim = useInterval(() => {
-      setGlowIdx((i: number) => (i + 1) % GLOW_FRAMES);
-    }, 100);
-    glowAnim.start();
+    anim.start();
 
     // ── Preview UI (shown before webview mounts) ───────────────────────────
     // Layer order (back → front):
@@ -893,8 +878,7 @@ Devvit.addCustomPostType({
     //   3. icon.png — worm icon, tap to launch
     return (
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
-        <image url={bgFrames[bgIdx]} imageWidth={512} imageHeight={512} resizeMode="cover" />
-        <image url={glowFrames[glowIdx]} imageWidth={512} imageHeight={512} resizeMode="cover" />
+        <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
         <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
       </zstack>
     );
