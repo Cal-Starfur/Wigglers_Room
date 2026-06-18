@@ -2158,10 +2158,16 @@ function updateSnoo() {
       break;
   }
 
-  // Camera eases to show the bin top / lid where small Snoo is standing
+  // Camera to show the bin top / lid where Snoo is standing.
+  // When chaining from drain (weeklyFeedPending), snap immediately — camera is deep in sump
+  // and lerping from there takes too long; Snoo would be off-screen for several seconds.
   var targetCam = H * 0.5 - H * 0.65; // lid visible in upper third of screen
-  camY += (targetCam - camY) * 0.06;
-  camY = Math.round(camY);
+  if (weeklyFeedPending && Math.abs(camY - targetCam) > H * 0.1) {
+    camY = Math.round(targetCam); // instant snap when chaining
+  } else {
+    camY += (targetCam - camY) * 0.06;
+    camY = Math.round(camY);
+  }
 
   // Animate dropping trash chunks — real objects falling into place
   if (snooScrapsCascade || snooCascadeT > 0) {
@@ -2228,16 +2234,18 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Lock Snoo's standing position at trigger time so camY drift can't move him mid-scene
+  // Snap camera to sump view FIRST so Snoo position is calculated from the correct camY,
+  // regardless of where the player was scrolled when the drain triggered.
+  // drainSnooStopY = world Y of Snoo torso anchor, derived from sump floor position.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  var _bsy  = 3*H + H*0.25 - camY;
+  // Temporarily snap camY so _bsy resolves to the sump floor on screen
+  camY = Math.round(3*H + H*0.25 - H * 0.72);  // sump floor at screen Y = H*0.72
+  var _bsy  = 3*H + H*0.25 - camY;              // now always H*0.72
   var _gY   = _bsy + 80;
-  drainSnooStopX = _b.cx - _SC * 0.127;                              // screen X (bin never scrolls horizontally)
-  drainSnooStopY = (_gY - _SC*0.225 - _SC*0.270 - _SC*0.058 + 100) + camY;  // store as world-Y
-  // Snap camera immediately to its drain target — no easing lag, no mid-scene drift.
-  // Without this, the 0.06 ease in updateSnooDrain causes Snoo to appear to
-  // push down during floatin and push up during floatout as camY catches up.
+  drainSnooStopX = _b.cx - _SC * 0.127;
+  drainSnooStopY = (_gY - _SC*0.225 - _SC*0.270 - _SC*0.058 + 100) + camY;  // world-Y
+  // Final camera position: Snoo sits at H*0.58 in screen space
   camY = Math.round(drainSnooStopY - H * 0.58);
 }
 
@@ -8615,6 +8623,7 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
+
 
 
 
