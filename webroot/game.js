@@ -5290,7 +5290,9 @@ function draw() {
   }
   skyGrad.addColorStop(1, '#2a1e0c');
   ctx.fillStyle = skyGrad;
-  ctx.fillRect(0, 0, W, H);
+  // camX is negative on wide screens (bin centred), so start at camX to fill
+  // the full viewport despite ctx.translate(-camX, 0) being active.
+  ctx.fillRect(camX, 0, W, H);
 
   // Sun/Moon are clipped to above the lid only
   var skyHeight = Math.max(0, lidScreenY);
@@ -5377,7 +5379,7 @@ function draw() {
     var gH = H - gTop;
     if (gH > 0) {
       ctx.fillStyle = '#3a8018';
-      ctx.fillRect(0, gTop, W, gH);
+      ctx.fillRect(camX, gTop, W, gH);
     }
 
     // Scatter static grass tufts — world Y converted to screen (only when near horizon)
