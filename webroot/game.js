@@ -2234,10 +2234,11 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Snoo position is now derived live from the tap each frame in updateSnooDrain —
-  // same pattern as feed Snoo on the lid. No camera snap needed at trigger time.
+  // Snap camY immediately so the tap is at screen H*0.86 before the slide-in starts.
+  // Without this, camY eases during floatin and Snoo's Y drifts — looks like he slides past the tap.
   var _b    = getBin();
   var _SC   = H * 0.16;
+  camY = Math.round(3*H + H*0.25 - H * 0.86 + 8); // tap at screen H*0.86 from frame 1
   drainSnooStopX = _b.cx - _SC * 0.127; // X only — stable, bin never scrolls horizontally
 }
 
@@ -2249,19 +2250,10 @@ function updateSnooDrain() {
   var b       = getBin();
   var SC      = H * 0.16;
 
-  // Derive Snoo's position from the tap every frame — same pattern as feed Snoo on the lid.
-  // Tap is at world Y = 3H + H*0.25, screen Y = bsy + 8 = (3H + H*0.25 - camY) + 8.
-  // Snoo torso anchor sits just above the tap so his hand reaches it:
-  //   torso = tap_screen - bodyH*0.10 - arm offsets ≈ tap_screen - SC*0.19
-  var tapSY   = 3*H + H*0.25 - camY + 8;   // tap in screen space, live each frame
-  var STOP_X  = drainSnooStopX;             // X is stable (bin never scrolls horizontally)
-  var STOP_Y  = tapSY - SC * 0.19;          // torso anchor just above the tap
-
-  // Camera eases to keep the tap visible in the lower portion of the screen —
-  // same approach as feed Snoo's camera ease toward the lid.
-  var targetCam = 3*H + H*0.25 - H * 0.86 + 8; // tap at screen H*0.86
-  camY += (targetCam - camY) * 0.06;
-  camY = Math.round(camY);
+  // Tap in screen space — camY is stable (snapped at trigger), so this is constant each frame.
+  var tapSY   = 3*H + H*0.25 - camY + 8;
+  var STOP_X  = drainSnooStopX;
+  var STOP_Y  = tapSY - SC * 0.19 + 25; // +25 to lower Snoo so hand aligns with tap
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
