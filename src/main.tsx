@@ -166,7 +166,7 @@ const TRASH_LAYOUT = [
 
 // 2px per tick at 100ms = 20px/s. TILE_H covers all yOff values with buffer.
 const FALL_SPEED = 2;
-const TILE_H = 600;
+const TILE_H = 512;
 
 // ── SVG shape builders — one per trash type ───────────────────────────────────
 // Each returns an SVG string of shapes centered at (0,0), scaled by r.
