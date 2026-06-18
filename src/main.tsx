@@ -432,10 +432,15 @@ function buildBgDataUrl(tick: number): string {
     const rawY = (item.yOff + totalFall) % TILE_H;
     const rot = (item.rot * 180 / Math.PI).toFixed(2);
     const r = item.r;
+    // Draw three copies: above (rawY-TILE_H), current (rawY), below (rawY+TILE_H).
+    // The above copy handles items entering from the top.
+    // The below copy handles items exiting at the bottom — without it they
+    // clip out partway through before the next cycle enters from the top.
+    items += `<g transform="translate(${item.x},${(rawY - TILE_H).toFixed(1)}) rotate(${rot})">` +
+      svgTrashShapes(item.name, r) + `</g>`;
     items += `<g transform="translate(${item.x},${rawY.toFixed(1)}) rotate(${rot})">` +
       svgTrashShapes(item.name, r) + `</g>`;
-    const wrapY = rawY - TILE_H;
-    items += `<g transform="translate(${item.x},${wrapY.toFixed(1)}) rotate(${rot})">` +
+    items += `<g transform="translate(${item.x},${(rawY + TILE_H).toFixed(1)}) rotate(${rot})">` +
       svgTrashShapes(item.name, r) + `</g>`;
   }
 
