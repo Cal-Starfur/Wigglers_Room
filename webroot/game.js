@@ -41,6 +41,7 @@ var _ctxFilterSupported = (function(){
 })();
 
 var W = 0, H = 0;
+var centreOffsetX = 0; // pixels to shift world right so bin is centred on wide screens
 var camY = 0;
 var camX = 0;           // horizontal camera offset — follows worm X on wide worlds
 var viewMode = false;   // true when sleeping or observing — free-scroll active
@@ -2857,7 +2858,7 @@ function initPlayer(saved) {
   var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
   for (var i = 0; i < 20; i++) pHist.push({x: startX, y: startY});
   for (var i = 0; i < Math.max(4, Math.min(8, pSEG)); i++) pSegs.push({x: startX - i * pSR * 2, y: startY});
-  mX = startX; mY = startY; camY = startY - H/2; camX = (W >= WORLD_W) ? (WORLD_W / 2 - W / 2) : Math.max(0, startX - W/2); // snap camera to worm at spawn
+  mX = startX; mY = startY; camY = startY - H/2; camX = (W >= WORLD_W) ? 0 : Math.max(0, startX - W/2); // snap camera to worm at spawn
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
@@ -3866,12 +3867,10 @@ function updatePlayer() {
     var tc = head.y - H/2;
     camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
     // Horizontal camera — follow worm, scroll world within viewport.
-    // On wide screens (W >= WORLD_W) the whole bin fits — center it, no scroll.
-    if (W >= WORLD_W) {
-      // Lock camX so the bin stays centred in the extra space.
-      camX += ((WORLD_W / 2 - W / 2) - camX) * 0.06;
-      camX = Math.round(camX);
-    } else {
+    // On wide screens (W >= WORLD_W) the bin fits entirely — no scroll needed.
+    // Centering is handled by centreOffsetX in draw(), keeping camX always >= 0
+    // so mouse/touch world-coord conversion stays correct.
+    if (W < WORLD_W) {
       var _b0 = getBinCached();
       var _binLeft  = _b0.cx - _b0.bw2;
       var _binRight = _b0.cx + _b0.bw2;
@@ -3880,6 +3879,8 @@ function updatePlayer() {
       var _camXMax = Math.max(_camXMin, _binRight - W + 20); // right clamp
       camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
       camX = Math.round(camX);
+    } else {
+      camX = 0; // wide screen — bin fits, no horizontal scroll
     }
   }
 }
@@ -5247,9 +5248,12 @@ var _segPtsScratch = [];
 function draw() {
   if (!W || !H) return;
   ctx.clearRect(0, 0, W, H);
-  // Shift entire world by -camX so worm stays horizontally centered
+  // centreOffsetX: on wide screens, shift world right so bin is centred.
+  // This keeps camX always >= 0 (correct for mouse coords), while centering visually.
+  centreOffsetX = W > WORLD_W ? Math.floor((W - WORLD_W) / 2) : 0;
+  // Shift entire world by centreOffsetX - camX so worm stays horizontally centered
   ctx.save();
-  ctx.translate(-camX, 0);
+  ctx.translate(centreOffsetX - camX, 0);
   var b = getBinCached();
 
   // Compute pile top Y once — used by airspace, soil fill, blanket, bugs.
@@ -5290,9 +5294,8 @@ function draw() {
   }
   skyGrad.addColorStop(1, '#2a1e0c');
   ctx.fillStyle = skyGrad;
-  // camX is negative on wide screens (bin centred), so start at camX to fill
-  // the full viewport despite ctx.translate(-camX, 0) being active.
-  ctx.fillRect(camX, 0, W, H);
+  // Start at -centreOffsetX (left edge of canvas in translated world space) and span W.
+  ctx.fillRect(-centreOffsetX, 0, W, H);
 
   // Sun/Moon are clipped to above the lid only
   var skyHeight = Math.max(0, lidScreenY);
@@ -5379,14 +5382,14 @@ function draw() {
     var gH = H - gTop;
     if (gH > 0) {
       ctx.fillStyle = '#3a8018';
-      ctx.fillRect(camX, gTop, W, gH);
+      ctx.fillRect(-centreOffsetX, gTop, W, gH);
     }
 
     // Scatter static grass tufts — world Y converted to screen (only when near horizon)
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var ti2 = 0; ti2 < gardenTufts.length; ti2++) {
         var gt = gardenTufts[ti2];
-        var tx2 = camX + gt.xf * W;
+        var tx2 = -centreOffsetX + gt.xf * W;
         var ty2 = gt.wy - camY;
         if (ty2 < -10 || ty2 > H + 10) continue;
         ctx.fillStyle = gt.col;
@@ -5405,7 +5408,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H) {
       var bladeCount = Math.floor(W / 4);
       for (var gi = 0; gi < bladeCount; gi++) {
-        var gbx = camX + gi * 4 + (gi % 3);
+        var gbx = -centreOffsetX + gi * 4 + (gi % 3);
         var gbh = 6 + (gi % 6) * 2;
         ctx.fillStyle = (gi%4===0) ? '#5aaa28' : (gi%4===1) ? '#4a9020' : (gi%4===2) ? '#68c030' : '#3a8018';
         ctx.beginPath();
@@ -5421,7 +5424,7 @@ function draw() {
     if (horizScreenY > -10 && horizScreenY < H + 60) {
       for (var fi = 0; fi < gardenFlowers.length; fi++) {
         var fd = gardenFlowers[fi];
-        var fx2 = camX + fd.xf * W;
+        var fx2 = -centreOffsetX + fd.xf * W;
         var fy2 = fd.wy - camY;
         if (fy2 < -20 || fy2 > H + 20) continue;
         ctx.strokeStyle = '#3a7818'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
@@ -7820,7 +7823,7 @@ function respawnPlayer(usedKarma) {
   for (var ri = 0; ri < 20; ri++) pHist.push({x: respawnX, y: respawnY});
   for (var ri = 0; ri < Math.max(4, pSEG); ri++) pSegs.push({x: respawnX - ri * pSR * 2, y: respawnY});
   mX = respawnX; mY = respawnY;
-  camX = (W >= WORLD_W) ? (WORLD_W / 2 - W / 2) : Math.max(0, respawnX - W/2); // snap camera to worm on respawn
+  camX = (W >= WORLD_W) ? 0 : Math.max(0, respawnX - W/2); // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
   saveSession();
   postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
@@ -8014,7 +8017,7 @@ function _toCanvas(clientX, clientY) {
 
 root.addEventListener('mousemove', function(e) {
   var p = _toCanvas(e.clientX, e.clientY);
-  mX = p.x + camX;
+  mX = p.x - centreOffsetX + camX;
   mY = p.y + camY;
 });
 
@@ -8026,7 +8029,7 @@ root.addEventListener('wheel', function(e) {
 }, { passive: false });
 root.addEventListener('click', function(e) {
   var _cp = _toCanvas(e.clientX, e.clientY);
-  var cx = _cp.x + camX;
+  var cx = _cp.x - centreOffsetX + camX;
   var cy = _cp.y;
   if (!viewMode) { mX = cx + camX; mY = cy + camY; } // don't steer worm while scrolling
 
@@ -8184,7 +8187,7 @@ root.addEventListener('touchmove', function(e) {
     return;
   }
 
-  mX = tx + camX;
+  mX = tx - centreOffsetX + camX;
   mY = ty + camY;
   // Cancel long-press if first finger drifts > 15px
   if (_gesture.lpActive) {
@@ -8204,7 +8207,7 @@ root.addEventListener('touchstart', function(e) {
   var n   = e.touches.length; // total fingers NOW on screen
   // Only steer on first finger — additional fingers are gestures (poop, avatar)
   // and must not jerk the worm toward the new touch point.
-  if (n === 1) { mX = tx + camX; mY = ty + camY; }
+  if (n === 1) { mX = tx - centreOffsetX + camX; mY = ty + camY; }
 
   // Track peak finger count for this sequence
   if (n > _gesture.peakCount) _gesture.peakCount = n;
