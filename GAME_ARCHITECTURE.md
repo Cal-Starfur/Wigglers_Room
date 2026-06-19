@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed — weekly drain persistence; ISS-13 opened — pooled saturation mismatch)
+> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed; ISS-13+14 opened — next session: ISS-14 first)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -462,7 +462,19 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### P1 — ISS-13: Fix compost saturation (three bugs, one session)
+### ⚠ P1 — START HERE: ISS-14 — Fix active worm session restore
+
+Most player-facing bug open. ~10 lines to fix, two changes.
+
+**Bug A** (`game.js` line 3137) — `pHP` hardcoded to `1.0` on every session load. All damage from acid, flood, and starvation silently restored on reload. Fix: restore `saved.pHP` the same way `pGut` is restored. Keep `pHP = 1.0` only in `respawnPlayer()`.
+
+**Bug B** (`game.js` after line 3028) — No save-on-exit. 30s autosave only. Player leaving mid-session loses position, gut, and HP. Sleeping worm works because `trySleep()` saves explicitly. Fix: add `visibilitychange` listener → call `saveSession()` on hide. Position restore resolves automatically.
+
+See `WIGGLERS_AUDIT_V20.md → ISS-14` for full analysis.
+
+---
+
+### P1 — ISS-13: Fix compost saturation (three bugs, same session)
 
 See `WIGGLERS_AUDIT_V20.md → ISS-13` for full line-level analysis and exact code locations.
 
@@ -490,6 +502,7 @@ See `WIGGLERS_AUDIT_V20.md → ISS-13` for full line-level analysis and exact co
 
 | ID | Issue | Priority |
 |----|-------|----------|
+| ISS-14 | Non-sleeping worm reloads at full HP + spawn position — pHP hardcoded 1.0, no save-on-exit | **P1 — next session** |
 | ISS-13 | Compost saturation: 3 bugs — drain doesn't reduce moisture, evap silently drains it, ghost pooled from KV_WORLD | P1 — pre-launch |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
