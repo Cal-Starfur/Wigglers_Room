@@ -1,80 +1,82 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-18 Session 17 (canvas resize + desktop/fullscreen layout fixed)
-> Current state: V20 + all Session 14 + Session 15 + Session 16 + Session 17 fixes
+> Last updated: 2026-06-19 Session 18 (ISS-12 closed — drain Snoo positioning fixed)
+> Current state: V20 + all Session 14–18 fixes
+
+---
+
+## Session 18 — 2026-06-19 (ISS-12 Closed)
+
+### Session Summary
+Sole focus: close ISS-12 (drain Snoo positioning). After several failed attempts in prior sessions, the root cause was identified as a coordinate space mismatch — `drawSnooDrain()` was being called after `ctx.restore()` (screen space) while the valve was drawn inside `ctx.translate(centreOffsetX - camX, 0)` (world space). On mobile where `camX ≈ 400px`, this caused Snoo to appear ~400px to the right of the tap. The fix was one structural move: call `drawSnooDrain()` inside the world transform, identical to how `drawSnooCinematic()` (feed Snoo) has always worked. ISS-12 is now closed. Moves 3+4 of bin persistence are unblocked.
+
+### What Shipped
+| Commit | Change |
+|--------|--------|
+| `f276300` | Derive `STOP_Y` from `tapSY` geometrically — bucket mouth 15px below spout. Replace hardcoded `H*0.559`. |
+| `a113987` | Convert `drainSnooStopX` and `TAP_SX` to screen space (partial fix, wrong approach). |
+| `78ef406` | Store `_tapWorldX` at draw time, convert at cinematic time (still wrong approach). |
+| `fb12b98` | **The real fix:** move `drawSnooDrain()` inside world transform, same as feed Snoo. Remove all screen-space conversion hacks. Net -13 lines. |
+| `024879d` | Lower Snoo 100px (`tapSY + 137 - _handOff`) — head at 52% down screen, boots at 68%. |
+
+### Root Cause (ISS-12)
+Feed Snoo (`drawSnooCinematic` → `drawFarmerSnoo`) was always called at line ~5476, inside `ctx.translate(centreOffsetX - camX, 0)`. It uses `b.cx` world coords and the transform handles conversion automatically — zero conversion math needed, works on every device.
+
+Drain Snoo (`drawSnooDrain`) was called at line ~7291, **after** `ctx.restore()`. In screen space, `b.cx = WORLD_W/2 = 597` is a world coord, not a screen coord. On mobile where `camX ≈ 400`, the tap appears at screen X ≈ 197 but Snoo was placed at screen X ≈ 597 — a ~400px misalignment.
+
+### Key Lesson
+> **All Snoo cinematics must be drawn inside `ctx.translate(centreOffsetX - camX, 0)`.** World coords work natively. Calling any cinematic after `ctx.restore()` and attempting to convert coords manually is the wrong approach and will break on mobile.
+
+### Final Drain Snoo Geometry (H=800)
+```
+camY snap             = round(3*H + H*0.25 - H*0.45)  → sump floor at 45% down
+TAP_SY                = bsy + 8   (46% down)
+Spout tip             = TAP_SY + 22  (49% down)
+STOP_Y (torso top)    = TAP_SY + 137 - SC*0.1788  (60% down)
+Snoo head top         ≈ 52% down
+Snoo boots bottom     ≈ 68% down
+drainSnooStopX        = b.cx - SC*0.127  (world X, inside world transform)
+```
 
 ---
 
 ## Session 17 — 2026-06-18 (Canvas Resize + Desktop Layout)
 
 ### Session Summary
-Focused session fixing canvas sizing and layout issues that only appeared on desktop and fullscreen. The root cause was a one-time guard in `resizeCanvas()` that prevented `W`/`H` from ever updating after the first paint. Fixing that exposed a chain of coordinate system issues: camX going negative, background fills not covering the full canvas, and background detail elements using `W` (viewport) instead of `WORLD_W` (world width).
+Fixed canvas sizing and layout issues only visible on desktop and fullscreen. Root cause was a one-time guard in `resizeCanvas()` preventing `W`/`H` from updating after first paint.
 
 ### What Shipped
 | Commit | Change |
 |--------|--------|
-| `c18e1cf` | Fix `resizeCanvas()` — remove one-time `if (!W\|\|!H)` guard, always update W/H and canvas dimensions on every resize. Invalidates bin + soil gradient caches. |
-| `db5fb1b` | Fix camX on wide screens — when `W >= WORLD_W`, lock `camX = 0` instead of lerping to a negative value. Fix spawn + respawn snaps. |
-| `2899a9a` | Fix sky/ground fillRects — compensate for `ctx.translate` by starting at `camX` (later superseded). |
-| `6ebd284` | Fix grass tufts, blade fringe, flowers X position — compensate for translate. |
-| `5eeb24b` | Introduce `centreOffsetX` global. Keep `camX >= 0` always. Use `ctx.translate(centreOffsetX - camX)` to centre bin on wide screens without breaking mouse/touch coords. Fix all 15 affected locations (mouse, touch, click, spawn, respawn, sky, ground, grass, flowers). |
-| `058090b` | Fix background detail elements using `W` instead of `WORLD_W` — stars, sun, moon, grass tufts, blade fringe, flowers all switched to `WORLD_W`. |
-| `ddf1e8a` | Fix base green ground fill — `WORLD_W` not `W`. |
-| `beeb7bb` | Fix sky fill and sun/moon clip rect — `WORLD_W` not `W`. |
-
-### Root Causes Found
-1. **`resizeCanvas()` one-time guard** — `if (!W || !H)` meant canvas dimensions and `W`/`H` were only ever set at initial load. On desktop, if the initial load happened at mobile size (or a different size), the canvas stayed at that size forever. Background fills only covered the original dimensions → black bar + half-filled background.
-
-2. **Negative `camX` broke everything** — First attempt at centring on wide screens set `camX = WORLD_W/2 - W/2` (negative). `ctx.translate(-camX)` then shifted the world right, making the bin drift when the worm moved, and `mX = screenX + camX` subtracted instead of added (wrong world coords for steering).
-
-3. **`W` vs `WORLD_W` in background draws** — All sky/ground/garden elements are world-space objects and should span `WORLD_W`. Using `W` (viewport width) made them only cover part of the world on desktop where `W != WORLD_W`.
-
-### The Clean Solution
-- `centreOffsetX = max(0, floor((W - WORLD_W) / 2))` — computed globally, updated each frame in `draw()`
-- `ctx.translate(centreOffsetX - camX, 0)` — combines centring + camera scroll in one transform
-- `camX` stays `>= 0` always — correct for `mX = screenX - centreOffsetX + camX`
-- All world-space background draws use `WORLD_W`, with `x` offset by `-centreOffsetX` where needed
-- On mobile: `centreOffsetX = 0`, behaviour identical to before
-
-### Key Rule Going Forward
-> **If it's part of the sky, ground, or garden — use `WORLD_W`. Only HUD elements and canvas-clearing operations use `W`.**
+| `c18e1cf` | Fix `resizeCanvas()` — remove one-time guard, always update W/H on every resize |
+| `db5fb1b` | Fix camX on wide screens — lock `camX = 0` when `W >= WORLD_W` |
+| `2899a9a` | Fix sky/ground fillRects — compensate for `ctx.translate` |
+| `6ebd284` | Fix grass tufts, blade fringe, flowers X position |
+| `5eeb24b` | Introduce `centreOffsetX` global. Fix all 15 affected locations. |
+| `058090b` | Fix background elements using `W` instead of `WORLD_W` |
+| `ddf1e8a` | Fix base green ground fill — `WORLD_W` not `W` |
+| `beeb7bb` | Fix sky fill and sun/moon clip rect — `WORLD_W` not `W` |
 
 ---
 
 ## Session 16 — 2026-06-18 (Bin Persistence + HUD + Drain Animation)
-
-### Session Summary
-Big session. Shipped Moves 1 and 2 of the bin persistence plan, added the Bin Refresh HUD, wired drain→feed chaining, and spent significant time debugging the drain Snoo camera/position system. Moves 3 and 4 (persisting and broadcasting the new weekStartTs on drain completion) are deferred to Session 17 — the drain animation positioning needs to be solved cleanly first.
 
 ### What Shipped
 | Commit | File | What |
 |--------|------|------|
 | `263ead7` | main.tsx | Move 1: Read `KV_WEEK` on open, stamp if missing, send `weekStartTs` via `setWorldState` |
 | `f24bb39` | game.js | Move 2: `setWorldState` handler accepts `weekStartTs`, overwrites local clock |
-| `05efd5a` | game.js | Bin Refresh HUD under clock, drain→feed chain, `weeklyFeedPending` flag, clock reset after feed |
-| `60f5618` | game.js | Feed camera snap when chaining from drain (prevents slow lerp from sump) |
-| `4dafda9` | game.js | Drain camera: single deterministic snap attempt (later superseded) |
-| `a24b874` | game.js | Drain: STOP_Y=H*0.81 attempt |
-| `b44b3c3` | game.js | Drain: live STOP_Y derived from tap each frame + camera ease (matches feed pattern) |
-| `4513fa7` | game.js | Drain: camY snap at trigger + -25px offset attempt |
+| `05efd5a` | game.js | Bin Refresh HUD under clock, drain→feed chain, `weeklyFeedPending` flag |
+| `60f5618` | game.js | Feed camera snap when chaining from drain |
 
 ### What Works
-- **Bin Refresh HUD** — `🪣 Refresh in 5d 14h 23m` centred under clock, counts down live. Pulses gold during drain and feed cinematics. Resets to 7d after feed completes.
-- **Drain→feed chain** — no gap between cinematics. `weeklyFeedPending` flag gates the clock reset.
-- **Clock reset** — stamps new `weekStartTs` after feed Snoo slides out, saves + broadcasts.
-- **Move 1+2** — all players now receive shared `weekStartTs` from `KV_WEEK` on open.
-- **Feed Snoo camera** — snaps correctly when chaining from drain.
-
-### What's Broken — ISS-12: Drain Snoo positioning
-The drain Snoo cinematic is not placing Snoo correctly relative to the tap. Root cause is unresolved. Multiple approaches tried — see ISS-12 in Known Issues.
+- **Bin Refresh HUD** — `🪣 Refresh in 5d 14h 23m` centred under clock, counts down live
+- **Drain→feed chain** — no gap between cinematics
+- **Move 1+2** — all players share `weekStartTs` from `KV_WEEK` on open
 
 ---
 
-## Session 15 — 2026-06-17 (Afternoon/Evening)
+## Session 15 — 2026-06-17
 
-### Session Summary
-A massive day. Solved real username display, real Snoovatar, weather system design decision, and the entire horizontal scrolling architecture.
-
-### Commits Shipped
 | SHA | Change |
 |-----|--------|
 | `d180d0d` | Fix: username shown above worm head |
@@ -85,16 +87,10 @@ A massive day. Solved real username display, real Snoovatar, weather system desi
 | `424ad15` | Fix root cause: W=viewport width, WORLD_W=1194 fixed |
 | `a970e17` | Fix: _toCanvas uses root offset, all mX assignments add camX |
 
-### Lessons Learned
-- `getBin()` must use `WORLD_W` not `W` — bin is fixed width, viewport scrolls
-- All `mX` assignments from pointer events need `+ camX`
-- External HTTP (`fetch()`) is blocked in Devvit sandbox — use self-contained simulation
-
 ---
 
-## Session 14 — 2026-06-17 (Full Day)
+## Session 14 — 2026-06-17
 
-### Commits Shipped
 | SHA | Fix |
 |-----|-----|
 | `1a58fae` | Snoo drain invisible on mobile — camera formula |
@@ -131,23 +127,28 @@ A massive day. Solved real username display, real Snoovatar, weather system desi
 - ✅ **Old posts go read-only after re-upload** — create new post to test
 - ✅ **Always `git pull` before `devvit upload`**
 
-### Canvas / Coordinate System (NEW — Session 17)
+### Canvas / Coordinate System
 - ✅ **`resizeCanvas()` must always update W/H** — never guard with `if (!W || !H)`
 - ✅ **`camX` must always be `>= 0`** — negative camX breaks `ctx.translate` and mouse coords
 - ✅ **Use `centreOffsetX` to centre on wide screens** — not negative camX
 - ✅ **Background elements use `WORLD_W` not `W`** — sky, ground, sun, moon, stars, grass, flowers
 - ✅ **`mX = screenX - centreOffsetX + camX`** — all pointer → world coord conversions need centreOffsetX subtracted
 
+### Snoo Cinematics (NEW — Session 18)
+- ✅ **All `drawSnoo*` calls must be inside `ctx.translate(centreOffsetX - camX, 0)`** — world coords work natively
+- ✅ **Never call cinematics after `ctx.restore()`** — screen-space coord conversion is always wrong on mobile
+- ✅ **`drainSnooStopX = b.cx - SC*0.127`** — world X, no camX/centreOffsetX needed when inside world transform
+- ✅ **`STOP_Y = tapSY + 137 - SC*0.1788`** — torso anchor derived from tap geometry, not hardcoded H fraction
+- ✅ **Feed Snoo is the reference** — if positioning breaks, check whether the draw call is inside the world transform
+
 ---
 
 ## Priority Queue — Next Session
 
-### P1 — ISS-12: Fix Drain Snoo positioning
-Before Moves 3+4 can ship. Study feed Snoo pattern exactly — recalculate `tapSY` every frame from live camY, measure exact hand offset from draw geometry, snap camY at trigger.
-
-### P1 — Weekly Drain Moves 3+4 (after ISS-12)
-- Move 3: Persist new `weekStartTs` in `KV_WEEK` when drain fires
-- Move 4: Broadcast new `weekStartTs` via Realtime on drain
+### P1 — Weekly Drain Moves 3+4 (ISS-12 now closed — ship these next)
+- Move 3: Persist new `weekStartTs` in `KV_WEEK` when drain fires (main.tsx, ~8 lines)
+- Move 4: Broadcast new `weekStartTs` via Realtime on drain (main.tsx, ~2 lines)
+- Closes ISS-1 and ISS-2
 
 ### P2 — Code Health (game.js)
 | Task | What |
@@ -167,9 +168,8 @@ Before Moves 3+4 can ship. Study feed Snoo pattern exactly — recalculate `tapS
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-1 | Weekly drain persistence — Moves 1+2 done. Moves 3+4 blocked on ISS-12 | P1 — Session 18 |
-| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-12 | Part of ISS-1 |
-| ISS-12 | Drain Snoo position/camera broken — Snoo doesn't land at tap correctly. Multiple approaches tried, unresolved. Fix before Moves 3+4. | P1 — Session 18 first task |
+| ISS-1 | Weekly drain persistence — Moves 3+4 ready to ship | P1 — Session 19 |
+| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-1 | Part of ISS-1 |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
@@ -186,6 +186,8 @@ Before Moves 3+4 can ship. Study feed Snoo pattern exactly — recalculate `tapS
 
 | Fix | Session |
 |-----|---------|
+| Drain Snoo X misalignment — called outside world transform, 400px off on mobile | S18 |
+| Drain Snoo Y positioning — STOP_Y hardcoded H fraction, not derived from tap geometry | S18 |
 | Canvas only fills half screen on desktop / fullscreen black bar | S17 |
 | Background details (grass, flowers, sun, moon) wrong size on desktop | S17 |
 | camX going negative on wide screens — broke steering and bin position | S17 |
