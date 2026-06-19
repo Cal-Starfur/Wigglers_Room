@@ -2262,7 +2262,7 @@ function updateSnooDrain() {
   // Spout is at tapSY+22. We want bucket mouth at tapSY+22+15 = tapSY+37.
   // So: STOP_Y + handOff = tapSY+37  →  STOP_Y = tapSY + 37 - handOff.
   var _handOff = SC * 0.1788;
-  var STOP_Y  = tapSY + 37 - _handOff;
+  var STOP_Y  = tapSY + 137 - _handOff; // +100px lower than bucket-at-spout
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
