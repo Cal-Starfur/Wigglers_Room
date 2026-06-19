@@ -55,24 +55,32 @@ Post creation (mod-only)               Simulated weather system
 
 ---
 
-## Preview Card (Devvit Blocks)
+## Preview Card (Devvit Blocks — Animated)
 
 Shown before user taps to enter. Lives entirely in `main.tsx` render function.
+**Animated SVG** — 33 trash items falling on loop via `useInterval` at 100ms. NOT a static image.
 
 ```tsx
-<zstack width="100%" height="100%" alignment="center middle">
-  <image url="preview-bg.png" imageWidth={512} imageHeight={512} resizeMode="cover" />
-  <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit"
-         onPress={() => webView.mount()} />
-</zstack>
+const [bgUrl, setBgUrl] = useState<string>(() => buildBgDataUrl(0));
+const anim = useInterval(() => {
+  setTick((t: number) => { const next = t + 1; setBgUrl(buildBgDataUrl(next)); return next; });
+}, 100);
+anim.start();
+
+return (
+  <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
+    <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
+    <image url="icon.png" imageWidth={256} imageHeight={256} resizeMode="fit" />
+  </zstack>
+);
 ```
 
-**Rules:**
-- Devvit Blocks = declarative native UI. No HTML, CSS, canvas, z-index.
-- `<zstack>` for layering. `<image onPress>` for tap targets.
-- `webView.mount()` only inside `onPress` — never in render body (fires every render).
+- `buildBgDataUrl(tick)` generates `data:image/svg+xml` URL each tick — 33 falling SVG trash items + amber glow baked in
+- `FALL_SPEED = 2` px/tick at 100ms = 20px/s. `TILE_H = 512`. Three copies per item prevent bottom clip.
+- `webView.mount()` on `<zstack onPress>` — never in render body (fires every render).
 - Assets must be PNG. GIF and JPG rejected by Devvit uploader.
-- Push binary assets via direct GitHub API with `base64.b64encode(bytes)` — sync script corrupts binaries.
+- Push binary assets via direct GitHub API — sync script corrupts binaries.
+- `preview-bg.png` is a position reference only — NOT the live preview source.
 
 ---
 
