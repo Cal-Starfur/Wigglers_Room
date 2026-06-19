@@ -336,10 +336,31 @@ window.addEventListener('message', function(e) {
   if (msg.type === 'setSession') {
     _devvitSessionReceived = true;
     if (msg.session) {
-      // Write into localStorage so the existing loadSession() path picks it up
-      // on the setup() call that follows. This lets us reuse all the existing
-      // restore + validation logic without duplicating it.
-      try { localStorage.setItem(SESSION_KEY, JSON.stringify(msg.session)); } catch(e) {}
+      // ISS-14 fix: merge KV session with local localStorage session.
+      // The mobile webview can be killed before postToHost(saveSession) is processed
+      // by main.tsx — so localStorage may be NEWER than KV. Never let an older KV
+      // session overwrite a more recent local save. Use timestamp to decide winner;
+      // if localStorage is newer, merge KV's server-authoritative fields (weekStartTs,
+      // lastFloodTs) into the local save rather than replacing it entirely.
+      try {
+        var _kvSession = msg.session;
+        var _localRaw = localStorage.getItem(SESSION_KEY);
+        var _localSession = _localRaw ? JSON.parse(_localRaw) : null;
+        var _kvTs    = (_kvSession && typeof _kvSession.ts === 'number') ? _kvSession.ts : 0;
+        var _localTs = (_localSession && typeof _localSession.ts === 'number') ? _localSession.ts : 0;
+        if (_localTs > _kvTs) {
+          // Local save is newer — keep it but merge in server-authoritative fields from KV
+          if (_kvSession.weekStartTs) _localSession.weekStartTs = _kvSession.weekStartTs;
+          if (_kvSession.lastFloodTs) _localSession.lastFloodTs = _kvSession.lastFloodTs;
+          localStorage.setItem(SESSION_KEY, JSON.stringify(_localSession));
+        } else {
+          // KV session is same age or newer — use it as-is (normal path for first load)
+          localStorage.setItem(SESSION_KEY, JSON.stringify(_kvSession));
+        }
+      } catch(e) {
+        // Fallback: just write KV session directly (original behaviour)
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify(msg.session)); } catch(e2) {}
+      }
     }
     // If setup() is still waiting for this session, kick it off now
     if (window._devvitSetupPending) {
