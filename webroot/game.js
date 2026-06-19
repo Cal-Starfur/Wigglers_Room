@@ -3935,7 +3935,8 @@ function updatePlayer() {
       var _camXTarget = head.x - W/2;          // center worm in viewport
       var _camXMin = _binLeft - 20;             // left clamp: don't show beyond bin left
       var _camXMax = Math.max(_camXMin, _binRight - W + 20); // right clamp
-      camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.06;
+      // Lerp rate matches camY (0.04) for consistent feel across both axes.
+      camX += (Math.max(_camXMin, Math.min(_camXMax, _camXTarget)) - camX) * 0.04;
       camX = Math.round(camX);
     } else {
       camX = 0; // wide screen — bin fits, no horizontal scroll
