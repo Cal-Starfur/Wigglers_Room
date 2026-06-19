@@ -1,5 +1,3 @@
-[From cache — run sync to update]
-
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
