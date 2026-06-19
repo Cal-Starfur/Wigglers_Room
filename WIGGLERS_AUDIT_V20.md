@@ -1,171 +1,194 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-19 Session 20 (ISS-14 closed; FEAT-1 written up — next session: ISS-13 or FEAT-1)
-> Current state: V21 + ISS-14 fully closed (HP/acid/position persist; KV-vs-localStorage race fixed)
+> Last updated: 2026-06-19 Session 20 (ISS-13 partially closed; ISS-14 closed; FEAT-1 + PERF-1–4 documented)
+> Current state: V21 — rain removed, pooled runtime-only, ISS-14 fully closed
 
 ---
 
-## FEAT-1 — Cross-Player Tunnel Clogging (Multiplayer Sabotage)
+## Session 20 — 2026-06-19 (ISS-13 Partial + ISS-14 Closed + PERF-1–4 Documented)
 
-**Priority: P2 — ship after ISS-13 is closed**
+### Session Summary
+Closed ISS-14 completely (HP/acid/position persist; KV-vs-localStorage race fixed via timestamp merge). Partially closed ISS-13 — Bug A (tunnel drain decrement) and Bug B (evaporation removed) shipped in prior sessions; Bug C fixed this session by making `pooled` runtime-only (no longer saved to or loaded from KV). Removed rain entirely — saturation now driven only by food drops reaching compost. Fixed pool gradient and saturation glow width (were 4px short of bin walls each side). Documented FEAT-1 (cross-player tunnel clogging) and PERF-1–4 (performance issues identified via diagnostic).
 
-### The mechanic
-When a worm poops near another player's tunnel, the poop should travel down that tunnel and clog their drain — blocking their tea flow, forcing them to dig out. Cross-player sabotage via poop. Completely unique to this game.
-
-Currently **not implemented** — `pPath` is local-only. Poop drops route only through the local player's own tunnels. Drops falling near another player's tunnel pass straight through as if it doesn't exist.
+### What Shipped
+| Commit | File | What |
+|--------|------|------|
+| `696121b` | game.js | ISS-14: setSession merge — timestamp wins, stale KV never overwrites newer local save |
+| `e106801` | game.js | ISS-14: Save and restore pAcid across sessions |
+| `23da7ac` | WIGGLERS_AUDIT_V20.md | FEAT-1 cross-player tunnel clogging design doc |
+| `e11d4ec` | game.js | Remove rain — strip precip from weather, seasonal baselines, events, HUD; delete getEvapRate |
+| `44d466a` | main.tsx | ISS-13 Bug C: remove pooled from KV_WORLD worldData write |
+| `4b0f7a1` | game.js | ISS-13 Bug C: pooled runtime-only — remove from setWorldState, worldUpdate broadcasts, saveSession, setup() restore |
+| `1dd642e` | main.tsx | Hotfix: remove sync cache header accidentally committed |
+| `53ae826` | game.js | Fix pool gradient + saturation glow fillRect width to full bin edge |
 
 ---
 
-### What needs to be built
+## PERF-1 — Trash Chunks: 156 Items × 701-Line Draw Function × 6 Z-Passes
 
-#### Piece 1 — Broadcast compressed tunnel snapshots via Realtime
+**Priority: P1 — fix before launch. Largest single source of lag.**
 
-Each player already sends a `presenceUpdate` every 2 seconds (`game.js` line ~3066). Extend this to include a compressed tunnel snapshot — just the `sumpExit` points and segment null-boundaries, not all 2000 path points.
+### What's happening
+`spawnScraps()` creates ~156 `trashChunks` at `WORLD_W=1194` (`(bw - 28) / 38 * scale` per layer × 6 layers). Each frame, `draw()` iterates all 156 items **6 times** (one per Z-depth pass in `drawOrder = [5,2,4,1,3,0]`). For each visible item it calls `drawTrashChunk()` — a 701-line switch statement with **436 canvas operations** per item (fills, strokes, ellipses, bezier curves, save/restore, translate, rotate).
+
+At 60fps with ~50 items visible: **50 items × ~70 canvas ops × 6 passes = ~21,000 canvas state changes per frame** just for trash.
+
+### Root cause
+`drawTrashChunk` is called live every frame. It was designed for correctness (accurate shapes), not performance. The 6-pass Z-sort multiplies the cost.
+
+### Fix: Offscreen canvas pre-render at spawn time
+Pre-render each trash chunk to its own `OffscreenCanvas` (or regular `document.createElement('canvas')`) once when `spawnScraps()` runs. Cache it on the chunk object as `tc.img`. In the draw loop, replace `drawTrashChunk(ctx, tc.t.name, curR, tc.hpFrac)` with a single `ctx.drawImage(tc.img, -curR, -curR, curR*2, curR*2)`.
+
+HP bar overlay still draws live (cheap). Re-render the offscreen canvas only when `hpFrac` crosses a visible threshold (e.g. every 10% HP).
 
 ```js
-// In the presenceUpdate interval (game.js ~line 3066):
-postToHost({
-  type:     'presenceUpdate',
-  username: username,
-  x:        pSegs[0].x,
-  y:        pSegs[0].y,
-  sleeping: pSleeping,
-  size:     pSR,
-  // NEW — compressed tunnel snapshot for cross-player clog routing
-  tunnelSnap: buildTunnelSnapshot()
-});
+// In spawnScraps(), after building each chunk:
+chunk.img = _prerenderTrashChunk(chunk.t.name, chunk.sz, 1.0); // full HP render
 
-function buildTunnelSnapshot() {
-  // Only send sumpExit points + nulls (segment separators) — ~10–30 points max
-  // Full pPath is up to 2000 points; this keeps the Realtime payload small
-  var snap = [];
-  for (var i = 0; i < pPath.length; i++) {
-    var p = pPath[i];
-    if (!p) { snap.push(null); continue; }
-    if (p.sumpExit || p.alpha <= 0) snap.push({ x: p.x, y: p.y, r: p.r, alpha: p.alpha, sumpExit: !!p.sumpExit, clog: p.clog || 0 });
-  }
-  return snap;
+function _prerenderTrashChunk(name, r, hpFrac) {
+  var oc = document.createElement('canvas');
+  var pad = Math.ceil(r * 1.3); // enough for crust ridges etc.
+  oc.width  = pad * 2;
+  oc.height = pad * 2;
+  var octx = oc.getContext('2d');
+  octx.translate(pad, pad);
+  drawTrashChunk(octx, name, r, hpFrac);
+  return oc;
 }
+
+// In draw() trash chunk loop — replace drawTrashChunk call:
+ctx.drawImage(tc.img, -pad, -pad, pad*2, pad*2);
 ```
 
-**`main.tsx`** — add `tunnelSnap` to the fields forwarded in the Realtime presence broadcast (it already fans everything through, so this may be zero-change on the host side — verify).
-
-**`setPresence` handler in `game.js`** — store `tunnelSnap` on each `otherPlayers` entry:
-```js
-existing.tunnelSnap = p.tunnelSnap || null;
-```
-
----
-
-#### Piece 2 — Drop routing checks all players' tunnels
-
-`nearestPathIdx()` (line 762) currently only scans the local `pPath`. Extend it to also scan `otherPlayers[i].tunnelSnap` arrays, returning a result tagged with the owning player's username.
-
-```js
-function nearestPathIdx(wx, wy, xTol, yTol) {
-  var best = -1, bestDist = 999999, bestOwner = 'local';
-
-  // Scan local pPath (existing logic)
-  for (var i = 0; i < pPath.length; i++) { /* ... existing ... */ }
-
-  // Scan other players' tunnel snapshots
-  for (var op = 0; op < otherPlayers.length; op++) {
-    var snap = otherPlayers[op].tunnelSnap;
-    if (!snap) continue;
-    for (var si = 0; si < snap.length; si++) {
-      var p = snap[si];
-      if (!p || p.alpha <= 0) continue;
-      if (p.y < wy) continue;
-      if (yTol != null && p.y > wy + yTol) continue;
-      if (Math.abs(p.x - wx) > xTol) continue;
-      var dist = Math.abs(p.y - wy);
-      if (dist < bestDist) { bestDist = dist; best = si; bestOwner = otherPlayers[op].username; }
-    }
-  }
-  return { idx: best, owner: bestOwner }; // NOTE: return shape changes — audit all callers
-}
-```
-
-⚠️ **`nearestPathIdx` return shape changes** from a raw index to `{ idx, owner }`. Every caller must be updated. Grep for `nearestPathIdx(` — there are likely 3–5 call sites.
-
----
-
-#### Piece 3 — Clog changes propagate back to the tunnel owner
-
-When a poop drop clogs a point on another player's `tunnelSnap`, the local client needs to notify that player so their `pPath` updates. New message type:
-
-**`game.js`** — when a poop drop deposits on another player's tunnel point:
-```js
-postToHost({
-  type:       'tunnelClog',
-  targetUser: bestOwner,        // username of tunnel owner
-  snapIdx:    best,             // index in their tunnelSnap
-  clogAmt:    d.clogAmt,
-  x:          pp.x,
-  y:          pp.y
-});
-```
-
-**`main.tsx`** — new `MSG_TUNNEL_CLOG` handler: look up the target player's active webview session and forward the clog message to them via Realtime. The target player's `game.js` receives it and applies the `clogAmt` to the matching `pPath` point (match by proximity to `x, y` since indices don't transfer).
-
-**`game.js`** — new message handler for incoming `tunnelClog`:
-```js
-if (msg.type === 'tunnelClog') {
-  // Find nearest pPath point to msg.x, msg.y and apply clog
-  var _ci = nearestPathIdx(msg.x, msg.y, pSR * 3, pSR * 3);
-  if (_ci.idx >= 0 && _ci.owner === 'local') {
-    var _cp = pPath[_ci.idx];
-    if (_cp) {
-      _cp.clog = Math.min(1, (_cp.clog || 0) + (msg.clogAmt || 0.1));
-      _cp.clogTs = frame;
-      // Visual feedback — show a poop splash at the clog point
-      drops.push({ x: _cp.x, y: _cp.y, vy: 0.2, sz: pSR, active: true, isPoop: true, clogAmt: 0 });
-    }
-  }
-}
-```
-
----
-
-### New constants needed
-
-```js
-var TUNNEL_SNAP_INTERVAL = 2000; // ms — same cadence as presenceUpdate, piggybacks on it
-var TUNNEL_CLOG_RADIUS   = 3;    // pSR multiplier for matching clog target point by proximity
-```
-
-### New message types needed
-
-Add to both `game.js` and `main.tsx`:
-```js
-const MSG_TUNNEL_CLOG = 'tunnelClog';
-```
-
----
-
-### Gameplay notes
-
-- **Griefing ceiling:** A clogged drain forces the victim to re-dig, not instant-kills them. Feels like mischief, not harassment.
-- **Counterplay:** Egg shell eating clears local acid (`pAcid -= 0.3`) — consider whether eating egg shell near a clog also clears it (thematic: shell neutralises the blockage).
-- **Karma cost:** Consider a small karma penalty for clogging another player's drain — poop is supposed to be beneficial; deliberately weaponising it costs something.
-- **Visual tell:** The poop splash on the victim's screen when their tunnel gets hit is the only feedback. Consider a HUD toast: `💩 [username] clogged your drain!`
-
----
+**Expected speedup: 50–100× reduction in canvas ops for trash rendering.**
 
 ### Files to change
-
-| File | Change |
-|---|---|
-| `game.js` | `buildTunnelSnapshot()` — new function |
-| `game.js` | `presenceUpdate` interval — add `tunnelSnap` field |
-| `game.js` | `setPresence` handler — store `tunnelSnap` on `otherPlayers[i]` |
-| `game.js` | `nearestPathIdx()` — scan other players' snapshots, return `{idx, owner}` |
-| `game.js` | Drop routing in `updateDrops()` — handle `bestOwner !== 'local'` path |
-| `game.js` | New `tunnelClog` incoming message handler |
-| `game.js` | Add `MSG_TUNNEL_CLOG` constant |
-| `main.tsx` | New `MSG_TUNNEL_CLOG` handler — forward to target player via Realtime |
-| `main.tsx` | Add `MSG_TUNNEL_CLOG` constant |
+- `game.js` `spawnScraps()` — add `_prerenderTrashChunk()` call per chunk
+- `game.js` draw loop (line ~5858) — replace `drawTrashChunk` call with `ctx.drawImage`
+- `game.js` — new `_prerenderTrashChunk(name, r, hpFrac)` helper function
 
 ---
+
+## PERF-2 — pPath Nested Scans: O(drops × pPath) Up to 400,000 Iterations/Frame
+
+**Priority: P1 — fix before launch. Gets worse as the player digs more tunnels.**
+
+### What's happening
+`updatePhysics()` processes up to 200 active drops per frame. Each drop that is routing through a tunnel may trigger multiple inner `for` loops scanning `pPath` (up to 2,000 points) — junction scans, segment-end scans, rescan after detach. In the worst case (many drops, long tunnel):
+
+**200 drops × 2,000 pPath points × multiple scans = up to 400,000+ iterations/frame**
+
+Specific hot inner loops identified (all scan from `d.pathIdx` forward to `pPath.length`):
+- `_nae` loop (line ~4184) — scan for `nextAfterExit`
+- `_uae` loop (line ~4207) — scan for up-drain entry
+- `_jsi` / `_jsi2` loops (line ~4235) — junction target scan
+- `pi8`, `pi3`, `pi7`, `pi5` loops — segment boundary walks
+
+### Fix: Spatial Y-bucket index on pPath
+Divide pPath into Y-buckets of `2 * pSR` height. On each `addPoint()` call, insert the index into the appropriate bucket. `nearestPathIdx()` only scans buckets overlapping the query Y range — typically 1–3 buckets (~10–30 points) instead of 2,000.
+
+```js
+var _pPathBuckets = {}; // { bucketKey: [pPath indices] }
+var PPATH_BUCKET_H = 8; // px — 2 × pSR
+
+function _pPathBucket(y) { return Math.floor(y / PPATH_BUCKET_H); }
+
+// In addPoint(), after path.push(pt):
+var bk = _pPathBucket(pt.y);
+if (!_pPathBuckets[bk]) _pPathBuckets[bk] = [];
+_pPathBuckets[bk].push(path.length - 1);
+
+// nearestPathIdx() — only scan relevant buckets:
+var bMin = _pPathBucket(wy) - 1;
+var bMax = _pPathBucket(wy + (yTol || 0)) + 1;
+for (var bk2 = bMin; bk2 <= bMax; bk2++) {
+  var bucket = _pPathBuckets[bk2];
+  if (!bucket) continue;
+  for (var bi = 0; bi < bucket.length; bi++) { /* existing check */ }
+}
+```
+
+Also needs bucket cleanup on `pPath.splice()` prune and `null` insertion (segment separators don't need buckets).
+
+**Expected speedup: 50–200× reduction in pPath scan work during active tunnelling.**
+
+### Files to change
+- `game.js` — `_pPathBuckets` global + `PPATH_BUCKET_H` constant
+- `game.js` `addPoint()` — insert into bucket on push
+- `game.js` pPath prune block (~line 767) — rebuild or prune bucket on splice
+- `game.js` `nearestPathIdx()` — replace full scan with bucket scan
+- `game.js` tunnel decay loop (`tdi` loop) — may benefit from bucket too
+
+---
+
+## PERF-3 — Blade Fringe: 298 Individual Triangle Fills Every Frame
+
+**Priority: P2 — visible cost, easy fix.**
+
+### What's happening
+`draw()` draws a grass blade fringe at the horizon with a `for` loop over `WORLD_W / 4 = 298` iterations, each doing `beginPath` + `moveTo` + `lineTo` × 2 + `closePath` + `fill`. That's **~1,788 canvas calls per frame** when the horizon is on screen — which is most of the time (worm lives near the surface often).
+
+```js
+// Current — 298 beginPath/fill per frame:
+var bladeCount = Math.floor(WORLD_W / 4);
+for (var gi = 0; gi < bladeCount; gi++) { /* beginPath, moveTo, lineTo, fill */ }
+```
+
+### Fix: Pre-render to offscreen canvas once
+Render the full `WORLD_W × 20px` blade strip to an offscreen canvas in `setup()`. In `draw()`, replace the loop with a single `ctx.drawImage(bladeCanvas, -centreOffsetX, horizScreenY - 18)`.
+
+```js
+// In setup() — render once:
+var bladeCanvas = document.createElement('canvas');
+bladeCanvas.width  = WORLD_W;
+bladeCanvas.height = 24;
+var bctx = bladeCanvas.getContext('2d');
+// ... same loop, drawn into bctx at y=20 ...
+window._bladeCanvas = bladeCanvas;
+
+// In draw() — replace loop:
+if (horizScreenY > -24 && horizScreenY < H) {
+  ctx.drawImage(window._bladeCanvas, -centreOffsetX, horizScreenY - 20);
+}
+```
+
+**Expected speedup: 1,788 canvas calls → 1 drawImage per frame.**
+
+### Files to change
+- `game.js` `setup()` — call `_buildBladeCanvas()` once
+- `game.js` `draw()` — replace blade fringe loop with `drawImage`
+- `game.js` — new `_buildBladeCanvas()` helper
+
+---
+
+## PERF-4 — Debris + Scraps: Up to 600 Items with Save/Translate/Rotate/Restore Each
+
+**Priority: P2 — secondary to PERF-1 and PERF-2.**
+
+### What's happening
+`draw()` processes up to 300 `debris[]` items and up to 300 `scraps[]` items. Each gets its own `ctx.save()` → `ctx.translate()` → `ctx.rotate()` → `drawDebrisFragment()` (226 lines, 135 canvas ops) → `ctx.restore()`. At cap:
+
+**600 items × (save + translate + rotate + ~30 ctx ops + restore) = ~19,200 canvas ops/frame**
+
+`drawDebrisFragment` is a 226-line switch statement similar to `drawTrashChunk` — same problem, smaller scale.
+
+### Fix A: Pre-render debris fragments (same approach as PERF-1)
+Pre-render each unique `(name, col, col2, sz)` combination to an offscreen canvas. Cache by a `name+sz` key. `drawDebrisFragment` called once per unique type, then `drawImage` at each instance position.
+
+### Fix B: Lower debris cap
+`MAX_DEBRIS` is not defined — debris is capped at 300 by an inline check (`if (debris.length < 300)`). Reducing this to 80–100 would halve the cost with minimal visual impact (debris is small particles). Same for scraps.
+
+### Fix C: Skip rotate for settled scraps
+Most settled scraps have `rotSpd` near zero after landing. Skip `ctx.rotate()` (and save/restore) when `Math.abs(s.rot) < 0.02` — use `ctx.translate` only, draw upright.
+
+### Files to change
+- `game.js` — `_buildDebrisCache()` pre-render helper
+- `game.js` debris draw loop (~line 6026) — `drawImage` instead of `drawDebrisFragment`
+- `game.js` scraps draw loop — same
+- `game.js` — lower inline debris cap from 300 → 80
+
+---
+
+
 
 ## Session 19 — 2026-06-19 (ISS-1 + ISS-2 Closed | ISS-13 Opened)
 
