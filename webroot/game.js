@@ -387,8 +387,7 @@ window.addEventListener('message', function(e) {
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
-    // ISS-13 Bug C fix: pooled is local-only — no longer synced via setWorldState
-    // if (msg.pooled != null) pooled = ... — removed
+    if (msg.pooled           != null) pooled             = Math.max(0, Math.min(1, +msg.pooled           || 0));
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
     if (msg.scrapsLevel      != null) window._hostScrapsLevel = Math.max(0, Math.min(1, +msg.scrapsLevel || 1));
@@ -2154,7 +2153,7 @@ function updateSnoo() {
           weekStartTs = Date.now();
           weeklyContrib = 0;
           saveSession();
-          postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false }); // ISS-13: pooled removed
+          postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
         }
         // Ease camera back to where the player is
         // camY will naturally follow the player again via updatePlayer
@@ -4587,8 +4586,7 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    // ISS-13 Bug C fix: pooled removed from worldUpdate — it is now local-only per client
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
   }
 
   // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
@@ -4650,7 +4648,7 @@ function updatePhysics() {
     // Broadcast to host — server will re-broadcast via Realtime to all viewers.
     // In production the setFlood message from the host is authoritative;
     // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() }); // ISS-13: pooled removed
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
@@ -4759,7 +4757,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: 'worldUpdate', tLvl: 0, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true }); // ISS-13: pooled removed
+  postToHost({ type: 'worldUpdate', tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
   // Chain feed cinematic immediately — no gap between drain and refill
   weeklyFeedPending = true;
   triggerSnoo('feed');
@@ -8003,7 +8001,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment }); // ISS-13: pooled removed
+        postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
       }
     }
 
@@ -8586,7 +8584,7 @@ window.addEventListener('keydown', function(e) {
       var fs3 = loadSession();
       if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
     } catch(e2) {}
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() }); // ISS-13: pooled removed
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
