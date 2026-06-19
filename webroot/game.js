@@ -387,7 +387,8 @@ window.addEventListener('message', function(e) {
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
-    if (msg.pooled           != null) pooled             = Math.max(0, Math.min(1, +msg.pooled           || 0));
+    // ISS-13 Bug C fix: pooled is local-only — no longer synced via setWorldState
+    // if (msg.pooled != null) pooled = ... — removed
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
     if (msg.scrapsLevel      != null) window._hostScrapsLevel = Math.max(0, Math.min(1, +msg.scrapsLevel || 1));
@@ -2153,7 +2154,7 @@ function updateSnoo() {
           weekStartTs = Date.now();
           weeklyContrib = 0;
           saveSession();
-          postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
+          postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false }); // ISS-13: pooled removed
         }
         // Ease camera back to where the player is
         // camY will naturally follow the player again via updatePlayer
@@ -3027,6 +3028,14 @@ function formatOfflineTime(sec) {
 // Auto-save every 30 seconds while alive
 setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 30000);
 
+// ISS-14 fix: save on exit so active worm position/HP/gut persist across sessions
+// Fires on tab switch, app background, and most close events (mobile and desktop)
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
+    saveSession();
+  }
+});
+
 // Broadcast local player position to host every 2 seconds for Realtime presence.
 // The host fans this out to other viewers via Realtime subscribe.
 // Throttled separately from saveSession to keep KV writes low.
@@ -3133,8 +3142,9 @@ function setup() {
     pSR     = 4; // radius always locked at 4
     pSEG    = Math.max(4, Math.min(8,        saved.pSEG   || 4));
     generation = Math.max(0, Math.min(99,    saved.generation || 0));
-    // Always spawn at full health — saved HP ignored, hunger is the pressure
-    pHP     = 1.0;
+    // ISS-14 fix: restore saved HP instead of hardcoding 1.0
+    // pHP = 1.0 only happens in respawnPlayer() — that's the intentional fresh start
+    pHP     = Math.max(0.01, Math.min(1, saved.pHP || 1.0));
     // Compute pGutMax from restored pSR before clamping pGut — otherwise the
     // clamp uses the stale default and silently cuts the restored gut value.
     pGutMax = 4 + Math.floor((pSR - 4) / 3 * 4);
@@ -4550,6 +4560,9 @@ function updatePhysics() {
       d.counted = true;
       tLvl = Math.min(1, tLvl + 0.001);
       karma += 1;
+      // ISS-13 Bug A fix: tunnel drops must decrement pooled when they hit the tea surface.
+      // Previously guarded by !d.inTunnel at sump entry, so tunnel drops never reduced saturation.
+      if (!d.isPoop) pooled = Math.max(0, pooled - 0.005);
       // Clamp splash Y to the actual fill line — not wherever the drop happened to be
       var splashWY = Math.min(d.y, _teaSurfWY);
       teaSplashes.push({ x: d.x, wy: splashWY, age: 0, maxAge: 44, r: 0, sz: d.sz, vy: d.vy });
@@ -4564,21 +4577,9 @@ function updatePhysics() {
   }
   drops = drops.filter(function(d) { return d.active; });
 
-  // Saturation evaporation — pathless/stalled drops in compost slowly evaporate, weather-driven.
-  // pooled is not re-derived here — it's a shared world value updated by drop events
-  // (entry +0.005, sump exit -0.005) and synced via Devvit Realtime to all clients.
-  for (var _cdi = 0; _cdi < drops.length; _cdi++) {
-    var _cd = drops[_cdi];
-    if (_cd.active && !_cd.isPoop && _cd.enteredCompost && !_cd.inSump && _cd.pathIdx == null) {
-      var _evapChance = getEvapRate() * 10;
-      if (Math.random() < _evapChance) {
-        _cd.active  = false;
-        _cd.stalled = false;
-        // Drop evaporated — remove its contribution from pooled
-        pooled = Math.max(0, pooled - 0.005);
-      }
-    }
-  }
+  // ISS-13 Bug B: evaporation loop REMOVED — it silently drained saturation with no player
+  // visibility, undermining the drain mechanic and confusing cause/effect. Drainage via
+  // tunnels (now fixed by ISS-13 Bug A) is the intended way to reduce moisture.
   pooled = Math.max(0, Math.min(1, pooled));
 
   // Broadcast pooled when it has drifted by ≥ 0.02 since last sync
@@ -4586,7 +4587,8 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+    // ISS-13 Bug C fix: pooled removed from worldUpdate — it is now local-only per client
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
   }
 
   // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
@@ -4648,7 +4650,7 @@ function updatePhysics() {
     // Broadcast to host — server will re-broadcast via Realtime to all viewers.
     // In production the setFlood message from the host is authoritative;
     // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() }); // ISS-13: pooled removed
   }
   // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
@@ -4757,7 +4759,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: 'worldUpdate', tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  postToHost({ type: 'worldUpdate', tLvl: 0, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true }); // ISS-13: pooled removed
   // Chain feed cinematic immediately — no gap between drain and refill
   weeklyFeedPending = true;
   triggerSnoo('feed');
@@ -8001,7 +8003,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment }); // ISS-13: pooled removed
       }
     }
 
@@ -8584,7 +8586,7 @@ window.addEventListener('keydown', function(e) {
       var fs3 = loadSession();
       if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
     } catch(e2) {}
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() }); // ISS-13: pooled removed
   }
   // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
