@@ -477,7 +477,7 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### ⚠ P1 — START HERE: PERF-1 — Trash chunk offscreen pre-render
+### ⚠ P1 — START HERE: ISS-14 — Fix active worm session restore — Trash chunk offscreen pre-render
 
 **Largest single source of lag.** 156 items × 701-line draw fn × 6 Z-passes = ~21,000 canvas ops/frame.
 Fix: pre-render each chunk to `OffscreenCanvas` at spawn. Replace `drawTrashChunk()` with `ctx.drawImage()`.
