@@ -1,3 +1,5 @@
+[From cache — run sync to update]
+
 /**
  * main.tsx — Wigglers Room (Devvit host)
  * 
@@ -14,7 +16,7 @@
  *
  * KV key structure:
  *   worm:{username}          — per-player worm session JSON
- *   world:{postId}           — shared world state JSON (tLvl, pooled, castingEnrichment, scrapsLevel)
+ *   world:{postId}           — shared bin state JSON (tLvl, castingEnrichment, scrapsLevel)
  *   cocoons:{postId}         — all players' cocoons JSON array
  *   week:{postId}            — { weekStartTs, pot, contributors }
  *   queue:{postId}           — pending worm queue JSON array
@@ -650,7 +652,7 @@ Devvit.addCustomPostType({
             try {
               const worldData = {
                 tLvl:              typeof message.tLvl === 'number'              ? Math.max(0, Math.min(1, message.tLvl))              : 0,
-                pooled:            typeof message.pooled === 'number'            ? Math.max(0, Math.min(1, message.pooled))            : 0,
+                // pooled intentionally excluded — runtime-only, not shared via KV
                 castingEnrichment: typeof message.castingEnrichment === 'number' ? Math.max(0, Math.min(1, message.castingEnrichment)) : 0,
                 scrapsLevel:       typeof message.scrapsLevel === 'number'       ? Math.max(0, Math.min(1, message.scrapsLevel))       : 1,
                 updatedAt: serverNow,
@@ -952,4 +954,5 @@ Devvit.addMenuItem({
 });
 
 export default Devvit;
+
 
