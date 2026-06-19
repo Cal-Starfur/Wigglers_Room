@@ -1,5 +1,5 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-19 Session 19 (ISS-1+ISS-2 closed — weekly drain persistence shipped; ISS-13 opened — pooled saturation mismatch)
+> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed; ISS-13+14 opened — next session: ISS-14 first)
 > Current state: V20 + all Session 14–18 fixes
 
 ---
@@ -106,6 +106,109 @@ This undermines the core design intent (draining = the mechanic) and creates con
 - `main.tsx` MSG_WORLD_UPDATE: remove `pooled` from `worldData` object
 - `main.tsx`: remove `pooled` from `KV_WORLD` reads/writes
 - Keep `pooled` in `saveSession()` / `KV_WORM_SESSION` so each player's own moisture persists across their own sessions
+
+
+---
+
+## ISS-14 — Non-sleeping worm restores to full HP and wrong position on reload
+
+**Priority: P1 — must fix before launch**
+
+### What the player sees
+- Put worm to sleep → leave → come back → worm is exactly where you left it, sleeping ✅
+- Leave worm active (not sleeping) → come back → worm is at full HP, back at spawn position ❌
+
+The sleeping path works correctly. The active worm path has three compounding problems.
+
+---
+
+### Bug A — pHP hardcoded to 1.0 on every session load
+
+`game.js` `setup()`, line 3137:
+```js
+// Always spawn at full health — saved HP ignored, hunger is the pressure
+pHP = 1.0;
+```
+
+`saved.pHP` is read and clamped by `clampSession()` in `main.tsx` and stored in `KV_WORM_SESSION` correctly — but `setup()` unconditionally overwrites it with `1.0` on every load. The comment says "hunger is the pressure" but hunger only affects gut, not HP directly. HP damage from acid, oversaturation, and flood all get silently restored on reload.
+
+**Fix:** Remove the `pHP = 1.0` override at line 3137 and restore `pHP` from `saved.pHP` the same way `pGut` is restored. Keep the `pHP = 1.0` resets in `respawnPlayer()` — those are correct (baby respawn and cocoon hatch should start fresh).
+
+---
+
+### Bug B — No save-on-exit, only a 30-second autosave
+
+`game.js` line 3028:
+```js
+setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 30000);
+```
+
+There is no `visibilitychange`, `beforeunload`, or `pagehide` listener. If the player leaves the game at any point between autosave ticks — which is a 30-second window — the position, gut, and HP saved to KV are up to 30 seconds stale. On a mobile app where backgrounding kills the webview instantly, this window is effectively always open.
+
+The sleeping path avoids this because `trySleep()` calls `saveSession()` explicitly at the moment of sleep. Active worm has no equivalent save-on-exit.
+
+**Fix:** Add a `visibilitychange` listener that calls `saveSession()` when `document.visibilityState === 'hidden'`. This fires on tab switch, app background, and most close events in both mobile WebView and desktop browser.
+
+```js
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
+    saveSession();
+  }
+});
+```
+
+---
+
+### Bug C — Position restoration relies on autosave being recent
+
+`initPlayer(saved)` at line 2859 does restore `saved.pX` and `saved.pY` correctly:
+```js
+var startX = (saved && saved.pX) ? saved.pX : b.cx;
+var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
+```
+
+But if Bug B isn't fixed, `saved.pX/pY` may be the position from 30 seconds ago, not where the player actually left. On a fast session (under 30s) the very first autosave may not have fired at all, so `saved.pX/pY` is `null` → falls back to `b.cx` (bin center) at `H * 1.4` (tier 0 spawn). This is the "comes back at spawn" symptom.
+
+**Fix:** Bug B's `visibilitychange` save fixes this automatically — position is always current at the moment of exit.
+
+---
+
+### Why sleeping works and active doesn't
+
+| | Sleeping | Active |
+|--|---------|--------|
+| Save on state change | ✅ `trySleep()` calls `saveSession()` | ❌ only 30s autosave |
+| Position restored | ✅ `pSleepX/Y` + `pX/pY` both saved at sleep time | ⚠ only if autosave fired recently |
+| HP restored | ❌ hardcoded `pHP = 1.0` (same bug, masked by sleeping HP being high) | ❌ hardcoded `pHP = 1.0` |
+| Gut restored | ✅ `saved.pGut` restored correctly | ✅ `saved.pGut` restored correctly |
+
+Note: sleeping worm also has this HP bug but it's invisible because a sleeping worm isn't taking damage — HP is usually full when you sleep anyway.
+
+---
+
+### Files to Change
+
+**Bug A fix** — `game.js` line 3137:
+- Replace `pHP = 1.0;` with `pHP = Math.max(0.01, Math.min(1, saved.pHP || 1.0));`
+- The `0.01` floor prevents loading a dead worm (pHP=0 should have triggered death screen before save)
+- Keep `pHP = 1.0` in `respawnPlayer()` (line 7804, 7814, 7819) — those are intentional fresh starts
+
+**Bug B fix** — `game.js` after line 3028 (near the autosave interval):
+```js
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
+    saveSession();
+  }
+});
+```
+
+Bug C is resolved automatically by Bug B fix.
+
+---
+
+### Interaction with ISS-13
+
+Once ISS-13 is fixed (`pooled` becomes local-only), the `visibilitychange` save also ensures the player's saturation state is written before exit — keeping their moisture level accurate on return. ISS-13 and ISS-14 should be fixed in the same session.
 
 ---
 
