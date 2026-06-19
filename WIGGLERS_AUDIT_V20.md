@@ -1,807 +1,383 @@
-# Wigglers Room — Audit Log V20
-> Last updated: 2026-06-19 Session 20 (ISS-13 partially closed; ISS-14 closed; FEAT-1 + PERF-1–4 documented)
-> Current state: V21 — rain removed, pooled runtime-only, ISS-14 fully closed
+# Wigglers Room — Audit Log
+
+> **Rebuilt:** 2026-06-19 — restructured for clarity (was append-only since S14)
+> **Current session:** 20 | **Devvit version:** 0.0.179 | **game.js:** ~8,635 lines | **main.tsx:** ~959 lines
+> **Next P1:** PERF-1 (trash chunk offscreen pre-render) — largest single source of lag
 
 ---
 
-## Session 20 — 2026-06-19 (ISS-13 Partial + ISS-14 Closed + PERF-1–4 Documented)
+## Section 1 — Devvit Platform Rules (Read Every Session)
 
-### Session Summary
-Closed ISS-14 completely (HP/acid/position persist; KV-vs-localStorage race fixed via timestamp merge). Partially closed ISS-13 — Bug A (tunnel drain decrement) and Bug B (evaporation removed) shipped in prior sessions; Bug C fixed this session by making `pooled` runtime-only (no longer saved to or loaded from KV). Removed rain entirely — saturation now driven only by food drops reaching compost. Fixed pool gradient and saturation glow width (were 4px short of bin walls each side). Documented FEAT-1 (cross-player tunnel clogging) and PERF-1–4 (performance issues identified via diagnostic).
+Hard-won lessons. Violating these causes silent failures or broken deploys.
 
-### What Shipped
-| Commit | File | What |
-|--------|------|------|
-| `696121b` | game.js | ISS-14: setSession merge — timestamp wins, stale KV never overwrites newer local save |
-| `e106801` | game.js | ISS-14: Save and restore pAcid across sessions |
-| `23da7ac` | WIGGLERS_AUDIT_V20.md | FEAT-1 cross-player tunnel clogging design doc |
-| `e11d4ec` | game.js | Remove rain — strip precip from weather, seasonal baselines, events, HUD; delete getEvapRate |
-| `44d466a` | main.tsx | ISS-13 Bug C: remove pooled from KV_WORLD worldData write |
-| `4b0f7a1` | game.js | ISS-13 Bug C: pooled runtime-only — remove from setWorldState, worldUpdate broadcasts, saveSession, setup() restore |
-| `1dd642e` | main.tsx | Hotfix: remove sync cache header accidentally committed |
-| `53ae826` | game.js | Fix pool gradient + saturation glow fillRect width to full bin edge |
+### Assets
+- PNG only — GIF/JPG rejected by Devvit uploader
+- Push binary files via GitHub API directly — sync script corrupts binaries
+- All images in `/assets/`, referenced by filename only
+
+### Devvit API
+- `user.getSnoovatarUrl()` — method call, not a property
+- External `fetch()` to non-Reddit domains silently fails — blocked by sandbox
+- `webView.mount()` only inside `onPress` — never in render body (fires every render = crash)
+
+### Realtime / useChannel
+- Channel names must be `[a-zA-Z0-9_]` only — colons crash render
+- Declare `useChannel` after `useWebView` — scope dependency
+
+### Message Bridge
+- Devvit wraps `webView.postMessage()` in envelope: `{ type: 'devvit-message', data: { message: ... } }`
+- Origin of host→webview messages is NOT `https://www.reddit.com` — removed strict origin check
+- game.js uses **raw strings** for message types — MSG_* constants not yet applied (S2 reverted, P2)
+
+### Post Lifecycle
+- Old posts go read-only after re-upload — create new post to test every time
+- Always `git pull` before `devvit upload` — API push bypasses local git
+
+### Canvas / Coordinate System
+- `resizeCanvas()` must always update W/H — never guard with `if (!W || !H)`
+- `camX` must always be `>= 0` — negative camX breaks translate and pointer coords
+- Background elements use `WORLD_W` not `W` — sky, ground, sun, moon, stars, grass, flowers
+- `mX = screenX - centreOffsetX + camX` — all pointer→world conversions
+
+### Snoo Cinematics
+- All `drawSnoo*` calls must be inside `ctx.translate(centreOffsetX - camX, 0)` — world coords work natively
+- Never call cinematics after `ctx.restore()` — screen-space conversion breaks on mobile
+- Feed Snoo is the reference implementation — if positioning breaks, check world transform
+
+### Version Tracking
+- Devvit auto-increments its internal version on every `devvit upload`
+- We track it in `devvit.yaml` — auto-bumped by `propose_commit.py` after every push
+- Current: `0.0.179` → next push will become `0.0.180`
 
 ---
 
-## PERF-1 — Trash Chunks: 156 Items × 701-Line Draw Function × 6 Z-Passes
+## Section 2 — Open Issues
 
-**Priority: P1 — fix before launch. Largest single source of lag.**
+### Priority table
 
-### What's happening
-`spawnScraps()` creates ~156 `trashChunks` at `WORLD_W=1194` (`(bw - 28) / 38 * scale` per layer × 6 layers). Each frame, `draw()` iterates all 156 items **6 times** (one per Z-depth pass in `drawOrder = [5,2,4,1,3,0]`). For each visible item it calls `drawTrashChunk()` — a 701-line switch statement with **436 canvas operations** per item (fills, strokes, ellipses, bezier curves, save/restore, translate, rotate).
+| ID | Priority | Devvit version introduced | Summary |
+|----|----------|--------------------------|---------|
+| PERF-1 | **P1 — next session** | ~0.0.160 | Trash chunks: 21k canvas ops/frame — pre-render fix ready |
+| PERF-2 | **P1 — next session** | ~0.0.160 | pPath nested scans: up to 400k iterations/frame |
+| ISS-13 Bug A | P1 — verify shipped | 0.0.170 | Tunnel drains may not decrement `pooled` — check S20 fix |
+| PERF-3 | P2 | ~0.0.160 | Blade fringe: 1,788 canvas calls/frame — easy offscreen fix |
+| PERF-4 | P2 | ~0.0.160 | Debris + scraps: 19,200 canvas ops/frame |
+| ISS-3  | P2 | ~0.0.140 | 17 `_underscore` function names (S4 rename reverted) |
+| ISS-4  | P2 | ~0.0.140 | `draw()` 2,022-line monolith (S5 split reverted) |
+| ISS-5  | P2 | ~0.0.140 | 5 duplicate Snoo SVG helper pairs |
+| ISS-6  | P2 | ~0.0.140 | 18 raw message strings in game.js (S2 reverted) |
+| ISS-7  | P2 | ~0.0.140 | 4 dead functions in codebase |
+| ISS-8  | P3 | 0.0.100 | `DEBUG_PASSWORD` plaintext `'wigglers2025'` |
+| ISS-9  | Low | ~0.0.150 | `bornTs` not stamped on cocoon hatch respawn |
+| ISS-10 | P3 | ~0.0.150 | `weeklyContrib` client-authoritative |
+| ISS-11 | Future | ~0.0.150 | Weekly drain only fires while a player is open |
+| FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
+| FEAT-2 | P2 | logged S20 | Cross-device session continuity (design doc below) |
+| FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 
-At 60fps with ~50 items visible: **50 items × ~70 canvas ops × 6 passes = ~21,000 canvas state changes per frame** just for trash.
+---
 
-### Root cause
-`drawTrashChunk` is called live every frame. It was designed for correctness (accurate shapes), not performance. The 6-pass Z-sort multiplies the cost.
+## Section 3 — Open Issue Detail
 
-### Fix: Offscreen canvas pre-render at spawn time
-Pre-render each trash chunk to its own `OffscreenCanvas` (or regular `document.createElement('canvas')`) once when `spawnScraps()` runs. Cache it on the chunk object as `tc.img`. In the draw loop, replace `drawTrashChunk(ctx, tc.t.name, curR, tc.hpFrac)` with a single `ctx.drawImage(tc.img, -curR, -curR, curR*2, curR*2)`.
+### PERF-1 — Trash Chunks: 21,000 Canvas Ops/Frame
 
-HP bar overlay still draws live (cheap). Re-render the offscreen canvas only when `hpFrac` crosses a visible threshold (e.g. every 10% HP).
+**Priority: P1 — fix next session**
+**Introduced:** ~0.0.160 | **Fix ready:** yes — offscreen pre-render
+
+`spawnScraps()` creates ~156 `trashChunks`. Each frame `draw()` iterates all 156 items **6 times** (one per Z-depth pass in `drawOrder = [5,2,4,1,3,0]`). For each visible item it calls `drawTrashChunk()` — a 701-line switch statement with 436 canvas operations per item.
+
+At 60fps with ~50 items visible: **50 × ~70 canvas ops × 6 passes = ~21,000 canvas state changes/frame** just for trash.
+
+**Fix:** Pre-render each trash chunk to `OffscreenCanvas` once at `spawnScraps()` time. Cache as `tc.img`. Replace `drawTrashChunk()` call with `ctx.drawImage(tc.img, ...)` in draw loop.
 
 ```js
-// In spawnScraps(), after building each chunk:
-chunk.img = _prerenderTrashChunk(chunk.t.name, chunk.sz, 1.0); // full HP render
-
 function _prerenderTrashChunk(name, r, hpFrac) {
   var oc = document.createElement('canvas');
-  var pad = Math.ceil(r * 1.3); // enough for crust ridges etc.
-  oc.width  = pad * 2;
-  oc.height = pad * 2;
+  var pad = Math.ceil(r * 1.3);
+  oc.width = pad * 2; oc.height = pad * 2;
   var octx = oc.getContext('2d');
   octx.translate(pad, pad);
   drawTrashChunk(octx, name, r, hpFrac);
   return oc;
 }
-
-// In draw() trash chunk loop — replace drawTrashChunk call:
-ctx.drawImage(tc.img, -pad, -pad, pad*2, pad*2);
+// In spawnScraps(): chunk.img = _prerenderTrashChunk(chunk.t.name, chunk.sz, 1.0);
+// In draw() loop: ctx.drawImage(tc.img, -pad, -pad, pad*2, pad*2);
 ```
 
-**Expected speedup: 50–100× reduction in canvas ops for trash rendering.**
+HP bar still draws live (cheap). Re-render offscreen only when `hpFrac` crosses 10% threshold.
 
-### Files to change
-- `game.js` `spawnScraps()` — add `_prerenderTrashChunk()` call per chunk
-- `game.js` draw loop (line ~5858) — replace `drawTrashChunk` call with `ctx.drawImage`
-- `game.js` — new `_prerenderTrashChunk(name, r, hpFrac)` helper function
+**Files:** `game.js` — `spawnScraps()`, draw loop (~line 5858), new `_prerenderTrashChunk()` helper
+**Expected speedup:** 50–100×
 
 ---
 
-## PERF-2 — pPath Nested Scans: O(drops × pPath) Up to 400,000 Iterations/Frame
+### PERF-2 — pPath Nested Scans: Up to 400,000 Iterations/Frame
 
-**Priority: P1 — fix before launch. Gets worse as the player digs more tunnels.**
+**Priority: P1 — fix next session**
+**Introduced:** ~0.0.160 | **Fix ready:** yes — Y-bucket index
 
-### What's happening
-`updatePhysics()` processes up to 200 active drops per frame. Each drop that is routing through a tunnel may trigger multiple inner `for` loops scanning `pPath` (up to 2,000 points) — junction scans, segment-end scans, rescan after detach. In the worst case (many drops, long tunnel):
+`updatePhysics()` processes up to 200 active drops/frame. Each drop routing through a tunnel triggers multiple inner `for` loops scanning all 2,000 pPath points.
 
-**200 drops × 2,000 pPath points × multiple scans = up to 400,000+ iterations/frame**
+Hot loops: `_nae` (~line 4184), `_uae` (~line 4207), `_jsi`/`_jsi2` (~line 4235), `pi8/pi3/pi7/pi5` segment boundary walks.
 
-Specific hot inner loops identified (all scan from `d.pathIdx` forward to `pPath.length`):
-- `_nae` loop (line ~4184) — scan for `nextAfterExit`
-- `_uae` loop (line ~4207) — scan for up-drain entry
-- `_jsi` / `_jsi2` loops (line ~4235) — junction target scan
-- `pi8`, `pi3`, `pi7`, `pi5` loops — segment boundary walks
-
-### Fix: Spatial Y-bucket index on pPath
-Divide pPath into Y-buckets of `2 * pSR` height. On each `addPoint()` call, insert the index into the appropriate bucket. `nearestPathIdx()` only scans buckets overlapping the query Y range — typically 1–3 buckets (~10–30 points) instead of 2,000.
+**Fix:** Y-bucket index on pPath — divide into `PPATH_BUCKET_H = 8px` buckets. `nearestPathIdx()` scans only 1–3 buckets (~10–30 points) instead of 2,000.
 
 ```js
-var _pPathBuckets = {}; // { bucketKey: [pPath indices] }
-var PPATH_BUCKET_H = 8; // px — 2 × pSR
-
+var _pPathBuckets = {};
+var PPATH_BUCKET_H = 8;
 function _pPathBucket(y) { return Math.floor(y / PPATH_BUCKET_H); }
-
-// In addPoint(), after path.push(pt):
-var bk = _pPathBucket(pt.y);
-if (!_pPathBuckets[bk]) _pPathBuckets[bk] = [];
-_pPathBuckets[bk].push(path.length - 1);
-
-// nearestPathIdx() — only scan relevant buckets:
-var bMin = _pPathBucket(wy) - 1;
-var bMax = _pPathBucket(wy + (yTol || 0)) + 1;
-for (var bk2 = bMin; bk2 <= bMax; bk2++) {
-  var bucket = _pPathBuckets[bk2];
-  if (!bucket) continue;
-  for (var bi = 0; bi < bucket.length; bi++) { /* existing check */ }
-}
+// In addPoint(): insert index into bucket
+// In nearestPathIdx(): only scan bMin–bMax buckets
+// Cleanup needed on pPath.splice() prune
 ```
 
-Also needs bucket cleanup on `pPath.splice()` prune and `null` insertion (segment separators don't need buckets).
-
-**Expected speedup: 50–200× reduction in pPath scan work during active tunnelling.**
-
-### Files to change
-- `game.js` — `_pPathBuckets` global + `PPATH_BUCKET_H` constant
-- `game.js` `addPoint()` — insert into bucket on push
-- `game.js` pPath prune block (~line 767) — rebuild or prune bucket on splice
-- `game.js` `nearestPathIdx()` — replace full scan with bucket scan
-- `game.js` tunnel decay loop (`tdi` loop) — may benefit from bucket too
+**Files:** `game.js` — `_pPathBuckets` global, `addPoint()`, pPath prune block (~line 767), `nearestPathIdx()`
+**Expected speedup:** 50–200×
 
 ---
 
-## PERF-3 — Blade Fringe: 298 Individual Triangle Fills Every Frame
+### ISS-13 Bug A — Tunnel Drains May Not Decrement pooled
 
-**Priority: P2 — visible cost, easy fix.**
+**Priority: P1 — verify S20 fix landed correctly**
+**Introduced:** 0.0.170 | **Partially fixed:** S20
 
-### What's happening
-`draw()` draws a grass blade fringe at the horizon with a `for` loop over `WORLD_W / 4 = 298` iterations, each doing `beginPath` + `moveTo` + `lineTo` × 2 + `closePath` + `fill`. That's **~1,788 canvas calls per frame** when the horizon is on screen — which is most of the time (worm lives near the surface often).
+The `!d.inTunnel` guard on the sump entry decrement meant tunnel drops never reduced `pooled`. Bugs B and C were fixed in S20 (evaporation removed, pooled made runtime-only). Bug A fix needs verification — confirm the `_teaHit` block now decrements `pooled` for tunnel drops.
 
 ```js
-// Current — 298 beginPath/fill per frame:
-var bladeCount = Math.floor(WORLD_W / 4);
-for (var gi = 0; gi < bladeCount; gi++) { /* beginPath, moveTo, lineTo, fill */ }
+// Should now read (game.js ~line 4554):
+if (!d.isPoop) pooled = Math.max(0, pooled - 0.005); // no inTunnel guard
 ```
 
-### Fix: Pre-render to offscreen canvas once
-Render the full `WORLD_W × 20px` blade strip to an offscreen canvas in `setup()`. In `draw()`, replace the loop with a single `ctx.drawImage(bladeCanvas, -centreOffsetX, horizScreenY - 18)`.
+---
 
-```js
-// In setup() — render once:
-var bladeCanvas = document.createElement('canvas');
-bladeCanvas.width  = WORLD_W;
-bladeCanvas.height = 24;
-var bctx = bladeCanvas.getContext('2d');
-// ... same loop, drawn into bctx at y=20 ...
-window._bladeCanvas = bladeCanvas;
+### PERF-3 — Blade Fringe: 1,788 Canvas Calls/Frame
 
-// In draw() — replace loop:
-if (horizScreenY > -24 && horizScreenY < H) {
-  ctx.drawImage(window._bladeCanvas, -centreOffsetX, horizScreenY - 20);
-}
-```
+**Priority: P2**
+**Introduced:** ~0.0.160
 
-**Expected speedup: 1,788 canvas calls → 1 drawImage per frame.**
+298 triangle fills every frame for grass blades at horizon. Pre-render to offscreen canvas once in `setup()`, replace loop with single `ctx.drawImage`.
 
-### Files to change
-- `game.js` `setup()` — call `_buildBladeCanvas()` once
-- `game.js` `draw()` — replace blade fringe loop with `drawImage`
-- `game.js` — new `_buildBladeCanvas()` helper
+**Files:** `game.js` — `setup()`, `draw()` blade loop, new `_buildBladeCanvas()` helper
+**Expected speedup:** 1,788 calls → 1 drawImage
 
 ---
 
-## PERF-4 — Debris + Scraps: Up to 600 Items with Save/Translate/Rotate/Restore Each
+### PERF-4 — Debris + Scraps: 19,200 Canvas Ops/Frame
 
-**Priority: P2 — secondary to PERF-1 and PERF-2.**
+**Priority: P2**
+**Introduced:** ~0.0.160
 
-### What's happening
-`draw()` processes up to 300 `debris[]` items and up to 300 `scraps[]` items. Each gets its own `ctx.save()` → `ctx.translate()` → `ctx.rotate()` → `drawDebrisFragment()` (226 lines, 135 canvas ops) → `ctx.restore()`. At cap:
-
-**600 items × (save + translate + rotate + ~30 ctx ops + restore) = ~19,200 canvas ops/frame**
-
-`drawDebrisFragment` is a 226-line switch statement similar to `drawTrashChunk` — same problem, smaller scale.
-
-### Fix A: Pre-render debris fragments (same approach as PERF-1)
-Pre-render each unique `(name, col, col2, sz)` combination to an offscreen canvas. Cache by a `name+sz` key. `drawDebrisFragment` called once per unique type, then `drawImage` at each instance position.
-
-### Fix B: Lower debris cap
-`MAX_DEBRIS` is not defined — debris is capped at 300 by an inline check (`if (debris.length < 300)`). Reducing this to 80–100 would halve the cost with minimal visual impact (debris is small particles). Same for scraps.
-
-### Fix C: Skip rotate for settled scraps
-Most settled scraps have `rotSpd` near zero after landing. Skip `ctx.rotate()` (and save/restore) when `Math.abs(s.rot) < 0.02` — use `ctx.translate` only, draw upright.
-
-### Files to change
-- `game.js` — `_buildDebrisCache()` pre-render helper
-- `game.js` debris draw loop (~line 6026) — `drawImage` instead of `drawDebrisFragment`
-- `game.js` scraps draw loop — same
-- `game.js` — lower inline debris cap from 300 → 80
+600 items × save/translate/rotate/drawDebrisFragment/restore. Three fixes:
+- Pre-render unique `(name, col, col2, sz)` combos to offscreen canvas (same as PERF-1)
+- Lower debris cap from 300 → 80
+- Skip `ctx.rotate()` for settled scraps where `Math.abs(s.rot) < 0.02`
 
 ---
 
-## FEAT-2 — Cross-Device Session Continuity (Same Worm, Any Device)
+## Section 4 — Feature Backlog
 
-**Priority: P2 — ship after PERF-1 and PERF-2**
+### FEAT-1 — Cross-Player Tunnel Clogging
 
-### The goal
-Same Reddit login on iPad and iPhone should give you the same worm in the same bin. Open on iPad, close it, open on iPhone — your worm is exactly where you left it, same HP, same gut, same position. No re-spawning, no fresh session, no data loss.
+**Priority: Future** | **Logged:** S20 (Devvit 0.0.179)
 
----
+When Player A's poop clogs a tunnel, Player B walking through the same tunnel should encounter the blockage. Currently clog state is local-only per client. Requires broadcasting clog state via Realtime presence updates.
 
-### What already works (no changes needed)
-
-**`KV_WORM_SESSION` is global per-user, not per-device.**
-Key is `worm:u/username` — `getCurrentUser()` returns the same Reddit identity on every device. When you open the game on a second device, `main.tsx` reads the exact same KV record and sends it to game.js. HP, position, gut, acid, karma, generation — all travel correctly.
-
-**The bin is per-post, not per-device.**
-`KV_WORLD`, `KV_WEEK`, `KV_QUEUE` are keyed by `postId`. Same Reddit post on both devices = same bin. Realtime channels (presence, flood, drain) are also per-postId — both devices would see the same events.
-
-**The ISS-14 timestamp-merge fix** (Session 20) means KV is now authoritative over a fresh `localStorage` — so a new device opening for the first time correctly loads from KV rather than starting blank.
+Full design doc was written in S20 — refer to that session's commit `23da7ac` in WIGGLERS_AUDIT_V20.md (pre-rebuild) for the full spec.
 
 ---
 
-### What breaks today
+### FEAT-2 — Cross-Device Session Continuity
 
-#### Problem 1 — Simultaneous open: two devices, one worm, last-write-wins
-If iPad has the game open and you open it on iPhone without closing iPad first, both clients run concurrently. Both read `KV_WORM_SESSION`. Both write to it on their autosave cycle (every 30 seconds, plus `visibilitychange`). **Last write wins.** Whichever device saves last becomes the canonical session. The other device's progress is silently overwritten. No warning, no conflict detection.
+**Priority: P2 — after PERF-1 and PERF-2** | **Logged:** S20 (Devvit 0.0.179)
 
-#### Problem 2 — Autosave race on device switch
-Switching from iPad to iPhone within the 30-second autosave window means iPhone opens with a session that's up to 30 seconds stale (last autosave, not current position). The `visibilitychange` save (ISS-14) closes most of this gap — it fires when the Reddit app is backgrounded. But on iOS, the OS can kill the webview before `visibilitychange` delivers the `postToHost(saveSession)` message to `main.tsx`. In that case, KV has the 30s-stale save and the switch loses that window.
+Same Reddit login on two devices should give the same worm. What already works: `KV_WORM_SESSION` is per-user not per-device. What breaks: simultaneous open = last-write-wins race. No "already playing" signal.
 
-#### Problem 3 — No "already playing" signal
-The game has no way to know a session is already live on another device. A player could accidentally open two simultaneous sessions and not realise they're forking their worm.
+**Fix:** Active device heartbeat token in `KV_ACTIVE_DEVICE(username)`. 15s heartbeat renews it. On open: if fresh token exists → show conflict UI ("Take over / Wait"). On close: `visibilitychange` clears token via `MSG_DEVICE_RELEASE`.
 
----
-
-### What needs to be built
-
-#### Piece 1 — Active device heartbeat token (main.tsx + game.js)
-
-**New KV key:** `KV_ACTIVE_DEVICE(username)` → `worm_active:u/username`
-Stores `{ deviceToken: string, ts: number }` — a random token stamped when a device takes ownership of the session.
-
-**On open (`MSG_READY` handler in main.tsx):**
-1. Read `KV_ACTIVE_DEVICE(username)`
-2. If token exists and `serverNow - token.ts < 45000` (45s) — another device is actively playing
-3. Send `{ type: 'setDeviceConflict', activeTs: token.ts }` to the opening device
-4. If no token or token is stale — write a fresh token, proceed normally
-
-**Heartbeat (game.js → main.tsx every 15 seconds):**
-```js
-// In game.js — new interval alongside the autosave:
-setInterval(function() {
-  if (!deathScreen && pSegs.length && playerState === 'playing') {
-    postToHost({ type: 'deviceHeartbeat' });
-  }
-}, 15000);
-```
-`main.tsx` `MSG_DEVICE_HEARTBEAT` handler: renew `KV_ACTIVE_DEVICE` token timestamp.
-
-**On close (`visibilitychange` hide):**
-```js
-// In game.js visibilitychange listener (already exists):
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
-    saveSession();
-    postToHost({ type: 'deviceRelease' }); // NEW — clear the active token
-  }
-});
-```
-`main.tsx` `MSG_DEVICE_RELEASE` handler: delete `KV_ACTIVE_DEVICE(username)`.
-
----
-
-#### Piece 2 — Device conflict UI (game.js)
-
-When `setDeviceConflict` arrives, game.js shows a blocking overlay before `setup()` runs:
-
-```
-┌─────────────────────────────────────┐
-│   🪱  Your worm is already active   │
-│                                     │
-│   Last seen Xm ago on another       │
-│   device. Opening here will take    │
-│   over the session.                 │
-│                                     │
-│   [ Take over ]    [ Wait ]         │
-└─────────────────────────────────────┘
-```
-
-**Take over** — sends `MSG_DEVICE_TAKEOVER` to main.tsx, which overwrites the token and calls `setup()`.
-**Wait** — dismisses overlay, shows the preview screen. Player can retry by closing and reopening.
-
-After 60 seconds with no interaction, auto-proceed with takeover (stale lock).
-
----
-
-#### Piece 3 — On-device save before token release (main.tsx)
-
-When `MSG_DEVICE_TAKEOVER` arrives on the new device, main.tsx should also do a best-effort push of the current KV session to the new client immediately (it already does this on `MSG_READY` — no extra work needed here, just clarify in the flow).
-
----
-
-### New constants
-
+**New constants:**
 ```js
 // game.js
-var DEVICE_HEARTBEAT_MS = 15000;  // 15s heartbeat interval
-var DEVICE_LOCK_TTL_MS  = 45000;  // token expires after 45s of no heartbeat
-
+var DEVICE_HEARTBEAT_MS = 15000;
+var DEVICE_LOCK_TTL_MS = 45000;
 // main.tsx
-const KV_ACTIVE_DEVICE = (username: string) => `worm_active:${username}`;
-const MSG_DEVICE_HEARTBEAT = 'deviceHeartbeat';
-const MSG_DEVICE_RELEASE   = 'deviceRelease';
-const MSG_DEVICE_TAKEOVER  = 'deviceTakeover';
-const MSG_SET_DEVICE_CONFLICT = 'setDeviceConflict';
+KV_ACTIVE_DEVICE(username) → 'worm_active:u/username'
+MSG_DEVICE_HEARTBEAT, MSG_DEVICE_RELEASE, MSG_DEVICE_TAKEOVER, MSG_SET_DEVICE_CONFLICT
 ```
 
----
+**New message types:**
 
-### New message types (add to both game.js and main.tsx)
+| Direction | Type | Purpose |
+|---|---|---|
+| Webview → Host | `deviceHeartbeat` | Renew token every 15s |
+| Webview → Host | `deviceRelease` | Clear token on close |
+| Webview → Host | `deviceTakeover` | Player confirmed takeover |
+| Host → Webview | `setDeviceConflict` | Block open, show conflict overlay |
 
-| Direction | Type | Payload | Purpose |
-|---|---|---|---|
-| Webview → Host | `deviceHeartbeat` | _(none)_ | Renew active device token |
-| Webview → Host | `deviceRelease` | _(none)_ | Clear token on close |
-| Webview → Host | `deviceTakeover` | _(none)_ | Player confirmed takeover |
-| Host → Webview | `setDeviceConflict` | `{ activeTs }` | Block open, show conflict UI |
-
----
-
-### Files to change
-
-| File | Change |
-|---|---|
-| `main.tsx` | Add `KV_ACTIVE_DEVICE` constant |
-| `main.tsx` | Add 4 new `MSG_*` constants |
-| `main.tsx` | `MSG_READY` handler — read token, send `setDeviceConflict` or write fresh token |
-| `main.tsx` | New `MSG_DEVICE_HEARTBEAT` handler — renew token timestamp |
-| `main.tsx` | New `MSG_DEVICE_RELEASE` handler — delete token |
-| `main.tsx` | New `MSG_DEVICE_TAKEOVER` handler — overwrite token, confirm takeover |
-| `game.js` | Add 4 new `MSG_*` constants |
-| `game.js` | `visibilitychange` listener — add `postToHost({ type: 'deviceRelease' })` |
-| `game.js` | New 15s heartbeat interval (alongside autosave interval) |
-| `game.js` | New `setDeviceConflict` message handler — show conflict overlay before `setup()` |
-| `game.js` | New `drawDeviceConflict()` function — blocking overlay with Take over / Wait buttons |
+**Files:** `main.tsx` (4 new handlers), `game.js` (heartbeat interval, conflict overlay UI)
 
 ---
 
-### Edge cases
+### FEAT-3 — Passive Bridge Version Capture
 
-**Token expires naturally (45s TTL):** If the active device loses connectivity or crashes without sending `deviceRelease`, the token expires after 45 seconds. New device sees a stale token and proceeds without conflict UI. Worm position may be up to 45s stale but that's acceptable — same as the existing autosave window.
+**Priority: P3** | **Logged:** S20 (Devvit 0.0.179)
 
-**Death screen:** Don't send heartbeat or conflict if `deathScreen` is true — the worm is dead, no session to protect.
+Reddit assigns its own internal version number on every `devvit upload` (e.g. `0.0.179`). Currently we estimate it by auto-incrementing `devvit.yaml` +1 after each push. We can't read it directly — it only appears in the Codespace terminal and on developers.reddit.com.
 
-**Queue state:** If `playerState === 'queued'`, no active worm to protect. Skip conflict check, proceed directly.
+**Proposed fix:** `bridge3.js` already runs passively in the Codespace. Add a stdout watcher that captures the version string from `devvit upload` output and writes it to `relay/outbox.json`. Next Claude session reads it and syncs `devvit.yaml` with the real number — zero manual steps, zero bottleneck.
 
-**Offline Reddit:** If `getCurrentUser()` fails, username falls back to `u/You` — token key becomes `worm_active:u/You`. Multiple anonymous users would share this key. Acceptable — anonymous mode is best-effort anyway.
+This is passive only — bridge does NOT drive the upload (too slow). You upload at full terminal speed, bridge just listens.
+
+**When to build:** After PERF-1 and PERF-2. Current +1 estimate is accurate enough for now.
 
 ---
 
+## Section 5 — Session Log
 
-## Session 19 — 2026-06-19 (ISS-1 + ISS-2 Closed | ISS-13 Opened)
+Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
 
-### Session Summary
-Shipped Moves 3+4 of the weekly drain persistence plan — the final two pieces to make the bin's drain cycle survive across sessions. When `triggerWeeklyDrain()` fires and game.js sends `worldUpdate` with `weeklyDrain: true`, main.tsx now stamps a fresh `weekStartTs = serverNow`, writes it to `KV_WEEK`, and includes it in the Realtime broadcast. All open clients reset their local `weekStartTs` on receipt. ISS-1 and ISS-2 are closed.
+---
 
-Also identified ISS-13: a structural bug in the compost saturation mechanic (`pooled`) where the numeric value and the liquid drops that give it meaning are stored separately and can diverge. Documented below — P1 pre-launch.
+### Session 20 — 2026-06-19 | Devvit 0.0.179
 
-### What Shipped
+**Closed:** ISS-14 (fully), ISS-13 Bugs B+C
+**Opened:** PERF-1–4, FEAT-1–3
+**Shipped:**
+
 | Commit | File | What |
 |--------|------|------|
-| `54b91d4` | main.tsx | Move 3: Persist `weekStartTs` to `KV_WEEK` when `weeklyDrain === true` |
-| `54b91d4` | main.tsx | Move 4: Broadcast `weekStartTs` in Realtime on drain so all clients reset epoch |
+| `696121b` | game.js | ISS-14: setSession timestamp merge — KV never overwrites newer local save |
+| `e106801` | game.js | ISS-14: Save and restore pAcid across sessions |
+| `e11d4ec` | game.js | ISS-13 Bug B: Remove rain — strip precip, seasonal baselines, events, HUD; delete getEvapRate |
+| `44d466a` | main.tsx | ISS-13 Bug C: Remove pooled from KV_WORLD worldData write |
+| `4b0f7a1` | game.js | ISS-13 Bug C: pooled runtime-only — remove from setWorldState, worldUpdate, saveSession, setup() |
+| `53ae826` | game.js | Fix pool gradient + saturation glow fillRect width to full bin edge |
+| `1dd642e` | main.tsx | Hotfix: remove sync cache header accidentally committed |
+| `23da7ac` | WIGGLERS_AUDIT_V20.md | FEAT-1 cross-player tunnel clogging design doc |
 
 ---
 
-## ISS-13 — Compost Saturation: Three Compounding Bugs
+### Session 19 — 2026-06-19 | Devvit ~0.0.177
 
-**Priority: P1 — must fix before launch**
+**Closed:** ISS-1, ISS-2 (weekly drain persistence — Moves 3+4)
+**Opened:** ISS-13 (compost saturation — 3 bugs)
+
+| Commit | File | What |
+|--------|------|------|
+| `54b91d4` | main.tsx | Move 3: Persist weekStartTs to KV_WEEK when weeklyDrain fires |
+| `54b91d4` | main.tsx | Move 4: Broadcast weekStartTs via Realtime on drain — all clients reset epoch |
 
 ---
 
-### Bug A — Draining tunnels do not reduce saturation
+### Session 18 — 2026-06-19 | Devvit ~0.0.175
 
-**The core gameplay bug.** When a player digs a tunnel to the sump, tea drops flow through it and `d.inTunnel = true`. When that drop enters the sump zone, the pooled decrement is guarded:
+**Closed:** ISS-12 (drain Snoo X misalignment — coordinate space mismatch)
 
-```js
-// game.js line 4533
-if (!d.inTunnel && !d.isPoop) pooled = Math.max(0, pooled - 0.005);
+Root cause: `drawSnooDrain()` was called after `ctx.restore()` (screen space). On mobile where `camX ≈ 400px`, Snoo appeared 400px right of the tap. Fix: move call inside `ctx.translate(centreOffsetX - camX, 0)` — identical to feed Snoo. Net -13 lines.
+
+| Commit | What |
+|--------|------|
+| `f276300` | Derive STOP_Y from tapSY geometrically — replace hardcoded H*0.559 |
+| `a113987` | Convert drainSnooStopX to screen space (wrong approach — reverted) |
+| `78ef406` | Store _tapWorldX at draw time (still wrong approach — reverted) |
+| `fb12b98` | **The real fix:** move drawSnooDrain() inside world transform |
+| `024879d` | Lower Snoo 100px — head at 52% down screen, boots at 68% |
+
+**Key geometry (H=800):**
 ```
-
-The `!d.inTunnel` guard means **tunnel drops never decrement `pooled`**. They hit the tea surface, fire a splash, add to `tLvl`, and disappear — but saturation stays exactly where it was. The player digs drains, watches tea fill up, and the green moisture glow never moves. This is why draining feels broken: it *is* broken for saturation.
-
-**Fix:** Remove the `!d.inTunnel` guard from the sump entry decrement, OR add a separate decrement at the `_teaHit` point when `d.active = false`.
-
----
-
-### Bug B — Evaporation silently removes drops the player never sees
-
-Evaporation runs every frame on all active, pathless, non-poop drops in compost:
-
-```js
-// game.js line 4573
-var _evapChance = getEvapRate() * 10;  // ≈ 0.000625 per drop per frame at median weather
-if (Math.random() < _evapChance) {
-  _cd.active = false;
-  pooled = Math.max(0, pooled - 0.005);
-}
-```
-
-At median weather (~70°F, ~50% RH) each stalled drop has a 1-in-1600 chance per frame of vanishing. With 20 stalled drops at 60fps that's about 0.75 drops/sec. Saturation drains in ~27 seconds with no player action. **The player sees the moisture glow fade with no visual explanation.** They dug no drains, no drops are visibly disappearing — the compost just quietly dries on its own.
-
-This undermines the core design intent (draining = the mechanic) and creates confusing feedback. The player can't tell if their drains worked or if weather did it.
-
-**Fix:** Remove or disable the evaporation loop. Drainage should be the only way to reduce saturation. If some passive decay is wanted, it should be extremely slow (days-scale, not seconds-scale) and clearly tied to a visible mechanic.
-
----
-
-### Bug C — pooled is a ghost counter that detaches from reality
-
-`pooled` is never recalculated from the actual drop array. It is purely event-driven:
-- Drop enters compost → `pooled += 0.005`
-- Drop evaporates → `pooled -= 0.005`
-- (Tunnel drain → nothing, see Bug A)
-
-`pooled` is also stored in `KV_WORLD` (shared, no drops) while `drops[]` lives in `KV_WORM_SESSION` (per-player). This means:
-
-**New player joins a wet bin:** Gets `pooled = 0.8` from `KV_WORLD`. Has zero drops. Evaporation loop finds nothing to evaporate. `pooled` is stuck at 0.8 forever. Worm takes constant drowning HP damage in bone-dry compost.
-
-**Two players in the same bin:** Each client counts only its own drops but writes to shared `pooled` via Realtime. They fight over the value every broadcast cycle. Neither player's moisture reading is accurate.
-
-**Returning player:** `setWorldState` fires *after* `setup()` so `KV_WORLD.pooled` overwrites whatever the player's own saved drops would have produced. Drop count and counter are now mismatched.
-
-**Fix (recommended for launch):** Make `pooled` local-only. Stop syncing it via Realtime and stop storing it in `KV_WORLD`. Each client derives moisture from its own drops only. The shared world values (`tLvl`, `castingEnrichment`, `scrapsLevel`) are objective and drop-independent — they stay synced. `pooled` is the one value that is inherently local.
-
----
-
-### Combined Effect on Gameplay
-1. Player plays for a while — compost gets wet from food drops and rain
-2. Saturation appears high (green glow, correct)
-3. Player digs drains hoping to reduce it — **nothing happens to saturation** (Bug A)
-4. Meanwhile evaporation quietly removes drops and pooled decrement fires — **saturation drops with no visible cause** (Bug B)
-5. Player returns next session — `KV_WORLD.pooled` value may have no real drops to back it — **phantom saturation or phantom dry** (Bug C)
-6. Worm takes drowning damage with no saturated-looking compost or vice versa
-
----
-
-### Files to Change
-
-**Bug A fix** — `game.js`:
-- At `_teaHit` (line ~4554): add `if (!d.isPoop) pooled = Math.max(0, pooled - 0.005);` alongside `d.active = false`
-- Remove the `!d.inTunnel` guard on the sump entry decrement (line 4533) OR leave that block only for pathless drops and handle tunnel drops at hit-point
-
-**Bug B fix** — `game.js`:
-- Remove the entire evaporation `for` loop (lines 4567–4581)
-- Remove `getEvapRate()` function (line 560) if nothing else uses it (verify first)
-
-**Bug C fix** — `game.js` + `main.tsx`:
-- `game.js` line 390: remove `pooled` from `setWorldState` handler
-- `game.js`: remove `pooled` from all `postToHost({ type: 'worldUpdate', ... })` calls
-- `main.tsx` MSG_WORLD_UPDATE: remove `pooled` from `worldData` object
-- `main.tsx`: remove `pooled` from `KV_WORLD` reads/writes
-- Keep `pooled` in `saveSession()` / `KV_WORM_SESSION` so each player's own moisture persists across their own sessions
-
-
----
-
-## ISS-14 — Non-sleeping worm restores to full HP and wrong position on reload
-
-**Priority: P1 — must fix before launch**
-
-### What the player sees
-- Put worm to sleep → leave → come back → worm is exactly where you left it, sleeping ✅
-- Leave worm active (not sleeping) → come back → worm is at full HP, back at spawn position ❌
-
-The sleeping path works correctly. The active worm path has three compounding problems.
-
----
-
-### Bug A — pHP hardcoded to 1.0 on every session load
-
-`game.js` `setup()`, line 3137:
-```js
-// Always spawn at full health — saved HP ignored, hunger is the pressure
-pHP = 1.0;
-```
-
-`saved.pHP` is read and clamped by `clampSession()` in `main.tsx` and stored in `KV_WORM_SESSION` correctly — but `setup()` unconditionally overwrites it with `1.0` on every load. The comment says "hunger is the pressure" but hunger only affects gut, not HP directly. HP damage from acid, oversaturation, and flood all get silently restored on reload.
-
-**Fix:** Remove the `pHP = 1.0` override at line 3137 and restore `pHP` from `saved.pHP` the same way `pGut` is restored. Keep the `pHP = 1.0` resets in `respawnPlayer()` — those are correct (baby respawn and cocoon hatch should start fresh).
-
----
-
-### Bug B — No save-on-exit, only a 30-second autosave
-
-`game.js` line 3028:
-```js
-setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 30000);
-```
-
-There is no `visibilitychange`, `beforeunload`, or `pagehide` listener. If the player leaves the game at any point between autosave ticks — which is a 30-second window — the position, gut, and HP saved to KV are up to 30 seconds stale. On a mobile app where backgrounding kills the webview instantly, this window is effectively always open.
-
-The sleeping path avoids this because `trySleep()` calls `saveSession()` explicitly at the moment of sleep. Active worm has no equivalent save-on-exit.
-
-**Fix:** Add a `visibilitychange` listener that calls `saveSession()` when `document.visibilityState === 'hidden'`. This fires on tab switch, app background, and most close events in both mobile WebView and desktop browser.
-
-```js
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
-    saveSession();
-  }
-});
-```
-
----
-
-### Bug C — Position restoration relies on autosave being recent
-
-`initPlayer(saved)` at line 2859 does restore `saved.pX` and `saved.pY` correctly:
-```js
-var startX = (saved && saved.pX) ? saved.pX : b.cx;
-var startY = (saved && saved.pY) ? Math.max(H * 0.55, Math.min(H * 3.8, saved.pY)) : H * 1.4;
-```
-
-But if Bug B isn't fixed, `saved.pX/pY` may be the position from 30 seconds ago, not where the player actually left. On a fast session (under 30s) the very first autosave may not have fired at all, so `saved.pX/pY` is `null` → falls back to `b.cx` (bin center) at `H * 1.4` (tier 0 spawn). This is the "comes back at spawn" symptom.
-
-**Fix:** Bug B's `visibilitychange` save fixes this automatically — position is always current at the moment of exit.
-
----
-
-### Why sleeping works and active doesn't
-
-| | Sleeping | Active |
-|--|---------|--------|
-| Save on state change | ✅ `trySleep()` calls `saveSession()` | ❌ only 30s autosave |
-| Position restored | ✅ `pSleepX/Y` + `pX/pY` both saved at sleep time | ⚠ only if autosave fired recently |
-| HP restored | ❌ hardcoded `pHP = 1.0` (same bug, masked by sleeping HP being high) | ❌ hardcoded `pHP = 1.0` |
-| Gut restored | ✅ `saved.pGut` restored correctly | ✅ `saved.pGut` restored correctly |
-
-Note: sleeping worm also has this HP bug but it's invisible because a sleeping worm isn't taking damage — HP is usually full when you sleep anyway.
-
----
-
-### Files to Change
-
-**Bug A fix** — `game.js` line 3137:
-- Replace `pHP = 1.0;` with `pHP = Math.max(0.01, Math.min(1, saved.pHP || 1.0));`
-- The `0.01` floor prevents loading a dead worm (pHP=0 should have triggered death screen before save)
-- Keep `pHP = 1.0` in `respawnPlayer()` (line 7804, 7814, 7819) — those are intentional fresh starts
-
-**Bug B fix** — `game.js` after line 3028 (near the autosave interval):
-```js
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
-    saveSession();
-  }
-});
-```
-
-Bug C is resolved automatically by Bug B fix.
-
----
-
-### Interaction with ISS-13
-
-Once ISS-13 is fixed (`pooled` becomes local-only), the `visibilitychange` save also ensures the player's saturation state is written before exit — keeping their moisture level accurate on return. ISS-13 and ISS-14 should be fixed in the same session.
-
----
-
-## Session 18 — 2026-06-19 (ISS-12 Closed)
-
-### Session Summary
-Sole focus: close ISS-12 (drain Snoo positioning). After several failed attempts in prior sessions, the root cause was identified as a coordinate space mismatch — `drawSnooDrain()` was being called after `ctx.restore()` (screen space) while the valve was drawn inside `ctx.translate(centreOffsetX - camX, 0)` (world space). On mobile where `camX ≈ 400px`, this caused Snoo to appear ~400px to the right of the tap. The fix was one structural move: call `drawSnooDrain()` inside the world transform, identical to how `drawSnooCinematic()` (feed Snoo) has always worked. ISS-12 is now closed. Moves 3+4 of bin persistence are unblocked.
-
-### What Shipped
-| Commit | Change |
-|--------|--------|
-| `f276300` | Derive `STOP_Y` from `tapSY` geometrically — bucket mouth 15px below spout. Replace hardcoded `H*0.559`. |
-| `a113987` | Convert `drainSnooStopX` and `TAP_SX` to screen space (partial fix, wrong approach). |
-| `78ef406` | Store `_tapWorldX` at draw time, convert at cinematic time (still wrong approach). |
-| `fb12b98` | **The real fix:** move `drawSnooDrain()` inside world transform, same as feed Snoo. Remove all screen-space conversion hacks. Net -13 lines. |
-| `024879d` | Lower Snoo 100px (`tapSY + 137 - _handOff`) — head at 52% down screen, boots at 68%. |
-
-### Root Cause (ISS-12)
-Feed Snoo (`drawSnooCinematic` → `drawFarmerSnoo`) was always called at line ~5476, inside `ctx.translate(centreOffsetX - camX, 0)`. It uses `b.cx` world coords and the transform handles conversion automatically — zero conversion math needed, works on every device.
-
-Drain Snoo (`drawSnooDrain`) was called at line ~7291, **after** `ctx.restore()`. In screen space, `b.cx = WORLD_W/2 = 597` is a world coord, not a screen coord. On mobile where `camX ≈ 400`, the tap appears at screen X ≈ 197 but Snoo was placed at screen X ≈ 597 — a ~400px misalignment.
-
-### Key Lesson
-> **All Snoo cinematics must be drawn inside `ctx.translate(centreOffsetX - camX, 0)`.** World coords work natively. Calling any cinematic after `ctx.restore()` and attempting to convert coords manually is the wrong approach and will break on mobile.
-
-### Final Drain Snoo Geometry (H=800)
-```
-camY snap             = round(3*H + H*0.25 - H*0.45)  → sump floor at 45% down
-TAP_SY                = bsy + 8   (46% down)
-Spout tip             = TAP_SY + 22  (49% down)
-STOP_Y (torso top)    = TAP_SY + 137 - SC*0.1788  (60% down)
-Snoo head top         ≈ 52% down
-Snoo boots bottom     ≈ 68% down
+camY snap at trigger  = round(3*H + H*0.25 - H*0.45)
+TAP_SY (pipe top)     = bsy + 8   (~46% down)
+STOP_Y (torso top)    = TAP_SY + 137 - SC*0.1788  (~60% down)
 drainSnooStopX        = b.cx - SC*0.127  (world X, inside world transform)
 ```
 
 ---
 
-## Session 17 — 2026-06-18 (Canvas Resize + Desktop Layout)
+### Session 17 — 2026-06-18 | Devvit ~0.0.168
 
-### Session Summary
-Fixed canvas sizing and layout issues only visible on desktop and fullscreen. Root cause was a one-time guard in `resizeCanvas()` preventing `W`/`H` from updating after first paint.
+**Closed:** Canvas resize bug, desktop layout, camX negative bug, centreOffsetX system
 
-### What Shipped
-| Commit | Change |
-|--------|--------|
-| `c18e1cf` | Fix `resizeCanvas()` — remove one-time guard, always update W/H on every resize |
-| `db5fb1b` | Fix camX on wide screens — lock `camX = 0` when `W >= WORLD_W` |
-| `2899a9a` | Fix sky/ground fillRects — compensate for `ctx.translate` |
+Root cause: one-time guard in `resizeCanvas()` prevented W/H from updating after first paint. All background elements were using `W` (viewport) instead of `WORLD_W` (1194px fixed).
+
+| Commit | What |
+|--------|------|
+| `c18e1cf` | Fix resizeCanvas() — remove one-time guard |
+| `db5fb1b` | Fix camX on wide screens — lock to 0 when W >= WORLD_W |
+| `2899a9a` | Fix sky/ground fillRects for ctx.translate |
 | `6ebd284` | Fix grass tufts, blade fringe, flowers X position |
-| `5eeb24b` | Introduce `centreOffsetX` global. Fix all 15 affected locations. |
-| `058090b` | Fix background elements using `W` instead of `WORLD_W` |
-| `ddf1e8a` | Fix base green ground fill — `WORLD_W` not `W` |
-| `beeb7bb` | Fix sky fill and sun/moon clip rect — `WORLD_W` not `W` |
+| `5eeb24b` | Introduce centreOffsetX global — fix all 15 affected locations |
+| `058090b` | Fix background elements using W instead of WORLD_W |
+| `ddf1e8a` | Fix base green ground fill |
+| `beeb7bb` | Fix sky fill and sun/moon clip rect |
 
 ---
 
-## Session 16 — 2026-06-18 (Bin Persistence + HUD + Drain Animation)
+### Session 16 — 2026-06-18 | Devvit ~0.0.160
 
-### What Shipped
+**Shipped:** Bin persistence Moves 1+2, Bin Refresh HUD, drain→feed chain
+
 | Commit | File | What |
 |--------|------|------|
-| `263ead7` | main.tsx | Move 1: Read `KV_WEEK` on open, stamp if missing, send `weekStartTs` via `setWorldState` |
-| `f24bb39` | game.js | Move 2: `setWorldState` handler accepts `weekStartTs`, overwrites local clock |
-| `05efd5a` | game.js | Bin Refresh HUD under clock, drain→feed chain, `weeklyFeedPending` flag |
+| `263ead7` | main.tsx | Move 1: Read KV_WEEK on open, stamp if missing, send weekStartTs via setWorldState |
+| `f24bb39` | game.js | Move 2: setWorldState handler accepts weekStartTs, overwrites local clock |
+| `05efd5a` | game.js | Bin Refresh HUD under clock (`🪣 Refresh in 5d 14h 23m`), drain→feed chain |
 | `60f5618` | game.js | Feed camera snap when chaining from drain |
 
-### What Works
-- **Bin Refresh HUD** — `🪣 Refresh in 5d 14h 23m` centred under clock, counts down live
-- **Drain→feed chain** — no gap between cinematics
-- **Move 1+2** — all players share `weekStartTs` from `KV_WEEK` on open
-
 ---
 
-## Session 15 — 2026-06-17
+### Session 15 — 2026-06-17 | Devvit ~0.0.155
 
-| SHA | Change |
-|-----|--------|
+**Shipped:** Full simulated weather system, Snoovatar fixes, coordinate system overhaul
+
+| Commit | What |
+|--------|------|
 | `d180d0d` | Fix: username shown above worm head |
-| `cf64c96` | Fix: `user.getSnoovatarUrl()` correct Devvit API |
+| `cf64c96` | Fix: user.getSnoovatarUrl() correct Devvit API |
 | `ce2eb1e` | Fix: Snoovatar drawn full-body portrait |
-| `4a95535` | Fix: pre-render Snoovatar to offscreen canvas |
-| `d624a1e` | Feature: full simulated weather system |
-| `424ad15` | Fix root cause: W=viewport width, WORLD_W=1194 fixed |
-| `a970e17` | Fix: _toCanvas uses root offset, all mX assignments add camX |
+| `4a95535` | Fix: pre-render Snoovatar to offscreen canvas (eliminates flicker) |
+| `d624a1e` | Feature: full simulated weather system (replaced dead Open-Meteo integration) |
+| `424ad15` | Fix: W=viewport width, WORLD_W=1194 fixed world width — separated properly |
+| `a970e17` | Fix: _toCanvas uses root offset, all mX assignments corrected |
 
 ---
 
-## Session 14 — 2026-06-17
+### Session 14 — 2026-06-17 | Devvit ~0.0.148
 
-| SHA | Fix |
-|-----|-----|
-| `1a58fae` | Snoo drain invisible on mobile — camera formula |
-| `81d2049` | Snoo push-down/push-up during cinematic |
-| `ee574a2` | Death headstone comment posted to Reddit thread |
-| `1641bbe` | Preview background — trash chunk wallpaper |
-| `4b0ac87` | Added Devvit message envelope unwrap in game.js |
-| `b7089f4` | Removed strict origin check |
+**Shipped:** Death headstone, preview background, mobile bridge fixes
 
----
-
-## Devvit Platform Lessons Learned (CRITICAL — read before every session)
-
-### Asset Rules
-- ✅ **PNG only** — Devvit asset uploader rejects GIF, JPG, any non-PNG
-- ✅ **Push binary files via GitHub API directly** — sync script corrupts binary files
-- ✅ **Assets folder** — put all images in `/assets/`, referenced by filename only
-
-### Devvit API
-- ✅ **`user.getSnoovatarUrl()`** — method call, not a property
-- ✅ **External HTTP blocked** — `fetch()` to non-Reddit domains silently fails
-- ✅ **`webView.mount()` only inside `onPress`** — never in render body
-
-### Realtime / useChannel
-- ✅ **Channel names must be `[a-zA-Z0-9_]` only** — colons crash render
-- ✅ **Declare `useChannel` after `useWebView`**
-
-### Message Bridge
-- ✅ **Devvit wraps `webView.postMessage()` in an envelope** — `{ type: 'devvit-message', data: { message: ... } }`
-- ✅ **Origin of host→webview messages is NOT `https://www.reddit.com`**
-- ✅ **Sync script prepends header to file content** — strip before using as game file
-
-### Post Lifecycle
-- ✅ **Old posts go read-only after re-upload** — create new post to test
-- ✅ **Always `git pull` before `devvit upload`**
-
-### Canvas / Coordinate System
-- ✅ **`resizeCanvas()` must always update W/H** — never guard with `if (!W || !H)`
-- ✅ **`camX` must always be `>= 0`** — negative camX breaks `ctx.translate` and mouse coords
-- ✅ **Use `centreOffsetX` to centre on wide screens** — not negative camX
-- ✅ **Background elements use `WORLD_W` not `W`** — sky, ground, sun, moon, stars, grass, flowers
-- ✅ **`mX = screenX - centreOffsetX + camX`** — all pointer → world coord conversions need centreOffsetX subtracted
-
-### Snoo Cinematics (NEW — Session 18)
-- ✅ **All `drawSnoo*` calls must be inside `ctx.translate(centreOffsetX - camX, 0)`** — world coords work natively
-- ✅ **Never call cinematics after `ctx.restore()`** — screen-space coord conversion is always wrong on mobile
-- ✅ **`drainSnooStopX = b.cx - SC*0.127`** — world X, no camX/centreOffsetX needed when inside world transform
-- ✅ **`STOP_Y = tapSY + 137 - SC*0.1788`** — torso anchor derived from tap geometry, not hardcoded H fraction
-- ✅ **Feed Snoo is the reference** — if positioning breaks, check whether the draw call is inside the world transform
+| Commit | What |
+|--------|------|
+| `1a58fae` | Fix: Snoo drain invisible on mobile — camera formula |
+| `81d2049` | Fix: Snoo push-down/push-up during cinematic |
+| `ee574a2` | Feature: death headstone comment posted to Reddit thread |
+| `1641bbe` | Feature: preview background — trash chunk wallpaper (preview-bg.png) |
+| `4b0ac87` | Fix: Added Devvit message envelope unwrap in game.js |
+| `b7089f4` | Fix: Removed strict origin check |
 
 ---
 
-## Priority Queue — Next Session
+## Section 6 — Closed Issues
 
-### P1 — Weekly Drain Moves 3+4 (ISS-12 now closed — ship these next)
-- Move 3: Persist new `weekStartTs` in `KV_WEEK` when drain fires (main.tsx, ~8 lines)
-- Move 4: Broadcast new `weekStartTs` via Realtime on drain (main.tsx, ~2 lines)
-- Closes ISS-1 and ISS-2
+| ID | What | Fixed session | Devvit version |
+|----|------|---------------|----------------|
+| ISS-1 | Weekly drain weekStartTs not persisted across sessions | S19 | ~0.0.177 |
+| ISS-2 | weekStartTs not broadcast to other clients on drain | S19 | ~0.0.177 |
+| ISS-12 | Drain Snoo X misalignment — called in screen space not world space | S18 | ~0.0.175 |
+| ISS-13 Bug B | Evaporation silently removed drops with no visual cause | S20 | 0.0.179 |
+| ISS-13 Bug C | pooled synced via KV/Realtime — ghost saturation on join | S20 | 0.0.179 |
+| ISS-14 Bug A | pHP hardcoded to 1.0 on every session load | S20 | 0.0.179 |
+| ISS-14 Bug B | No save-on-exit — only 30s autosave | S20 | 0.0.179 |
+| ISS-14 Bug C | Position restore relied on stale autosave | S20 | 0.0.179 (fixed by Bug B) |
+| Canvas half-screen desktop | resizeCanvas() one-time guard | S17 | ~0.0.168 |
+| camX negative on wide screens | broke steering and bin position | S17 | ~0.0.168 |
+| Background wrong size desktop | W vs WORLD_W | S17 | ~0.0.168 |
+| u/You hardcoded | username not used in avatar render | S15 | ~0.0.155 |
+| Snoovatar wrong API | user.getSnoovatarUrl was used as property | S15 | ~0.0.155 |
+| Snoovatar circle-cropped | should be full-body | S15 | ~0.0.155 |
+| Snoovatar flicker | per-frame scaling | S15 | ~0.0.155 |
+| Weather dead-ended on external API | Devvit blocks external HTTP | S15 | ~0.0.155 |
+| Snoo drain invisible mobile | camera formula | S14 | ~0.0.148 |
+| Death never posted to thread | missing Reddit API call | S14 | ~0.0.148 |
+| Preview card plain brown | no wallpaper | S14 | ~0.0.148 |
+| Any user could create bin post | missing mod check | S14 | ~0.0.148 |
+| Devvit message envelope unwrapped | game.js missing unwrap | S14 | ~0.0.148 |
 
-### P2 — Code Health (game.js)
-| Task | What |
-|------|------|
-| S2a | 18 raw message strings → `MSG_*` constants |
-| S2b | 5 duplicate Snoo SVG helper pairs → shared functions |
-| S3  | Delete 4 dead functions |
-| S4  | Rename 17 `_underscore` functions → camelCase |
-| S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
-
-### P3 — Pre-Launch
-- Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
-
----
-
-## Known Issues (Open)
-
-| ID | Issue | Priority |
-|----|-------|----------|
-| ISS-13 | `pooled` counter detached from drops — ghost saturation, fake drowning/flood | P1 — pre-launch |
-| ISS-3 | 17 `_underscore` function names | P2 |
-| ISS-4 | `draw()` 2,022 line monolith | P2 |
-| ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
-| ISS-6 | 18 raw message strings in game.js | P2 |
-| ISS-7 | 4 dead functions in codebase | P2 |
-| ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
-| ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
-| ISS-10 | `weeklyContrib` client-authoritative | P3 |
-| ISS-11 | Drain only fires while a player has the game open | Future |
-
----
-
-## Closed Issues
-
-| Fix | Session |
-|-----|---------|
-| Weekly drain persistence (Moves 3+4) — `KV_WEEK` written on drain, `weekStartTs` broadcast via Realtime | S19 |
-| Drain Snoo X misalignment — called outside world transform, 400px off on mobile | S18 |
-| Drain Snoo Y positioning — STOP_Y hardcoded H fraction, not derived from tap geometry | S18 |
-| Canvas only fills half screen on desktop / fullscreen black bar | S17 |
-| Background details (grass, flowers, sun, moon) wrong size on desktop | S17 |
-| camX going negative on wide screens — broke steering and bin position | S17 |
-| resizeCanvas() one-time guard — W/H never updated after first paint | S17 |
-| u/You hardcoded — username variable not used in avatar render | S15 |
-| Snoovatar fetch used wrong Devvit API | S15 |
-| Snoovatar circle-cropped — should be full-body portrait | S15 |
-| Snoovatar flicker — per-frame scaling, fixed by offscreen canvas | S15 |
-| Weather HUD overlapping karma | S15 |
-| Weather system dead-ended on external API — replaced with simulation | S15 |
-| Bin size inconsistent across devices — WORLD_W=1194 fixed | S15 |
-| camX never scrolled right — getBin() was using W not WORLD_W | S15 |
-| Pointer/touch offset after coordinate system change | S15 |
-| Snoo drain invisible on mobile (camera formula) | S14 |
-| Snoo push-down/push-up during cinematic | S14 |
-| Loading screen icon lost in revert | S14 |
-| Death never posted to thread | S14 |
-| Headstone dates were fake | S14 |
-| Any user could create a bin post | S14 |
-| Preview card had plain brown background | S14 |
-
----
-
-## FEAT-3 — Passive Bridge Version Capture
-
-**Priority: P3 — low friction enhancement, log for future session**
-
-### The problem
-Reddit assigns its own internal version number on every `devvit upload`
-(e.g. `0.0.179`, `0.0.180`). This number only appears in the Codespace terminal
-output and on developers.reddit.com. Claude cannot see either.
-
-Current workaround: Claude auto-increments `devvit.yaml` by +1 after every push,
-assuming one upload per push. Works but is an estimate, not the real number.
-
-### The idea
-Use bridge3.js as a **passive listener only** — not as an active bottleneck.
-Bridge is already running in the Codespace. Instead of routing deploys through it
-(slow), just have it watch for the version string in `devvit upload` output and
-write it to `relay/outbox.json` automatically.
-
-```
-You run devvit upload in terminal (fast, unchanged)
-    ↓
-bridge3.js tails stdout, sees:
-"✓ Uploaded wigglers-room to r/wigglers_room_dev (0.0.180)"
-    ↓
-Bridge writes { devvitVersion: "0.0.180", ts: ... } to outbox
-    ↓
-Next Claude session reads outbox → syncs devvit.yaml with real number
-```
-
-### Why this is better than active bridge deploys
-- Zero wait time — you upload at full terminal speed
-- Bridge doesn't block or slow anything
-- Claude gets the real version, not a +1 estimate
-- Self-correcting — if you upload outside a Claude session, next session picks it up
-
-### What needs to change
-- `bridge3.js` — add passive stdout watcher for devvit upload output
-- `devvit-pipeline` skill — read version from outbox at session start
-- `propose_commit.py` — use real version from outbox instead of +1 estimate
-
-### When to build
-After PERF-1 and PERF-2 are closed. Low priority — current +1 estimate works fine.
