@@ -1,5 +1,6 @@
+
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed; ISS-13+14 opened — next session: ISS-14 first)
+> Last updated: 2026-06-19 Session 20 | Devvit 0.0.179 | Next P1: PERF-1 (trash chunk offscreen pre-render)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -8,14 +9,14 @@
 
 ```
 Wigglers_Room/
-├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~500 lines
+├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~959 lines
 ├── webroot/
 │   ├── game.js               — All game logic — vanilla JS + Canvas — ~8645 lines
 │   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
 │   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
 │   ├── icon.png              — 500x500 worm icon (preview card tap target)
-│   └── preview-bg.png        — 512x512 trash wallpaper (all 27 items, rendered from game code)
+│   └── preview-bg.png        — 512x512 trash wallpaper reference (position guide for animated preview)
 ├── .github/workflows/
 │   └── deploy.yml            — tsc + devvit build check on every push — NO auto-upload
 ├── GAME_ARCHITECTURE.md      — This file
@@ -66,7 +67,6 @@ const anim = useInterval(() => {
   setTick((t: number) => { const next = t + 1; setBgUrl(buildBgDataUrl(next)); return next; });
 }, 100);
 anim.start();
-
 return (
   <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
     <image url={bgUrl} imageWidth={512} imageHeight={512} resizeMode="cover" />
@@ -75,12 +75,13 @@ return (
 );
 ```
 
-- `buildBgDataUrl(tick)` generates `data:image/svg+xml` URL each tick — 33 falling SVG trash items + amber glow baked in
-- `FALL_SPEED = 2` px/tick at 100ms = 20px/s. `TILE_H = 512`. Three copies per item prevent bottom clip.
-- `webView.mount()` on `<zstack onPress>` — never in render body (fires every render).
-- Assets must be PNG. GIF and JPG rejected by Devvit uploader.
+- `buildBgDataUrl(tick)` generates `data:image/svg+xml` per tick — dark bg + 33 falling SVG trash items + amber glow baked in
+- `FALL_SPEED = 2` px/tick, `TILE_H = 512`, 100ms interval = 20px/s. Three copies per item prevent bottom clip.
+- Glow baked into bg SVG — only ONE animated `<image>` element, halves re-renders vs two intervals
+- `webView.mount()` on `<zstack onPress>` — never in render body (fires every render = crash)
+- Assets must be PNG. GIF/JPG rejected by Devvit uploader.
 - Push binary assets via direct GitHub API — sync script corrupts binaries.
-- `preview-bg.png` is a position reference only — NOT the live preview source.
+- `preview-bg.png` is a position reference only — NOT the live preview source
 
 ---
 
@@ -100,7 +101,8 @@ return (
 
 ```
 KV_WORM_SESSION(username)  — per-player session (position, HP, gut, karma, bornTs, weekStartTs...)
-KV_WORLD(postId)           — shared bin state (tLvl, pooled, castingEnrichment, scrapsLevel)
+KV_WORLD(postId)           — shared bin state (tLvl, castingEnrichment, scrapsLevel)
+                             ⚠️ pooled REMOVED S20 — runtime-only, not synced
 KV_COCOONS(postId)         — all players' cocoons
 KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← P1 persistence target (see below)
 KV_QUEUE(postId)           — pending worm queue
@@ -112,7 +114,9 @@ KV_QUEUE(postId)           — pending worm queue
 
 `saveSession()` dual-writes localStorage + `postToHost(MSG_SAVE_SESSION)` on every meaningful change.
 
-Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pSleeping, pSleepX, pSleepY, cocoons, lastCocoonLaid, weekStartTs, weeklyContrib, emergencyKarmaPot, emergencyRequested, tLvl, pooled, castingEnrichment, drops`
+Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pAcid, pX, pY, pSleeping, pSleepX, pSleepY, cocoons, lastCocoonLaid, weekStartTs, weeklyContrib, emergencyKarmaPot, emergencyRequested, tLvl, castingEnrichment, drops`
+⚠️ `pooled` removed from session S20 — runtime-only. `pAcid` added S20 (ISS-14 fix).
+Save-on-exit added S20: `visibilitychange` listener calls `saveSession()` on hide.
 
 **`bornTs`** — real wall-clock ms when the current worm life began. Stamped on:
 - `respawnPlayer()` — baby respawn or first ever spawn
@@ -271,13 +275,13 @@ var _weatherEvent  = null;      // active event (rain/dry/heat) or null
 - `updateWeatherSim()` — every 600 frames (~10s), reads real calendar month for seasonal baseline, rolls for weather events
 
 **Weather events** (checked every 10s when no event active):
-- Rainstorm (18% chance): high precip + humidity, lasts 20–60 game-minutes
-- Dry spell (12%): low precip + lower humidity, lasts 1–2 hours
+- Dry spell (12%): lower humidity, lasts 1–2 hours
 - Heat wave (8%): high temp, lasts 2–4 hours
+⚠️ Rainstorm event removed S20 — precip stripped from all weather code
 
 **HUD:** Upper right corner — date (`M/D/YYYY`), temp (`72°F`), humidity (`RH 68%`), rain indicator (`☂` when precip > 0.10).
 
-**Gameplay effects:** humidity + temp drive `getEvapRate()` (affects bin moisture/flooding). precip spawns rain drops into bin top.
+**Gameplay effects:** humidity + temp affect worm comfort. Rain was removed S20 — `getEvapRate()` deleted, `precip` stripped from events and HUD. Saturation (`pooled`) is now driven only by food drops.
 
 **`weatherTempF()`:** Converts internal 0–1 temp to Fahrenheit: `20 + temp * 90`.
 
@@ -287,18 +291,21 @@ var _weatherEvent  = null;      // active event (rain/dry/heat) or null
 
 ### World / Shared
 ```js
-var tLvl = 0;              // 0–1 sump tea fill — shared all players
-var pooled = 0;            // 0–1 compost moisture
-var castingEnrichment = 0; // 0–1 compost richness
+var tLvl = 0;              // 0–1 sump tea fill — shared all players via KV
+var pooled = 0;            // 0–1 compost moisture — RUNTIME ONLY (not saved, not synced — S20)
+var castingEnrichment = 0; // 0–1 compost richness — synced via KV
 var scrapsLevel = 1.0;     // 0–1 trash density tier 0
 var floodActive = false;   // server-authoritative flood event
+var weekStartTs = 0;       // server epoch for weekly drain — synced via KV_WEEK on open
 ```
 
 ### Player Worm
 ```js
-var pHP = 1.0;             // health 0–1
+var pHP = 1.0;             // health 0–1 — now saved/restored (ISS-14 fixed S20)
 var pGut = 0;              // gut fill 0..pGutMax
+var pAcid = 0;             // 0–1 acid buildup — now saved/restored (ISS-14 fixed S20)
 var pEaten = 0;            // lifetime bites (0–300,000 = full life)
+var pSR = 4;               // worm radius — LOCKED at 4
 var pSEG = 4;              // segment count 4–20
 var karma = 0;
 var generation = 0;        // increments on natural death
@@ -470,27 +477,20 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### ⚠ P1 — START HERE: ISS-14 — Fix active worm session restore
+### ⚠ P1 — START HERE: PERF-1 — Trash chunk offscreen pre-render
 
-Most player-facing bug open. ~10 lines to fix, two changes.
+**Largest single source of lag.** 156 items × 701-line draw fn × 6 Z-passes = ~21,000 canvas ops/frame.
+Fix: pre-render each chunk to `OffscreenCanvas` at spawn. Replace `drawTrashChunk()` with `ctx.drawImage()`.
+Full spec: `WIGGLERS_AUDIT.md → PERF-1`
 
-**Bug A** (`game.js` line 3137) — `pHP` hardcoded to `1.0` on every session load. All damage from acid, flood, and starvation silently restored on reload. Fix: restore `saved.pHP` the same way `pGut` is restored. Keep `pHP = 1.0` only in `respawnPlayer()`.
+### P1 — PERF-2 — pPath Y-bucket index
 
-**Bug B** (`game.js` after line 3028) — No save-on-exit. 30s autosave only. Player leaving mid-session loses position, gut, and HP. Sleeping worm works because `trySleep()` saves explicitly. Fix: add `visibilitychange` listener → call `saveSession()` on hide. Position restore resolves automatically.
+400,000 iterations/frame worst case. Fix: spatial Y-bucket index on pPath — `nearestPathIdx()` scans 10–30 points instead of 2,000.
+Full spec: `WIGGLERS_AUDIT.md → PERF-2`
 
-See `WIGGLERS_AUDIT.md → ISS-14` for full analysis.
+### P1 — ISS-13 Bug A — Verify tunnel drain decrement
 
----
-
-### P1 — ISS-13: Fix compost saturation (three bugs, same session)
-
-See `WIGGLERS_AUDIT.md → ISS-13` for full line-level analysis and exact code locations.
-
-**Bug A** (`game.js` ~line 4554) — Tunnel drains don't reduce `pooled`. Decrement `pooled` when a tunnel drop hits the tea surface (`_teaHit` block), not only on pathless sump entry.
-
-**Bug B** (`game.js` lines 4567–4581) — Evaporation silently removes drops and drains saturation with no player-visible cause. Remove the evaporation loop. Drainage is the only intended way to reduce moisture.
-
-**Bug C** (`game.js` + `main.tsx`) — `pooled` synced to `KV_WORLD` but `drops[]` is not, causing ghost saturation for new/returning players and multiplayer oscillation. Make `pooled` local-only: remove from `worldUpdate`, `setWorldState`, and `KV_WORLD`.
+Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pooled` at `_teaHit` block.
 
 ### P2 — Code Health (game.js)
 | Task | What |
@@ -500,9 +500,17 @@ See `WIGGLERS_AUDIT.md → ISS-13` for full line-level analysis and exact code l
 | S3  | Delete 4 dead functions |
 | S4  | Rename 17 `_underscore` functions → camelCase |
 | S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
+| PERF-3 | Blade fringe offscreen canvas — 1,788 calls → 1 drawImage |
+| PERF-4 | Debris/scraps pre-render + lower cap (300 → 80) |
+| FEAT-2 | Cross-device session continuity — see `WIGGLERS_AUDIT.md` |
 
 ### P3 — Pre-Launch
 - Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
+
+### Future
+- FEAT-1: Cross-player tunnel clogging
+- FEAT-3: Passive bridge version capture
+- ISS-11: Drain fires without a player open
 
 ---
 
@@ -510,14 +518,17 @@ See `WIGGLERS_AUDIT.md → ISS-13` for full line-level analysis and exact code l
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-14 | Non-sleeping worm reloads at full HP + spawn position — pHP hardcoded 1.0, no save-on-exit | **P1 — next session** |
-| ISS-13 | Compost saturation: 3 bugs — drain doesn't reduce moisture, evap silently drains it, ghost pooled from KV_WORLD | P1 — pre-launch |
-| ISS-3 | 17 `_underscore` function names | P2 |
-| ISS-4 | `draw()` 2,022 line monolith | P2 |
+| PERF-1 | Trash chunks: ~21k canvas ops/frame — offscreen pre-render fix ready | **P1 — next session** |
+| PERF-2 | pPath nested scans: up to 400k iterations/frame — Y-bucket fix ready | **P1 — next session** |
+| ISS-13 Bug A | Verify tunnel drain decrements pooled at _teaHit | P1 — verify |
+| PERF-3 | Blade fringe: 1,788 canvas calls/frame | P2 |
+| PERF-4 | Debris + scraps: ~19,200 canvas ops/frame | P2 |
+| ISS-3 | 17 `_underscore` function names (S4 reverted) | P2 |
+| ISS-4 | `draw()` 2,022 line monolith (S5 reverted) | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
-| ISS-6 | 18 raw message strings in game.js | P2 |
+| ISS-6 | 18 raw message strings in game.js (S2 reverted) | P2 |
 | ISS-7 | 4 dead functions in codebase | P2 |
-| ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
+| ISS-8 | `DEBUG_PASSWORD` plaintext `'wigglers2025'` | P3 |
 | ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
 | ISS-10 | `weeklyContrib` client-authoritative | P3 |
-| ISS-11 | Drain only fires while a player has the game open | Future |
+| ISS-11 | Drain only fires while a player is open | Future |
