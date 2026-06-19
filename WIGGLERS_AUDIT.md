@@ -1,3 +1,4 @@
+
 # Wigglers Room — Audit Log
 
 > **Rebuilt:** 2026-06-19 — restructured for clarity (was append-only since S14)
@@ -74,6 +75,7 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
 | FEAT-2 | P2 | logged S20 | Cross-device session continuity (design doc below) |
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
+| FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
 ---
 
@@ -231,6 +233,92 @@ This is passive only — bridge does NOT drive the upload (too slow). You upload
 
 ---
 
+### FEAT-4 — Long-Press Drain/Tunnel Placement, Sleep Scoping, Drain Visual Unification
+
+**Priority: P2** | **Logged:** S21 (Devvit 0.0.183)
+
+---
+
+#### The Idea
+
+Replace the current fixed drain/tunnel connection flow with an intentional long-press gesture system. The player uses touch to direct the worm to build meaningful infrastructure — drain points, tunnel junctions — rather than having these appear automatically. Sleep is preserved but scoped tightly so it doesn't conflict.
+
+---
+
+#### Gesture Map (New)
+
+| Gesture | Target | Action |
+|---------|--------|--------|
+| Long press on **worm body** | Worm hit radius only | Sleep (same as now — just scoped tighter) |
+| Long press on **sump barrier** | The horizontal sump floor line | Worm autopilots to sump, digs drain connection |
+| Long press on **tunnel wall / segment** | Any existing pPath segment | Worm autopilots to that point, digs tunnel junction |
+| Any tap/touch **while autopiloting** | Anywhere | Cancels autopilot, returns to manual control |
+
+---
+
+#### Sleep Scoping Fix
+
+Currently long-press fires sleep from anywhere on the canvas. This conflicts with the new drain/tunnel gestures because both use long-press on non-worm regions.
+
+**Fix:** Add a worm hit-radius check before triggering sleep. If the long-press origin is within `pSR * 3` of any `pSegs` point → sleep. Otherwise → check for sump barrier or tunnel target.
+
+```js
+// Pseudocode — long press handler
+var onWorm = pSegs.some(function(s) {
+  var dx = longPressX - s.x, dy = longPressY - s.y;
+  return dx*dx + dy*dy < (pSR * 3) * (pSR * 3);
+});
+if (onWorm) { triggerSleep(); return; }
+if (onSumpBarrier(longPressY)) { triggerAutopilotDrain(); return; }
+if (nearTunnelSegment(longPressX, longPressY)) { triggerAutopilotJunction(); return; }
+```
+
+---
+
+#### Autopilot Behaviour
+
+When a drain or junction target is set:
+- A subtle visual indicator appears at the target point (e.g. glowing dot)
+- The worm steers toward the target using the existing movement system (not teleport)
+- On arrival, the appropriate action fires automatically (drain dig / junction dig)
+- Any touch input cancels autopilot and clears the indicator
+- Autopilot does not override death, flood, or cinematic states
+
+---
+
+#### Drain Unification — Visual vs Logic
+
+The two drain types look and feel identical to the player but are implemented differently under the hood. This asymmetry needs to be documented and eventually reconciled.
+
+**Down-drain (sump exit):**
+- Player digs to the sump floor → pPath reaches `sumpExit` point
+- Liquid flows down through the worm tunnel, exits at sump drain
+- Logic: `tLvl` decremented when `_teaHit` block fires at sump floor
+
+**Up-drain (inverse sump exit):**
+- Visually looks like the same drain valve but at the top of the sump
+- **⚠️ BUG NOTE:** The up-drain reuses the sump exit logic but with inverted pPath direction. Because `pPath` is consumed head-to-tail, the up-drain has a directional assumption baked in that is the mirror image of the down-drain. This causes subtle routing inconsistencies — drops that should flow upward sometimes stall or reverse because the path-following logic was written assuming downward gravity flow.
+- The `_teaHit` decrement and `nearestPathIdx()` scan both implicitly assume the worm dug downward. The up-drain effectively runs these in reverse, which works most of the time but breaks at junctions and near segment boundaries.
+
+**Unification goal:**
+- Both drains share one visual language (same valve sprite, same animation)
+- Under the hood: down-drain keeps existing logic unchanged; up-drain gets a direction flag (`drain.dir = 'up'|'down'`) so the path-following and decrement logic can branch correctly
+- The existing up-drain bug should be fixed as part of FEAT-4 implementation — don't just add the long-press mechanic on top of broken up-drain logic
+
+**Files to touch:**
+- `game.js` — long-press handler, `updatePlayer()` autopilot state, `drawSnooDrain()` visual, `_teaHit` block direction branch, `nearestPathIdx()` up-drain routing
+- `main.tsx` — no changes expected (drain logic is client-side)
+
+---
+
+#### Open Questions (resolve before building)
+
+- **Tunnel junction mechanic:** Does long-pressing a tunnel segment create a branch point (liquid can flow through the junction), or a waypoint anchor the worm routes through on future passes? *(To be clarified by Cal before implementation)*
+- **Autopilot speed:** Same movement speed as manual, or slightly faster to feel responsive?
+- **Visual for autopilot target:** Glowing dot? Pulsing ring? Should match the game's existing aesthetic.
+
+---
+
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
@@ -380,4 +468,5 @@ Root cause: one-time guard in `resizeCanvas()` prevented W/H from updating after
 | Preview card plain brown | no wallpaper | S14 | ~0.0.148 |
 | Any user could create bin post | missing mod check | S14 | ~0.0.148 |
 | Devvit message envelope unwrapped | game.js missing unwrap | S14 | ~0.0.148 |
+
 
