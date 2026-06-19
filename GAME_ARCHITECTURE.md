@@ -1,6 +1,7 @@
 
+
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 21 | Devvit 0.0.182| Next P1: PERF-1 (trash chunk offscreen pre-render)
+> Last updated: 2026-06-19 Session 21 | Devvit 0.0.183 | Next P1: PERF-2 (pPath Y-bucket index)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -204,6 +205,7 @@ On mobile/narrow: `0` (no effect). On desktop where `W > WORLD_W`: shifts world 
 **`ctx.translate(centreOffsetX - camX, 0)`** at start of draw() — combines centring + camera scroll.
 
 **`camX`** is always `>= 0`. On wide screens it is locked to `0` (no scroll needed — bin fits).
+**camX lerp rate:** `0.04` — matches camY exactly. No deadzone. Updated S21 (was `0.06`, no deadzone — felt jittery vs vertical follow).
 
 **`_toCanvas(clientX, clientY)`** converts pointer events to screen coords (subtracts root offset).
 **All mX/mY assignments** use `screenX - centreOffsetX + camX` to convert screen → world X.
@@ -477,15 +479,15 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### ⚠ P1 — START HERE: PERF-1 — Trash chunk offscreen pre-render
+### ✅ PERF-1 — Trash chunk offscreen pre-render — SHIPPED S21
 
-**Largest single source of lag.** 156 items × 701-line draw fn × 6 Z-passes = ~21,000 canvas ops/frame.
-Fix: pre-render each chunk to `OffscreenCanvas` at spawn. Replace `drawTrashChunk()` with `ctx.drawImage()`.
-Full spec: `WIGGLERS_AUDIT.md → PERF-1`
+Pre-renders each chunk to `OffscreenCanvas` at spawn. Draw loop uses `ctx.drawImage()` instead of 701-line `drawTrashChunk()`.
+~21,000 canvas ops/frame → ~156 drawImage calls. Commit: `67fff0c`
 
-### P1 — PERF-2 — pPath Y-bucket index
+### ⚠ P1 — START HERE: PERF-2 — pPath Y-bucket index
 
-400,000 iterations/frame worst case. Fix: spatial Y-bucket index on pPath — `nearestPathIdx()` scans 10–30 points instead of 2,000.
+**Second largest source of lag.** Up to 400,000 pPath iterations/frame from nested scans in drop routing.
+Fix: Y-bucket spatial index — `nearestPathIdx()` scans 10–30 points instead of 2,000.
 Full spec: `WIGGLERS_AUDIT.md → PERF-2`
 
 ### P1 — ISS-13 Bug A — Verify tunnel drain decrement
@@ -510,6 +512,7 @@ Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pool
 ### Future
 - FEAT-1: Cross-player tunnel clogging
 - FEAT-3: Passive bridge version capture
+- FEAT-4: Long-press drain/tunnel placement + sleep scoping + drain unification
 - ISS-11: Drain fires without a player open
 
 ---
@@ -518,7 +521,7 @@ Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pool
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| PERF-1 | Trash chunks: ~21k canvas ops/frame — offscreen pre-render fix ready | **P1 — next session** |
+| PERF-1 | Trash chunks: offscreen pre-render | ✅ SHIPPED S21 (67fff0c) |
 | PERF-2 | pPath nested scans: up to 400k iterations/frame — Y-bucket fix ready | **P1 — next session** |
 | ISS-13 Bug A | Verify tunnel drain decrements pooled at _teaHit | P1 — verify |
 | PERF-3 | Blade fringe: 1,788 canvas calls/frame | P2 |
@@ -529,6 +532,8 @@ Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pool
 | ISS-6 | 18 raw message strings in game.js (S2 reverted) | P2 |
 | ISS-7 | 4 dead functions in codebase | P2 |
 | ISS-8 | `DEBUG_PASSWORD` plaintext `'wigglers2025'` | P3 |
+| FEAT-4 | Long-press drain/tunnel placement + sleep scoping + drain unification | P2 |
 | ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
 | ISS-10 | `weeklyContrib` client-authoritative | P3 |
 | ISS-11 | Drain only fires while a player is open | Future |
+
