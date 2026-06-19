@@ -1,5 +1,6 @@
 
 
+
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
@@ -787,6 +788,49 @@ function addPoint(path, x, y, r, lastX, lastY) {
     }
   }
   return true;
+}
+
+// ---- Trash chunk offscreen pre-render (PERF-1) ---- //
+// Pre-renders a trash chunk to an OffscreenCanvas and caches it as tc.img.
+// Called once at spawn (or once on settle after drop) and again only when
+// hpFrac crosses a 10% threshold (chunks banded into 10 buckets).
+// The draw loop replaces the 701-line drawTrashChunk() call with ctx.drawImage().
+function _prerenderTrashChunk(tc) {
+  var r = tc.sz;
+  var hpFrac = tc.hpFrac;
+  var pad = Math.ceil(r * 1.4) + 2;
+  var size = pad * 2;
+  var oc;
+  try {
+    oc = new OffscreenCanvas(size, size);
+  } catch (e) {
+    // Fallback to regular canvas if OffscreenCanvas not available
+    oc = document.createElement('canvas');
+    oc.width = size; oc.height = size;
+  }
+  var octx = oc.getContext('2d');
+  octx.clearRect(0, 0, size, size);
+  octx.translate(pad, pad);
+  try {
+    drawTrashChunk(octx, tc.t.name, r, hpFrac);
+  } catch (e) {
+    // If render fails, leave tc.img null — draw loop will fall back to live draw
+    tc.img = null;
+    tc._imgPad = pad;
+    tc._imgHpBucket = Math.floor(hpFrac * 10);
+    return;
+  }
+  tc.img = oc;
+  tc._imgPad = pad;
+  tc._imgHpBucket = Math.floor(hpFrac * 10);
+}
+
+// Invalidates cached img if hpFrac has crossed a 10% bucket boundary.
+// Call after any hp change on a trash chunk.
+function _invalidateChunkImg(tc) {
+  var newBucket = Math.floor(tc.hpFrac * 10);
+  if (tc.img && tc._imgHpBucket === newBucket) return; // still valid
+  _prerenderTrashChunk(tc);
 }
 
 // ---- Trash chunk drawing ---- //
@@ -2185,6 +2229,8 @@ function updateSnoo() {
         dc.dropVx = 0;
         dc.dropping = false;
         dc.rot += (Math.random() - 0.5) * 0.4;
+        // PERF-1: now that position/rot is final, pre-render to offscreen canvas
+        _prerenderTrashChunk(dc);
       }
     }
   }
@@ -2752,6 +2798,8 @@ function spawnScraps() {
       };
       placed.push(chunk);
       trashChunks.push(chunk);
+      // PERF-1: pre-render to offscreen canvas now; dropping chunks wait until settled
+      if (!chunk.dropping) _prerenderTrashChunk(chunk);
     }
   }
 
@@ -2840,6 +2888,8 @@ function updateScrapsLevel() {
     if (wasLocked && !tc.locked && tc.baseSz) {
       tc.sz = tc.baseSz * (0.65 + Math.random() * 0.45);
       tc.maxHp = tc.t.hp; tc.hp = tc.t.hp; tc.hpFrac = 1.0;
+      // PERF-1: sz changed — must re-render at new size
+      _prerenderTrashChunk(tc);
     }
   }
 
@@ -3479,6 +3529,8 @@ function updatePlayer() {
         if (generation >= 5) biteAmt *= 1.20; // Gen 5+ perk: +20% bite rate
         tc2.hp -= biteAmt;
         tc2.hpFrac = Math.max(0, tc2.hp / tc2.maxHp);
+        // PERF-1: invalidate cached img if hpFrac crossed a 10% bucket
+        _invalidateChunkImg(tc2);
         // Acid buildup from toxic foods
         if (tc2.t.acid && frame % 8 === 0) {
           pAcid = Math.min(1.0, pAcid + tc2.t.acid * 0.015);
@@ -3577,6 +3629,8 @@ function updatePlayer() {
       updateScrapsLevel();
       continue;
     }
+    // PERF-1: invalidate cached img if hpFrac crossed a 10% bucket
+    _invalidateChunkImg(pd);
     // Shed one scrap into tier 1
     var shedX = pd.x + (Math.random() - 0.5) * pd.sz * 0.6;
     var shedY = Math.max(H + 12, Math.min(H * 2 - 12, pd.y + pd.sz * 0.5 + Math.random() * 10));
@@ -5850,33 +5904,46 @@ function draw() {
       if (tcy < -80 || tcy > H + 80) continue;
       var curR = tc6.sz;
       var depthY = tc6.dropping ? 0 : (tc6.depth || 0) * 3;
-      ctx.save();
-      ctx.translate(drawX, tcy + depthY);
-      ctx.rotate(tc6.rot);
-      ctx.globalAlpha = 0.92;
-      try {
-        drawTrashChunk(ctx, tc6.t.name, curR, tc6.hpFrac);
-      } catch(e) {
+      // PERF-1: use pre-rendered offscreen canvas if available
+      if (tc6.img && !tc6.dropping) {
+        var pad6 = tc6._imgPad || Math.ceil(curR * 1.4) + 2;
+        ctx.save();
+        ctx.globalAlpha = 0.92;
+        ctx.translate(drawX, tcy + depthY);
+        ctx.rotate(tc6.rot);
+        ctx.drawImage(tc6.img, -pad6, -pad6, pad6 * 2, pad6 * 2);
         ctx.restore();
         ctx.globalAlpha = 1;
-        if (_ctxFilterSupported) ctx.filter = 'none';
-        // Draw a fallback coloured circle so the game doesn't crash
+      } else {
+        // Dropping chunk or not yet pre-rendered — fall back to live draw
         ctx.save();
-        ctx.translate(tc6.x, tc6.y - camY);
-        ctx.fillStyle = tc6.t.debrisCol || '#888';
-        ctx.beginPath(); ctx.arc(0, 0, curR, 0, Math.PI*2); ctx.fill();
-        ctx.restore();
-        // Log once per type
-        if (!window._dtcErr) window._dtcErr = {};
-        if (!window._dtcErr[tc6.t.name]) {
-          window._dtcErr[tc6.t.name] = true;
-          console.error('drawTrashChunk error for', tc6.t.name, ':', e.message);
+        ctx.translate(drawX, tcy + depthY);
+        ctx.rotate(tc6.rot);
+        ctx.globalAlpha = 0.92;
+        try {
+          drawTrashChunk(ctx, tc6.t.name, curR, tc6.hpFrac);
+        } catch(e) {
+          ctx.restore();
+          ctx.globalAlpha = 1;
+          if (_ctxFilterSupported) ctx.filter = 'none';
+          // Draw a fallback coloured circle so the game doesn't crash
+          ctx.save();
+          ctx.translate(tc6.x, tc6.y - camY);
+          ctx.fillStyle = tc6.t.debrisCol || '#888';
+          ctx.beginPath(); ctx.arc(0, 0, curR, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          // Log once per type
+          if (!window._dtcErr) window._dtcErr = {};
+          if (!window._dtcErr[tc6.t.name]) {
+            window._dtcErr[tc6.t.name] = true;
+            console.error('drawTrashChunk error for', tc6.t.name, ':', e.message);
+          }
+          continue;
         }
-        continue;
+        if (_ctxFilterSupported) ctx.filter = 'none';
+        ctx.restore();
+        ctx.globalAlpha = 1;
       }
-      if (_ctxFilterSupported) ctx.filter = 'none';
-      ctx.restore();
-      ctx.globalAlpha = 1;
       if (!tc6.locked && tc6.hpFrac < 0.95) {
         var bw4 = curR * 2.4;
         ctx.globalAlpha = 0.85;
@@ -8624,6 +8691,7 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
+
 
 
 
