@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 18 (ISS-12 closed — drain Snoo positioning fixed)
+> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed — weekly drain persistence; ISS-13 opened — pooled saturation mismatch)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -121,8 +121,8 @@ The bin's weekly drain cycle persists independently of any player being logged i
 
 **Move 1 — Read `KV_WEEK` on open, send `weekStartTs` to game** *(main.tsx, ~15 lines)* ✅ SHIPPED S16
 **Move 2 — game.js receives `weekStartTs` from `setWorldState`** *(game.js, 1 line)* ✅ SHIPPED S16
-**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)* — ready (ISS-12 closed)
-**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)* — ready (ISS-12 closed)
+**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)* ✅ SHIPPED S19
+**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)* ✅ SHIPPED S19
 
 ### Data flow (all four moves)
 ```
@@ -456,3 +456,47 @@ const presenceChannel = useChannel({
 presenceChannel.subscribe();
 ```
 Declared **after** `useWebView` so `webView` is in scope.
+
+
+---
+
+## Priority Queue — Next Session
+
+### P1 — ISS-13: Fix compost saturation (three bugs, one session)
+
+See `WIGGLERS_AUDIT_V20.md → ISS-13` for full line-level analysis and exact code locations.
+
+**Bug A** (`game.js` ~line 4554) — Tunnel drains don't reduce `pooled`. Decrement `pooled` when a tunnel drop hits the tea surface (`_teaHit` block), not only on pathless sump entry.
+
+**Bug B** (`game.js` lines 4567–4581) — Evaporation silently removes drops and drains saturation with no player-visible cause. Remove the evaporation loop. Drainage is the only intended way to reduce moisture.
+
+**Bug C** (`game.js` + `main.tsx`) — `pooled` synced to `KV_WORLD` but `drops[]` is not, causing ghost saturation for new/returning players and multiplayer oscillation. Make `pooled` local-only: remove from `worldUpdate`, `setWorldState`, and `KV_WORLD`.
+
+### P2 — Code Health (game.js)
+| Task | What |
+|------|------|
+| S2a | 18 raw message strings → `MSG_*` constants |
+| S2b | 5 duplicate Snoo SVG helper pairs → shared functions |
+| S3  | Delete 4 dead functions |
+| S4  | Rename 17 `_underscore` functions → camelCase |
+| S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
+
+### P3 — Pre-Launch
+- Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
+
+---
+
+## Known Issues (Open)
+
+| ID | Issue | Priority |
+|----|-------|----------|
+| ISS-13 | Compost saturation: 3 bugs — drain doesn't reduce moisture, evap silently drains it, ghost pooled from KV_WORLD | P1 — pre-launch |
+| ISS-3 | 17 `_underscore` function names | P2 |
+| ISS-4 | `draw()` 2,022 line monolith | P2 |
+| ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
+| ISS-6 | 18 raw message strings in game.js | P2 |
+| ISS-7 | 4 dead functions in codebase | P2 |
+| ISS-8 | `DEBUG_PASSWORD` plaintext | P3 |
+| ISS-9 | `bornTs` not stamped on cocoon hatch respawn | Low |
+| ISS-10 | `weeklyContrib` client-authoritative | P3 |
+| ISS-11 | Drain only fires while a player has the game open | Future |
