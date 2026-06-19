@@ -2242,10 +2242,7 @@ function triggerSnooDrain() {
   var _b    = getBin();
   var _SC   = H * 0.16;
   camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen
-  // ISS-12 X fix: use the tap's actual world X (stored at draw time) converted to screen space.
-  // drawSnooDrain runs outside ctx.translate, so world X → screen X = worldX + centreOffsetX - camX.
-  var _tapWX = (window._tapWorldX != null) ? window._tapWorldX : _b.cx;
-  drainSnooStopX = _tapWX - _SC * 0.127 + centreOffsetX - camX; // screen-space X
+  drainSnooStopX = _b.cx - _SC * 0.127; // world-space X — drawSnooDrain is inside world transform
   drainSnooStopY = 0;                           // unused — STOP_Y computed live from tapSY each frame
 }
 
@@ -2349,11 +2346,6 @@ function updateSnooDrain() {
 function drawSnooDrain() {
   if (!drainScene) return;
 
-  // Apply the same world transform as the main draw so Snoo X aligns with the valve.
-  // The valve is drawn inside ctx.translate(centreOffsetX - camX, 0); Snoo must match.
-  ctx.save();
-  ctx.translate(centreOffsetX - camX, 0);
-
   var b      = getBin();
   var bsy    = 3*H + H*0.25 - camY;  // bin floor screen Y
   var SC     = H * 0.16;             // must match updateSnooDrain SC
@@ -2369,9 +2361,8 @@ function drawSnooDrain() {
   var torsoBot = bodyH;
   var headCY   = torsoTop - headR * 0.82;
 
-  // Tap position in screen space — use stored world X from draw time, convert to screen X
-  var _dTapWX = (window._tapWorldX != null) ? window._tapWorldX : b.cx;
-  var TAP_SX = _dTapWX + centreOffsetX - camX;
+  // Tap position — world coords, works natively inside ctx.translate
+  var TAP_SX = b.cx;
   var TAP_SY = bsy + 8;
 
   var sx = drainSnooX;
@@ -2593,7 +2584,6 @@ function drawSnooDrain() {
   ctx.restore();
 
   ctx.restore(); // end drainSnooScale transform
-  ctx.restore(); // end world transform (centreOffsetX - camX)
 
   // ── Screen-space overlays — W/2 is correct here (world transform already popped) ──
   // Scene label pill
@@ -6545,9 +6535,7 @@ function draw() {
 
     // Tap / drain spigot — matches the drain cinematic tap exactly
     var _tx = b.cx, _ty = bsy + 8;
-    // Store world coords for drain cinematic (drawSnooDrain is screen-space, converts itself)
-    window._tapWorldX = _tx;
-    window._tapWorldY = _ty;
+
     // Valve is "open / hot" when flood is active OR tapReady (weekly feed)
     var _valveOpen = valveOpen;
     // Pipe and handle always gold — never grey
@@ -6944,6 +6932,9 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  // Drain Snoo cinematic — inside world transform so b.cx world coords work natively
+  drawSnooDrain();
+
   // ── Restore canvas transform — everything below is screen-space HUD ──────
   ctx.restore();
 
@@ -7302,7 +7293,6 @@ function draw() {
   drawWeatherHUD();
   // Snoo cinematics drawn on top of world, below death screen
   drawSnooCinematic();
-  drawSnooDrain();
   // Queue system — pending cocoons and spectator HUD
   try { drawPendingWorms(); } catch(e) {}
   drawQueueHUD();
