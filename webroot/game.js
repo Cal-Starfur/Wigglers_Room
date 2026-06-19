@@ -392,7 +392,7 @@ window.addEventListener('message', function(e) {
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
-    if (msg.pooled           != null) pooled             = Math.max(0, Math.min(1, +msg.pooled           || 0));
+    // pooled intentionally excluded — derived at runtime from active drops, not shared via KV
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
     if (msg.scrapsLevel      != null) window._hostScrapsLevel = Math.max(0, Math.min(1, +msg.scrapsLevel || 1));
@@ -2150,7 +2150,7 @@ function updateSnoo() {
           weekStartTs = Date.now();
           weeklyContrib = 0;
           saveSession();
-          postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
+          postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
         }
         // Ease camera back to where the player is
         // camY will naturally follow the player again via updatePlayer
@@ -2892,14 +2892,10 @@ function saveSession() {
       weeklyContrib:     weeklyContrib,
       emergencyKarmaPot: emergencyKarmaPot,
       emergencyRequested: emergencyRequested,
-      // ── World-state persistence (needed for multi-mechanic testing) ───────
+      // ── World-state persistence ────────────────────────────────────────
       tLvl:              tLvl,
-      pooled:            pooled,
       castingEnrichment: castingEnrichment,
-      // Save active drops so pooled is always backed by real liquid on restore
-      drops: drops.filter(function(d){ return d.active; }).map(function(d){
-        return { x: d.x, y: d.y, vy: d.vy, sz: d.sz };
-      })
+      // pooled intentionally not saved — resets to 0 each session, built by food drops
     };
     // Always write localStorage — works for local dev and as a fallback
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
@@ -3206,14 +3202,8 @@ function setup() {
 
     // ── Restore world-state so multi-mechanic testing persists across reloads ─
     tLvl              = Math.max(0, Math.min(1,   saved.tLvl              || 0));
-    pooled            = Math.max(0, Math.min(1,   saved.pooled            || 0));
     castingEnrichment = Math.max(0, Math.min(1,   saved.castingEnrichment || 0));
-    // Restore drops — enteredCompost=true prevents them re-adding to pooled on first tick
-    if (saved.drops && saved.drops.length) {
-      saved.drops.forEach(function(d) {
-        drops.push({ x: d.x, y: d.y, vy: d.vy || 0.3, sz: d.sz || 2, active: true, enteredCompost: true });
-      });
-    }
+    // pooled not restored — resets to 0 each session and is rebuilt by food drops
   }
 
   initPlayer(saved);
@@ -4585,7 +4575,7 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
   }
 
   // (Rain removed — saturation driven by tea drops from food only)
@@ -4638,7 +4628,7 @@ function updatePhysics() {
     // Broadcast to host — server will re-broadcast via Realtime to all viewers.
     // In production the setFlood message from the host is authoritative;
     // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
@@ -4747,7 +4737,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: 'worldUpdate', tLvl: 0, pooled: pooled, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  postToHost({ type: 'worldUpdate', tLvl: 0, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
   // Chain feed cinematic immediately — no gap between drain and refill
   weeklyFeedPending = true;
   triggerSnoo('feed');
@@ -5526,7 +5516,7 @@ function draw() {
             poolGrad.addColorStop(0.75, 'rgba(25,80,52,'  + (pooled * 0.55).toFixed(2) + ')');
             poolGrad.addColorStop(1,    'rgba(15,60,40,'  + (pooled * 0.65).toFixed(2) + ')');
             ctx.fillStyle = poolGrad;
-            ctx.fillRect(b.cx-b.bw2+4, pvTop, b.bw-8, pvBot - pvTop);
+            ctx.fillRect(b.cx-b.bw2, pvTop, b.bw, pvBot - pvTop);
           }
         }
 
@@ -6695,7 +6685,7 @@ function draw() {
       saturGrad.addColorStop(0.4, 'rgba(30,80,55,' + (pooled * 0.12).toFixed(2) + ')');
       saturGrad.addColorStop(1,   'rgba(20,65,45,' + (pooled * 0.28).toFixed(2) + ')');
       ctx.fillStyle = saturGrad;
-      ctx.fillRect(b.cx-b.bw2+4, svTop, b.bw-8, svBot - svTop);
+      ctx.fillRect(b.cx-b.bw2, svTop, b.bw, svBot - svTop);
       if (saturTop > 0 && saturTop < H) {
         ctx.strokeStyle = 'rgba(80,180,100,' + (pooled * 0.35).toFixed(2) + ')';
         ctx.lineWidth = 1; ctx.setLineDash([4, 8]);
@@ -7990,7 +7980,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
+        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
       }
     }
 
@@ -8573,7 +8563,7 @@ window.addEventListener('keydown', function(e) {
       var fs3 = loadSession();
       if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
     } catch(e2) {}
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
   }
   // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
