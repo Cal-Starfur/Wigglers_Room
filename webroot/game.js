@@ -2242,7 +2242,9 @@ function triggerSnooDrain() {
   var _b    = getBin();
   var _SC   = H * 0.16;
   camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen
-  drainSnooStopX = _b.cx - _SC * 0.127;        // X only — stable, bin never scrolls horizontally
+  // ISS-12 X fix: drawSnooDrain runs OUTSIDE ctx.translate(centreOffsetX-camX) so coords
+  // must be screen-space. Convert world cx to screen X by applying the same transform.
+  drainSnooStopX = _b.cx - _SC * 0.127 + centreOffsetX - camX; // screen-space X
   drainSnooStopY = 0;                           // unused — STOP_Y computed live from tapSY each frame
 }
 
@@ -2346,6 +2348,11 @@ function updateSnooDrain() {
 function drawSnooDrain() {
   if (!drainScene) return;
 
+  // Apply the same world transform as the main draw so Snoo X aligns with the valve.
+  // The valve is drawn inside ctx.translate(centreOffsetX - camX, 0); Snoo must match.
+  ctx.save();
+  ctx.translate(centreOffsetX - camX, 0);
+
   var b      = getBin();
   var bsy    = 3*H + H*0.25 - camY;  // bin floor screen Y
   var SC     = H * 0.16;             // must match updateSnooDrain SC
@@ -2361,8 +2368,8 @@ function drawSnooDrain() {
   var torsoBot = bodyH;
   var headCY   = torsoTop - headR * 0.82;
 
-  // Tap position — matches the centre-bottom spigot in the main render (line ~5593)
-  var TAP_SX = b.cx;
+  // Tap position in screen space (drawSnooDrain is outside world ctx.translate)
+  var TAP_SX = b.cx + centreOffsetX - camX;
   var TAP_SY = bsy + 8;
 
   var sx = drainSnooX;
@@ -2583,13 +2590,17 @@ function drawSnooDrain() {
   }
   ctx.restore();
 
-  // ── Scene label pill ──────────────────────────────────────────────────────
+  ctx.restore(); // end drainSnooScale transform
+  ctx.restore(); // end world transform (centreOffsetX - camX)
+
+  // ── Screen-space overlays — W/2 is correct here (world transform already popped) ──
+  // Scene label pill
   ctx.fillStyle = 'rgba(10,30,10,0.88)';
   ctx.beginPath(); ctx.roundRect(W/2-115, 8, 230, 22, 8); ctx.fill();
   ctx.fillStyle = '#a0e880'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('🌿 Farmer Snoo drains the weekly tea!', W/2, 23);
+  ctx.fillText('\u{1F33F} Farmer Snoo drains the weekly tea!', W/2, 23);
 
-  // ── Karma toast ───────────────────────────────────────────────────────────
+  // Karma toast
   if (drainToastAlpha > 0) {
     ctx.save();
     ctx.globalAlpha = drainToastAlpha;
@@ -2601,11 +2612,9 @@ function drawSnooDrain() {
     ctx.fillText('Weekly drain complete!', W/2, toastY - 10);
     ctx.fillStyle = '#ffd060'; ctx.font = Math.round(H*0.018) + 'px monospace';
     var bonusStr = drainBonusPool > 0 ? '+' + drainBonusPool + ' karma shared' : 'no bonus this week';
-    ctx.fillText(bonusStr + '  ·  tLvl \u2192 0', W/2, toastY + 10);
+    ctx.fillText(bonusStr + '  \u00b7  tLvl \u2192 0', W/2, toastY + 10);
     ctx.restore();
   }
-
-  ctx.restore(); // end drainSnooScale transform
 }
 
 // ── Draw Snoo cinematic overlay (lid open, cascade particles) ─────────────
