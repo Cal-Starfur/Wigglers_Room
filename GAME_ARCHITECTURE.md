@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 22 | Devvit 0.0.181 | Next P1: PERF-2 (pPath Y-bucket index)
+> Last updated: 2026-06-19 Session 22 | Devvit 0.0.183 | Next P1: PERF-2 (pPath Y-bucket index)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
