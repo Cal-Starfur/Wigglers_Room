@@ -1,4 +1,5 @@
 
+
 // DEBUG_MODE is declared near the bottom of this file; this handler reads it at call time
 // so the reference is always current regardless of hoisting.
 window.addEventListener('error', function(e) {
@@ -602,7 +603,7 @@ var drainPT           = 0;       // per-phase frame counter
 var drainSnooX        = 0;       // screen X of Snoo centre
 var drainSnooY        = 0;       // screen Y of Snoo torso-top anchor
 var drainSnooStopX    = 0;       // locked STOP_X captured at scene start
-var drainSnooStopY    = 0;       // locked STOP_Y captured at scene start — prevents camY drift
+var drainSnooStopY    = 0;       // unused since ISS-12 fix — STOP_Y derived live from tapSY
 var drainTapRot       = 0;       // valve handle rotation 0 → PI*0.82 = open
 var drainTapIsOpen    = false;
 var drainTeaFlow      = 0;       // 0–1 flow intensity (drives drip opacity + speed)
@@ -2236,14 +2237,13 @@ function triggerSnooDrain() {
   drainDrainingDur = Math.max(80, Math.min(220, Math.round(tLvl * 600)));
   snooGamePaused   = true; // freeze hunger/physics during scene
   drainOwner = 'cinematic'; // claim exclusive tLvl ownership — valve cannot fire during drain scene
-  // Snap camY so sump floor sits at ~45% down the screen — spout visible above, Snoo below.
-  // ISS-12 fix: old value (H*0.86) placed Snoo AT the tap; bucket mouth was only 2px below spout.
-  // New value (H*0.45) raises the camera so spout is at screen Y~390 and bucket mouth at Y~470.
+  // Snap camY so sump floor sits at ~45% down the screen — spout is visible, Snoo stands below it.
+  // STOP_Y is now derived from tapSY in updateSnooDrain — no longer stored here.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen — ISS-12 fix
+  camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen
   drainSnooStopX = _b.cx - _SC * 0.127;        // X only — stable, bin never scrolls horizontally
-  drainSnooStopY = H * 0.559 + camY;           // world-Y of torso anchor (screen 55.9% down)
+  drainSnooStopY = 0;                           // unused — STOP_Y computed live from tapSY each frame
 }
 
 // ── Update drain cinematic state (called from loop() each frame) ──────────
@@ -2257,7 +2257,12 @@ function updateSnooDrain() {
   // Tap in screen space — camY is stable (snapped at trigger), so this is constant each frame.
   var tapSY   = 3*H + H*0.25 - camY + 8;
   var STOP_X  = drainSnooStopX;
-  var STOP_Y  = H * 0.559; // ISS-12 fix: screen-space torso anchor — bucket mouth 80px below spout
+  // ISS-12 fix: derive torso anchor from tap position so bucket mouth sits ~15px below spout.
+  // Bucket mouth offset from torso top = SC*(0.270*0.10 + 0.165*0.92) = SC*0.1788.
+  // Spout is at tapSY+22. We want bucket mouth at tapSY+22+15 = tapSY+37.
+  // So: STOP_Y + handOff = tapSY+37  →  STOP_Y = tapSY + 37 - handOff.
+  var _handOff = SC * 0.1788;
+  var STOP_Y  = tapSY + 37 - _handOff;
 
   function easeOut(x) { return 1-(1-x)*(1-x); }
   function easeIn(x)  { return x*x; }
@@ -8636,6 +8641,7 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
+
 
 
 
