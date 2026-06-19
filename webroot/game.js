@@ -177,37 +177,35 @@ var SESSION_KEY = 'wigglers_session_v2';
 // ── Weather system — simulated bin environment ───────────────────────────────
 // Seasonal baseline + slow random drift + occasional weather events.
 // All values 0–1 internally; HUD converts to human-readable units.
-// temp 0–1 maps to 20°F–110°F. humidity 0–1 = 0–100%. precip drives rain drops.
+// temp 0–1 maps to 20°F–110°F. humidity 0–1 = 0–100%.
 
 // Seasonal baselines by month (0=Jan … 11=Dec)
 // temp: 0–1 (20°F low end, 110°F high end)
 // humidity: 0–1
-// precip: 0–1 base rain chance
 var WEATHER_SEASONS = [
-  { temp: 0.26, humidity: 0.58, precip: 0.08 }, // Jan — cold, moderate rain
-  { temp: 0.29, humidity: 0.55, precip: 0.09 }, // Feb
-  { temp: 0.38, humidity: 0.58, precip: 0.11 }, // Mar — warming, rainier
-  { temp: 0.48, humidity: 0.62, precip: 0.12 }, // Apr
-  { temp: 0.58, humidity: 0.68, precip: 0.11 }, // May
-  { temp: 0.68, humidity: 0.74, precip: 0.09 }, // Jun — hot, humid
-  { temp: 0.76, humidity: 0.78, precip: 0.07 }, // Jul — peak summer
-  { temp: 0.74, humidity: 0.76, precip: 0.07 }, // Aug
-  { temp: 0.64, humidity: 0.70, precip: 0.08 }, // Sep — cooling
-  { temp: 0.52, humidity: 0.63, precip: 0.08 }, // Oct
-  { temp: 0.38, humidity: 0.60, precip: 0.09 }, // Nov
-  { temp: 0.28, humidity: 0.57, precip: 0.09 }, // Dec
+  { temp: 0.26, humidity: 0.58 }, // Jan — cold
+  { temp: 0.29, humidity: 0.55 }, // Feb
+  { temp: 0.38, humidity: 0.58 }, // Mar — warming
+  { temp: 0.48, humidity: 0.62 }, // Apr
+  { temp: 0.58, humidity: 0.68 }, // May
+  { temp: 0.68, humidity: 0.74 }, // Jun — hot, humid
+  { temp: 0.76, humidity: 0.78 }, // Jul — peak summer
+  { temp: 0.74, humidity: 0.76 }, // Aug
+  { temp: 0.64, humidity: 0.70 }, // Sep — cooling
+  { temp: 0.52, humidity: 0.63 }, // Oct
+  { temp: 0.38, humidity: 0.60 }, // Nov
+  { temp: 0.28, humidity: 0.57 }, // Dec
 ];
 
 var weather = {
   humidity:  0.62,
   temp:      0.56,
-  precip:    0.04,
 };
 
 // Drift targets — slowly lerp weather toward these
-var _weatherTarget = { humidity: 0.62, temp: 0.56, precip: 0.04 };
+var _weatherTarget = { humidity: 0.62, temp: 0.56 };
 // Event state — a weather event overrides the seasonal baseline temporarily
-var _weatherEvent  = null; // null | { humidity, temp, precip, endFrame }
+var _weatherEvent  = null; // null | { humidity, temp, endFrame }
 var _weatherNextEvent = 0; // frame when next event can fire
 
 // Called once per ~10 seconds (every 600 frames) to update simulation
@@ -221,36 +219,24 @@ function updateWeatherSim() {
     _weatherEvent = null;
   }
 
-  // Maybe trigger a new weather event (rainstorm, dry spell, heat wave)
+  // Maybe trigger a new weather event (dry spell or heat wave — rain removed)
   if (!_weatherEvent && frame >= _weatherNextEvent) {
     var roll = Math.random();
     if (roll < 0.18) {
-      // Rainstorm — high precip + humidity spike, lasts 20–60 min game time
-      var dur = (1200 + Math.random() * 2400); // frames
-      _weatherEvent = {
-        temp:     base.temp - 0.05 + (Math.random() - 0.5) * 0.06,
-        humidity: Math.min(1, base.humidity + 0.15 + Math.random() * 0.12),
-        precip:   0.18 + Math.random() * 0.20,
-        endFrame: frame + dur,
-        type:     'rain'
-      };
-    } else if (roll < 0.30) {
-      // Dry spell — low precip, lower humidity
+      // Dry spell — lower humidity
       var dur = (3600 + Math.random() * 7200);
       _weatherEvent = {
         temp:     base.temp + 0.04 + Math.random() * 0.06,
         humidity: Math.max(0, base.humidity - 0.12 - Math.random() * 0.10),
-        precip:   0,
         endFrame: frame + dur,
         type:     'dry'
       };
-    } else if (roll < 0.38) {
-      // Heat wave — high temp, moderate humidity
+    } else if (roll < 0.26) {
+      // Heat wave — high temp
       var dur = (7200 + Math.random() * 14400);
       _weatherEvent = {
         temp:     Math.min(1, base.temp + 0.10 + Math.random() * 0.08),
         humidity: base.humidity + (Math.random() - 0.5) * 0.08,
-        precip:   base.precip * 0.5,
         endFrame: frame + dur,
         type:     'heat'
       };
@@ -264,14 +250,12 @@ function updateWeatherSim() {
   // Small random micro-drift so values always feel alive
   _weatherTarget.temp     = Math.max(0, Math.min(1, tgt.temp     + (Math.random()-0.5)*0.015));
   _weatherTarget.humidity = Math.max(0, Math.min(1, tgt.humidity + (Math.random()-0.5)*0.012));
-  _weatherTarget.precip   = Math.max(0, Math.min(1, tgt.precip   + (Math.random()-0.5)*0.010));
 }
 
 // Lerp weather toward target each frame (very slowly)
 function tickWeather() {
   weather.temp     += (_weatherTarget.temp     - weather.temp)     * 0.0008;
   weather.humidity += (_weatherTarget.humidity - weather.humidity) * 0.0008;
-  weather.precip   += (_weatherTarget.precip   - weather.precip)   * 0.0008;
 }
 
 // ── Devvit postMessage bridge ─────────────────────────────────────────────────
@@ -576,14 +560,6 @@ function _findPendingWorm(uname) {
     if (pendingWorms[_fi].username === uname) return pendingWorms[_fi];
   }
   return null;
-}
-
-function getEvapRate() {
-  // Hot + dry = fast evap, cold + humid = slow evap
-  var base = 0.00005;
-  var tempFactor  = 0.5 + weather.temp * 1.5;   // 0.5x cold → 2.0x hot
-  var humidFactor = 1.5 - weather.humidity;       // 1.5x dry → 0.5x humid
-  return base * tempFactor * humidFactor;
 }
 
 // Convert internal 0–1 temp to Fahrenheit  (0 = 20°F, 1 = 110°F)
@@ -4612,16 +4588,7 @@ function updatePhysics() {
     postToHost({ type: 'worldUpdate', tLvl: tLvl, pooled: pooled, castingEnrichment: castingEnrichment });
   }
 
-  // Precipitation — rain spawns drops into the bin top, proportional to weather.precip
-  // At precip=1.0: ~1 drop every 2s. At precip=0.04 (Nashville default): ~once per 50s.
-  if (weather.precip > 0) {
-    var rainChance = weather.precip * 0.008; // 0–0.008 per frame
-    if (Math.random() < rainChance) {
-      var rb = getBinCached();
-      var rainX = rb.cx - rb.bw2 + Math.random() * rb.bw;
-      dropsPush({ x: rainX, y: H * 0.1, vy: 0.4 + Math.random() * 0.3, sz: 2 + Math.random(), active: true });
-    }
-  }
+  // (Rain removed — saturation driven by tea drops from food only)
 
   var moistureTarget = pooled;
   if (window._moisture === undefined) window._moisture = moistureTarget;
@@ -7334,11 +7301,10 @@ function drawWeatherHUD() {
 
   var tempF  = weatherTempF();
   var humPct = 'RH ' + Math.round(weather.humidity * 100) + '%';
-  var raining = weather.precip > 0.10;
 
-  // Build line 1: date   line 2: temp / humidity / rain
+  // Build line 1: date   line 2: temp / humidity
   var line1 = dateStr;
-  var line2 = tempF + '°F  ' + humPct + (raining ? '  ☔' : '');
+  var line2 = tempF + '°F  ' + humPct;
 
   ctx.save();
   ctx.textAlign = 'right';
