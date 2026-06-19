@@ -2242,9 +2242,10 @@ function triggerSnooDrain() {
   var _b    = getBin();
   var _SC   = H * 0.16;
   camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen
-  // ISS-12 X fix: drawSnooDrain runs OUTSIDE ctx.translate(centreOffsetX-camX) so coords
-  // must be screen-space. Convert world cx to screen X by applying the same transform.
-  drainSnooStopX = _b.cx - _SC * 0.127 + centreOffsetX - camX; // screen-space X
+  // ISS-12 X fix: use the tap's actual world X (stored at draw time) converted to screen space.
+  // drawSnooDrain runs outside ctx.translate, so world X → screen X = worldX + centreOffsetX - camX.
+  var _tapWX = (window._tapWorldX != null) ? window._tapWorldX : _b.cx;
+  drainSnooStopX = _tapWX - _SC * 0.127 + centreOffsetX - camX; // screen-space X
   drainSnooStopY = 0;                           // unused — STOP_Y computed live from tapSY each frame
 }
 
@@ -2368,8 +2369,9 @@ function drawSnooDrain() {
   var torsoBot = bodyH;
   var headCY   = torsoTop - headR * 0.82;
 
-  // Tap position in screen space (drawSnooDrain is outside world ctx.translate)
-  var TAP_SX = b.cx + centreOffsetX - camX;
+  // Tap position in screen space — use stored world X from draw time, convert to screen X
+  var _dTapWX = (window._tapWorldX != null) ? window._tapWorldX : b.cx;
+  var TAP_SX = _dTapWX + centreOffsetX - camX;
   var TAP_SY = bsy + 8;
 
   var sx = drainSnooX;
@@ -6543,6 +6545,9 @@ function draw() {
 
     // Tap / drain spigot — matches the drain cinematic tap exactly
     var _tx = b.cx, _ty = bsy + 8;
+    // Store world coords for drain cinematic (drawSnooDrain is screen-space, converts itself)
+    window._tapWorldX = _tx;
+    window._tapWorldY = _ty;
     // Valve is "open / hot" when flood is active OR tapReady (weekly feed)
     var _valveOpen = valveOpen;
     // Pipe and handle always gold — never grey
