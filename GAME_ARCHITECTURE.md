@@ -19,7 +19,7 @@ Wigglers_Room/
 ├── .github/workflows/
 │   └── deploy.yml            — tsc + devvit build check on every push — NO auto-upload
 ├── GAME_ARCHITECTURE.md      — This file
-├── WIGGLERS_AUDIT_V20.md     — Bug log, lessons learned, priority queue
+├── WIGGLERS_AUDIT.md     — Bug log, lessons learned, priority queue
 ├── devvit.yaml               — App config (redis, realtime, redditAPI, kvStore)
 └── README.md
 ```
@@ -470,13 +470,13 @@ Most player-facing bug open. ~10 lines to fix, two changes.
 
 **Bug B** (`game.js` after line 3028) — No save-on-exit. 30s autosave only. Player leaving mid-session loses position, gut, and HP. Sleeping worm works because `trySleep()` saves explicitly. Fix: add `visibilitychange` listener → call `saveSession()` on hide. Position restore resolves automatically.
 
-See `WIGGLERS_AUDIT_V20.md → ISS-14` for full analysis.
+See `WIGGLERS_AUDIT.md → ISS-14` for full analysis.
 
 ---
 
 ### P1 — ISS-13: Fix compost saturation (three bugs, same session)
 
-See `WIGGLERS_AUDIT_V20.md → ISS-13` for full line-level analysis and exact code locations.
+See `WIGGLERS_AUDIT.md → ISS-13` for full line-level analysis and exact code locations.
 
 **Bug A** (`game.js` ~line 4554) — Tunnel drains don't reduce `pooled`. Decrement `pooled` when a tunnel drop hits the tea surface (`_teaHit` block), not only on pathless sump entry.
 
