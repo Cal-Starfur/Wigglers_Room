@@ -1,5 +1,5 @@
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-18 Session 17 (canvas resize + desktop/fullscreen layout fixed)
+> Last updated: 2026-06-19 Session 18 (ISS-12 closed — drain Snoo positioning fixed)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -10,7 +10,7 @@
 Wigglers_Room/
 ├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~500 lines
 ├── webroot/
-│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8644 lines
+│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8645 lines
 │   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
 │   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
@@ -112,20 +112,19 @@ Fields: `ts, bornTs, karma, pEaten, pSR, pSEG, generation, pHP, pGut, pX, pY, pS
 
 ---
 
-## Bin Persistence — Weekly Drain (P1 Target — Session 16)
+## Bin Persistence — Weekly Drain
 
-The bin's weekly drain cycle must persist independently of any player being logged in.
-Current state: `weekStartTs` lives in per-player `KV_WORM_SESSION` — each player runs their own 7-day clock.
-Target state: `KV_WEEK` is the single source of truth for the bin's week epoch. All players share it.
+The bin's weekly drain cycle persists independently of any player being logged in.
+`KV_WEEK` is the single source of truth for the bin's week epoch. All players share it.
 
 ### Four-move implementation plan
 
 **Move 1 — Read `KV_WEEK` on open, send `weekStartTs` to game** *(main.tsx, ~15 lines)* ✅ SHIPPED S16
 **Move 2 — game.js receives `weekStartTs` from `setWorldState`** *(game.js, 1 line)* ✅ SHIPPED S16
-**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)* — blocked on ISS-12
-**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)* — blocked on ISS-12
+**Move 3 — Persist new `weekStartTs` when drain fires** *(main.tsx, ~8 lines)* — ready (ISS-12 closed)
+**Move 4 — Broadcast new `weekStartTs` via Realtime on drain** *(main.tsx, ~2 lines)* — ready (ISS-12 closed)
 
-### Data flow after all four moves
+### Data flow (all four moves)
 ```
 Player opens post
   → main.tsx reads KV_WEEK → gets shared weekStartTs
@@ -145,18 +144,35 @@ Next player opens (days later)
 
 ---
 
-Y increases downward. `H` = canvas height. `WORLD_W = 1194` = fixed world width (iPad Pro 11" landscape).
+## Drain System
 
+### Weekly Drain (Snoo Cinematic) ✅ FULLY WORKING as of S18
+
+Fires in `updatePhysics()` when `nowW - weekStartTs >= WEEK_DRAIN_MS`.
+
+### Cinematic Phases
+`floatin → pause → openvalve → draining → closevalve → floatout`
+Durations: `{floatin:55, pause:30, openvalve:35, draining:0, closevalve:30, floatout:60}` frames
+
+### Drain Snoo Positioning (ISS-12 — CLOSED S18)
+
+**The fix:** `drawSnooDrain()` is called **inside** `ctx.translate(centreOffsetX - camX, 0)`, the same world transform that draws the valve. World-space coords (`b.cx`, `bsy`) work natively — no screen-space conversion needed.
+
+**Why feed Snoo always nailed it:** `drawFarmerSnoo()` was always inside the world transform. Drain Snoo was mistakenly called after `ctx.restore()` (in screen space), causing X misalignment of up to 400px on mobile where `camX > 0`.
+
+**Key geometry (H=800):**
 ```
-y = 0   .. H     Tier 0 — Scraps & blanket   (food drops here)
-y = H   .. 2H    Tier 1 — Active soil         (main worm zone)
-y = 2H  .. 3H    Tier 2 — Castings/compost    (tunnel zone)
-y = 3H           cSurf() — compost floor / sump top
-y = 3H+          Sump    — worm tea reservoir (tLvl 0–1)
+camY snap at trigger  = round(3*H + H*0.25 - H*0.45)  → sump floor at 45% down screen
+TAP_SY (pipe top)     = bsy + 8   ≈ 46% down
+Spout tip             = TAP_SY + 22  ≈ 49% down
+STOP_Y (torso top)    = TAP_SY + 137 - SC*0.1788  ≈ 60% down
+Snoo head top         ≈ 52% down screen
+Snoo boots bottom     ≈ 68% down screen
+drainSnooStopX        = b.cx - SC*0.127  (world X — works inside world transform)
 ```
 
-**Bin width:** `getBin()` always uses `WORLD_W * 0.88 ≈ 1051px` regardless of viewport.
-**Camera:** `camY` scrolls vertically, `camX` scrolls horizontally on narrow viewports only.
+**Critical rule for all Snoo cinematics:**
+> Always call `drawSnoo*` functions **inside** `ctx.translate(centreOffsetX - camX, 0)`. Never after `ctx.restore()`. World coords work natively; screen-space conversion is wrong and breaks on mobile.
 
 ---
 
@@ -315,30 +331,6 @@ Starved to death
 Ate 11,240 / 300,000 bites · 4% of a full life
 ⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛
 ```
-
----
-
-## Drain System
-
-### Weekly Drain (Snoo Cinematic)
-Fires in `updatePhysics()` when `nowW - weekStartTs >= WEEK_DRAIN_MS`.
-
-**S16 status:** Moves 1+2 shipped — all players now share `weekStartTs` from `KV_WEEK`. Moves 3+4 (persist+broadcast on drain) blocked on ISS-12.
-
-**⚠️ ISS-12 — Drain Snoo positioning (unresolved S16)**
-Drain Snoo does not land correctly at the tap. Multiple approaches failed — see Session 16 in audit.
-
-Key facts for next session:
-- Feed Snoo works: `snooSY = lidSY3 - bodyH - legH - bootH*0.5` where `lidSY3 = H*0.5 - camY`, recalculated every frame. Camera eases to `targetCam = H*0.5 - H*0.65`.
-- Drain tap: `TAP_SY = bsy + 8` where `bsy = 3*H + H*0.25 - camY` — same in `drawSnooDrain` and `drawSump`.
-- Snoo body: `SC=H*0.16`, `bodyH=SC*0.270`, `legH=SC*0.225`, `bootH=SC*0.058`, `armLen=SC*0.165`
-- Right hand from torso `sy`: `sy + bodyH*0.10 + armLen*0.50 + armLen*0.42`
-- `drainSnooStopX = b.cx - SC*0.127` (stable — bin never scrolls horizontally)
-- **Next session fix:** Measure exact offset from torso anchor `sy` to tap in `drawSnooDrain`. Set `STOP_Y = TAP_SY - measured_offset`. Snap camY at trigger so slide-in is stable. No two-step world-Y math.
-
-### Drain Cinematic Phases
-`floatin → pause → openvalve → draining → closevalve → floatout`
-Durations: `{floatin:55, pause:30, openvalve:35, draining:0, closevalve:30, floatout:60}` frames
 
 ---
 
