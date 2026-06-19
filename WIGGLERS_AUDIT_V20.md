@@ -188,6 +188,164 @@ Most settled scraps have `rotSpd` near zero after landing. Skip `ctx.rotate()` (
 
 ---
 
+## FEAT-2 — Cross-Device Session Continuity (Same Worm, Any Device)
+
+**Priority: P2 — ship after PERF-1 and PERF-2**
+
+### The goal
+Same Reddit login on iPad and iPhone should give you the same worm in the same bin. Open on iPad, close it, open on iPhone — your worm is exactly where you left it, same HP, same gut, same position. No re-spawning, no fresh session, no data loss.
+
+---
+
+### What already works (no changes needed)
+
+**`KV_WORM_SESSION` is global per-user, not per-device.**
+Key is `worm:u/username` — `getCurrentUser()` returns the same Reddit identity on every device. When you open the game on a second device, `main.tsx` reads the exact same KV record and sends it to game.js. HP, position, gut, acid, karma, generation — all travel correctly.
+
+**The bin is per-post, not per-device.**
+`KV_WORLD`, `KV_WEEK`, `KV_QUEUE` are keyed by `postId`. Same Reddit post on both devices = same bin. Realtime channels (presence, flood, drain) are also per-postId — both devices would see the same events.
+
+**The ISS-14 timestamp-merge fix** (Session 20) means KV is now authoritative over a fresh `localStorage` — so a new device opening for the first time correctly loads from KV rather than starting blank.
+
+---
+
+### What breaks today
+
+#### Problem 1 — Simultaneous open: two devices, one worm, last-write-wins
+If iPad has the game open and you open it on iPhone without closing iPad first, both clients run concurrently. Both read `KV_WORM_SESSION`. Both write to it on their autosave cycle (every 30 seconds, plus `visibilitychange`). **Last write wins.** Whichever device saves last becomes the canonical session. The other device's progress is silently overwritten. No warning, no conflict detection.
+
+#### Problem 2 — Autosave race on device switch
+Switching from iPad to iPhone within the 30-second autosave window means iPhone opens with a session that's up to 30 seconds stale (last autosave, not current position). The `visibilitychange` save (ISS-14) closes most of this gap — it fires when the Reddit app is backgrounded. But on iOS, the OS can kill the webview before `visibilitychange` delivers the `postToHost(saveSession)` message to `main.tsx`. In that case, KV has the 30s-stale save and the switch loses that window.
+
+#### Problem 3 — No "already playing" signal
+The game has no way to know a session is already live on another device. A player could accidentally open two simultaneous sessions and not realise they're forking their worm.
+
+---
+
+### What needs to be built
+
+#### Piece 1 — Active device heartbeat token (main.tsx + game.js)
+
+**New KV key:** `KV_ACTIVE_DEVICE(username)` → `worm_active:u/username`
+Stores `{ deviceToken: string, ts: number }` — a random token stamped when a device takes ownership of the session.
+
+**On open (`MSG_READY` handler in main.tsx):**
+1. Read `KV_ACTIVE_DEVICE(username)`
+2. If token exists and `serverNow - token.ts < 45000` (45s) — another device is actively playing
+3. Send `{ type: 'setDeviceConflict', activeTs: token.ts }` to the opening device
+4. If no token or token is stale — write a fresh token, proceed normally
+
+**Heartbeat (game.js → main.tsx every 15 seconds):**
+```js
+// In game.js — new interval alongside the autosave:
+setInterval(function() {
+  if (!deathScreen && pSegs.length && playerState === 'playing') {
+    postToHost({ type: 'deviceHeartbeat' });
+  }
+}, 15000);
+```
+`main.tsx` `MSG_DEVICE_HEARTBEAT` handler: renew `KV_ACTIVE_DEVICE` token timestamp.
+
+**On close (`visibilitychange` hide):**
+```js
+// In game.js visibilitychange listener (already exists):
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
+    saveSession();
+    postToHost({ type: 'deviceRelease' }); // NEW — clear the active token
+  }
+});
+```
+`main.tsx` `MSG_DEVICE_RELEASE` handler: delete `KV_ACTIVE_DEVICE(username)`.
+
+---
+
+#### Piece 2 — Device conflict UI (game.js)
+
+When `setDeviceConflict` arrives, game.js shows a blocking overlay before `setup()` runs:
+
+```
+┌─────────────────────────────────────┐
+│   🪱  Your worm is already active   │
+│                                     │
+│   Last seen Xm ago on another       │
+│   device. Opening here will take    │
+│   over the session.                 │
+│                                     │
+│   [ Take over ]    [ Wait ]         │
+└─────────────────────────────────────┘
+```
+
+**Take over** — sends `MSG_DEVICE_TAKEOVER` to main.tsx, which overwrites the token and calls `setup()`.
+**Wait** — dismisses overlay, shows the preview screen. Player can retry by closing and reopening.
+
+After 60 seconds with no interaction, auto-proceed with takeover (stale lock).
+
+---
+
+#### Piece 3 — On-device save before token release (main.tsx)
+
+When `MSG_DEVICE_TAKEOVER` arrives on the new device, main.tsx should also do a best-effort push of the current KV session to the new client immediately (it already does this on `MSG_READY` — no extra work needed here, just clarify in the flow).
+
+---
+
+### New constants
+
+```js
+// game.js
+var DEVICE_HEARTBEAT_MS = 15000;  // 15s heartbeat interval
+var DEVICE_LOCK_TTL_MS  = 45000;  // token expires after 45s of no heartbeat
+
+// main.tsx
+const KV_ACTIVE_DEVICE = (username: string) => `worm_active:${username}`;
+const MSG_DEVICE_HEARTBEAT = 'deviceHeartbeat';
+const MSG_DEVICE_RELEASE   = 'deviceRelease';
+const MSG_DEVICE_TAKEOVER  = 'deviceTakeover';
+const MSG_SET_DEVICE_CONFLICT = 'setDeviceConflict';
+```
+
+---
+
+### New message types (add to both game.js and main.tsx)
+
+| Direction | Type | Payload | Purpose |
+|---|---|---|---|
+| Webview → Host | `deviceHeartbeat` | _(none)_ | Renew active device token |
+| Webview → Host | `deviceRelease` | _(none)_ | Clear token on close |
+| Webview → Host | `deviceTakeover` | _(none)_ | Player confirmed takeover |
+| Host → Webview | `setDeviceConflict` | `{ activeTs }` | Block open, show conflict UI |
+
+---
+
+### Files to change
+
+| File | Change |
+|---|---|
+| `main.tsx` | Add `KV_ACTIVE_DEVICE` constant |
+| `main.tsx` | Add 4 new `MSG_*` constants |
+| `main.tsx` | `MSG_READY` handler — read token, send `setDeviceConflict` or write fresh token |
+| `main.tsx` | New `MSG_DEVICE_HEARTBEAT` handler — renew token timestamp |
+| `main.tsx` | New `MSG_DEVICE_RELEASE` handler — delete token |
+| `main.tsx` | New `MSG_DEVICE_TAKEOVER` handler — overwrite token, confirm takeover |
+| `game.js` | Add 4 new `MSG_*` constants |
+| `game.js` | `visibilitychange` listener — add `postToHost({ type: 'deviceRelease' })` |
+| `game.js` | New 15s heartbeat interval (alongside autosave interval) |
+| `game.js` | New `setDeviceConflict` message handler — show conflict overlay before `setup()` |
+| `game.js` | New `drawDeviceConflict()` function — blocking overlay with Take over / Wait buttons |
+
+---
+
+### Edge cases
+
+**Token expires naturally (45s TTL):** If the active device loses connectivity or crashes without sending `deviceRelease`, the token expires after 45 seconds. New device sees a stale token and proceeds without conflict UI. Worm position may be up to 45s stale but that's acceptable — same as the existing autosave window.
+
+**Death screen:** Don't send heartbeat or conflict if `deathScreen` is true — the worm is dead, no session to protect.
+
+**Queue state:** If `playerState === 'queued'`, no active worm to protect. Skip conflict check, proceed directly.
+
+**Offline Reddit:** If `getCurrentUser()` fails, username falls back to `u/You` — token key becomes `worm_active:u/You`. Multiple anonymous users would share this key. Acceptable — anonymous mode is best-effort anyway.
+
+---
 
 
 ## Session 19 — 2026-06-19 (ISS-1 + ISS-2 Closed | ISS-13 Opened)
