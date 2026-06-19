@@ -1,6 +1,169 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-19 Session 19 (ISS-1+2 closed; ISS-13+14 opened — next session: ISS-14 first)
-> Current state: V20 + all Session 14–18 fixes
+> Last updated: 2026-06-19 Session 20 (ISS-14 closed; FEAT-1 written up — next session: ISS-13 or FEAT-1)
+> Current state: V21 + ISS-14 fully closed (HP/acid/position persist; KV-vs-localStorage race fixed)
+
+---
+
+## FEAT-1 — Cross-Player Tunnel Clogging (Multiplayer Sabotage)
+
+**Priority: P2 — ship after ISS-13 is closed**
+
+### The mechanic
+When a worm poops near another player's tunnel, the poop should travel down that tunnel and clog their drain — blocking their tea flow, forcing them to dig out. Cross-player sabotage via poop. Completely unique to this game.
+
+Currently **not implemented** — `pPath` is local-only. Poop drops route only through the local player's own tunnels. Drops falling near another player's tunnel pass straight through as if it doesn't exist.
+
+---
+
+### What needs to be built
+
+#### Piece 1 — Broadcast compressed tunnel snapshots via Realtime
+
+Each player already sends a `presenceUpdate` every 2 seconds (`game.js` line ~3066). Extend this to include a compressed tunnel snapshot — just the `sumpExit` points and segment null-boundaries, not all 2000 path points.
+
+```js
+// In the presenceUpdate interval (game.js ~line 3066):
+postToHost({
+  type:     'presenceUpdate',
+  username: username,
+  x:        pSegs[0].x,
+  y:        pSegs[0].y,
+  sleeping: pSleeping,
+  size:     pSR,
+  // NEW — compressed tunnel snapshot for cross-player clog routing
+  tunnelSnap: buildTunnelSnapshot()
+});
+
+function buildTunnelSnapshot() {
+  // Only send sumpExit points + nulls (segment separators) — ~10–30 points max
+  // Full pPath is up to 2000 points; this keeps the Realtime payload small
+  var snap = [];
+  for (var i = 0; i < pPath.length; i++) {
+    var p = pPath[i];
+    if (!p) { snap.push(null); continue; }
+    if (p.sumpExit || p.alpha <= 0) snap.push({ x: p.x, y: p.y, r: p.r, alpha: p.alpha, sumpExit: !!p.sumpExit, clog: p.clog || 0 });
+  }
+  return snap;
+}
+```
+
+**`main.tsx`** — add `tunnelSnap` to the fields forwarded in the Realtime presence broadcast (it already fans everything through, so this may be zero-change on the host side — verify).
+
+**`setPresence` handler in `game.js`** — store `tunnelSnap` on each `otherPlayers` entry:
+```js
+existing.tunnelSnap = p.tunnelSnap || null;
+```
+
+---
+
+#### Piece 2 — Drop routing checks all players' tunnels
+
+`nearestPathIdx()` (line 762) currently only scans the local `pPath`. Extend it to also scan `otherPlayers[i].tunnelSnap` arrays, returning a result tagged with the owning player's username.
+
+```js
+function nearestPathIdx(wx, wy, xTol, yTol) {
+  var best = -1, bestDist = 999999, bestOwner = 'local';
+
+  // Scan local pPath (existing logic)
+  for (var i = 0; i < pPath.length; i++) { /* ... existing ... */ }
+
+  // Scan other players' tunnel snapshots
+  for (var op = 0; op < otherPlayers.length; op++) {
+    var snap = otherPlayers[op].tunnelSnap;
+    if (!snap) continue;
+    for (var si = 0; si < snap.length; si++) {
+      var p = snap[si];
+      if (!p || p.alpha <= 0) continue;
+      if (p.y < wy) continue;
+      if (yTol != null && p.y > wy + yTol) continue;
+      if (Math.abs(p.x - wx) > xTol) continue;
+      var dist = Math.abs(p.y - wy);
+      if (dist < bestDist) { bestDist = dist; best = si; bestOwner = otherPlayers[op].username; }
+    }
+  }
+  return { idx: best, owner: bestOwner }; // NOTE: return shape changes — audit all callers
+}
+```
+
+⚠️ **`nearestPathIdx` return shape changes** from a raw index to `{ idx, owner }`. Every caller must be updated. Grep for `nearestPathIdx(` — there are likely 3–5 call sites.
+
+---
+
+#### Piece 3 — Clog changes propagate back to the tunnel owner
+
+When a poop drop clogs a point on another player's `tunnelSnap`, the local client needs to notify that player so their `pPath` updates. New message type:
+
+**`game.js`** — when a poop drop deposits on another player's tunnel point:
+```js
+postToHost({
+  type:       'tunnelClog',
+  targetUser: bestOwner,        // username of tunnel owner
+  snapIdx:    best,             // index in their tunnelSnap
+  clogAmt:    d.clogAmt,
+  x:          pp.x,
+  y:          pp.y
+});
+```
+
+**`main.tsx`** — new `MSG_TUNNEL_CLOG` handler: look up the target player's active webview session and forward the clog message to them via Realtime. The target player's `game.js` receives it and applies the `clogAmt` to the matching `pPath` point (match by proximity to `x, y` since indices don't transfer).
+
+**`game.js`** — new message handler for incoming `tunnelClog`:
+```js
+if (msg.type === 'tunnelClog') {
+  // Find nearest pPath point to msg.x, msg.y and apply clog
+  var _ci = nearestPathIdx(msg.x, msg.y, pSR * 3, pSR * 3);
+  if (_ci.idx >= 0 && _ci.owner === 'local') {
+    var _cp = pPath[_ci.idx];
+    if (_cp) {
+      _cp.clog = Math.min(1, (_cp.clog || 0) + (msg.clogAmt || 0.1));
+      _cp.clogTs = frame;
+      // Visual feedback — show a poop splash at the clog point
+      drops.push({ x: _cp.x, y: _cp.y, vy: 0.2, sz: pSR, active: true, isPoop: true, clogAmt: 0 });
+    }
+  }
+}
+```
+
+---
+
+### New constants needed
+
+```js
+var TUNNEL_SNAP_INTERVAL = 2000; // ms — same cadence as presenceUpdate, piggybacks on it
+var TUNNEL_CLOG_RADIUS   = 3;    // pSR multiplier for matching clog target point by proximity
+```
+
+### New message types needed
+
+Add to both `game.js` and `main.tsx`:
+```js
+const MSG_TUNNEL_CLOG = 'tunnelClog';
+```
+
+---
+
+### Gameplay notes
+
+- **Griefing ceiling:** A clogged drain forces the victim to re-dig, not instant-kills them. Feels like mischief, not harassment.
+- **Counterplay:** Egg shell eating clears local acid (`pAcid -= 0.3`) — consider whether eating egg shell near a clog also clears it (thematic: shell neutralises the blockage).
+- **Karma cost:** Consider a small karma penalty for clogging another player's drain — poop is supposed to be beneficial; deliberately weaponising it costs something.
+- **Visual tell:** The poop splash on the victim's screen when their tunnel gets hit is the only feedback. Consider a HUD toast: `💩 [username] clogged your drain!`
+
+---
+
+### Files to change
+
+| File | Change |
+|---|---|
+| `game.js` | `buildTunnelSnapshot()` — new function |
+| `game.js` | `presenceUpdate` interval — add `tunnelSnap` field |
+| `game.js` | `setPresence` handler — store `tunnelSnap` on `otherPlayers[i]` |
+| `game.js` | `nearestPathIdx()` — scan other players' snapshots, return `{idx, owner}` |
+| `game.js` | Drop routing in `updateDrops()` — handle `bestOwner !== 'local'` path |
+| `game.js` | New `tunnelClog` incoming message handler |
+| `game.js` | Add `MSG_TUNNEL_CLOG` constant |
+| `main.tsx` | New `MSG_TUNNEL_CLOG` handler — forward to target player via Realtime |
+| `main.tsx` | Add `MSG_TUNNEL_CLOG` constant |
 
 ---
 
