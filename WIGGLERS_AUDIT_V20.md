@@ -1,6 +1,111 @@
 # Wigglers Room — Audit Log V20
-> Last updated: 2026-06-19 Session 18 (ISS-12 closed — drain Snoo positioning fixed)
+> Last updated: 2026-06-19 Session 19 (ISS-1+ISS-2 closed — weekly drain persistence shipped; ISS-13 opened — pooled saturation mismatch)
 > Current state: V20 + all Session 14–18 fixes
+
+---
+
+## Session 19 — 2026-06-19 (ISS-1 + ISS-2 Closed | ISS-13 Opened)
+
+### Session Summary
+Shipped Moves 3+4 of the weekly drain persistence plan — the final two pieces to make the bin's drain cycle survive across sessions. When `triggerWeeklyDrain()` fires and game.js sends `worldUpdate` with `weeklyDrain: true`, main.tsx now stamps a fresh `weekStartTs = serverNow`, writes it to `KV_WEEK`, and includes it in the Realtime broadcast. All open clients reset their local `weekStartTs` on receipt. ISS-1 and ISS-2 are closed.
+
+Also identified ISS-13: a structural bug in the compost saturation mechanic (`pooled`) where the numeric value and the liquid drops that give it meaning are stored separately and can diverge. Documented below — P1 pre-launch.
+
+### What Shipped
+| Commit | File | What |
+|--------|------|------|
+| `54b91d4` | main.tsx | Move 3: Persist `weekStartTs` to `KV_WEEK` when `weeklyDrain === true` |
+| `54b91d4` | main.tsx | Move 4: Broadcast `weekStartTs` in Realtime on drain so all clients reset epoch |
+
+---
+
+## ISS-13 — Compost Saturation: Three Compounding Bugs
+
+**Priority: P1 — must fix before launch**
+
+---
+
+### Bug A — Draining tunnels do not reduce saturation
+
+**The core gameplay bug.** When a player digs a tunnel to the sump, tea drops flow through it and `d.inTunnel = true`. When that drop enters the sump zone, the pooled decrement is guarded:
+
+```js
+// game.js line 4533
+if (!d.inTunnel && !d.isPoop) pooled = Math.max(0, pooled - 0.005);
+```
+
+The `!d.inTunnel` guard means **tunnel drops never decrement `pooled`**. They hit the tea surface, fire a splash, add to `tLvl`, and disappear — but saturation stays exactly where it was. The player digs drains, watches tea fill up, and the green moisture glow never moves. This is why draining feels broken: it *is* broken for saturation.
+
+**Fix:** Remove the `!d.inTunnel` guard from the sump entry decrement, OR add a separate decrement at the `_teaHit` point when `d.active = false`.
+
+---
+
+### Bug B — Evaporation silently removes drops the player never sees
+
+Evaporation runs every frame on all active, pathless, non-poop drops in compost:
+
+```js
+// game.js line 4573
+var _evapChance = getEvapRate() * 10;  // ≈ 0.000625 per drop per frame at median weather
+if (Math.random() < _evapChance) {
+  _cd.active = false;
+  pooled = Math.max(0, pooled - 0.005);
+}
+```
+
+At median weather (~70°F, ~50% RH) each stalled drop has a 1-in-1600 chance per frame of vanishing. With 20 stalled drops at 60fps that's about 0.75 drops/sec. Saturation drains in ~27 seconds with no player action. **The player sees the moisture glow fade with no visual explanation.** They dug no drains, no drops are visibly disappearing — the compost just quietly dries on its own.
+
+This undermines the core design intent (draining = the mechanic) and creates confusing feedback. The player can't tell if their drains worked or if weather did it.
+
+**Fix:** Remove or disable the evaporation loop. Drainage should be the only way to reduce saturation. If some passive decay is wanted, it should be extremely slow (days-scale, not seconds-scale) and clearly tied to a visible mechanic.
+
+---
+
+### Bug C — pooled is a ghost counter that detaches from reality
+
+`pooled` is never recalculated from the actual drop array. It is purely event-driven:
+- Drop enters compost → `pooled += 0.005`
+- Drop evaporates → `pooled -= 0.005`
+- (Tunnel drain → nothing, see Bug A)
+
+`pooled` is also stored in `KV_WORLD` (shared, no drops) while `drops[]` lives in `KV_WORM_SESSION` (per-player). This means:
+
+**New player joins a wet bin:** Gets `pooled = 0.8` from `KV_WORLD`. Has zero drops. Evaporation loop finds nothing to evaporate. `pooled` is stuck at 0.8 forever. Worm takes constant drowning HP damage in bone-dry compost.
+
+**Two players in the same bin:** Each client counts only its own drops but writes to shared `pooled` via Realtime. They fight over the value every broadcast cycle. Neither player's moisture reading is accurate.
+
+**Returning player:** `setWorldState` fires *after* `setup()` so `KV_WORLD.pooled` overwrites whatever the player's own saved drops would have produced. Drop count and counter are now mismatched.
+
+**Fix (recommended for launch):** Make `pooled` local-only. Stop syncing it via Realtime and stop storing it in `KV_WORLD`. Each client derives moisture from its own drops only. The shared world values (`tLvl`, `castingEnrichment`, `scrapsLevel`) are objective and drop-independent — they stay synced. `pooled` is the one value that is inherently local.
+
+---
+
+### Combined Effect on Gameplay
+1. Player plays for a while — compost gets wet from food drops and rain
+2. Saturation appears high (green glow, correct)
+3. Player digs drains hoping to reduce it — **nothing happens to saturation** (Bug A)
+4. Meanwhile evaporation quietly removes drops and pooled decrement fires — **saturation drops with no visible cause** (Bug B)
+5. Player returns next session — `KV_WORLD.pooled` value may have no real drops to back it — **phantom saturation or phantom dry** (Bug C)
+6. Worm takes drowning damage with no saturated-looking compost or vice versa
+
+---
+
+### Files to Change
+
+**Bug A fix** — `game.js`:
+- At `_teaHit` (line ~4554): add `if (!d.isPoop) pooled = Math.max(0, pooled - 0.005);` alongside `d.active = false`
+- Remove the `!d.inTunnel` guard on the sump entry decrement (line 4533) OR leave that block only for pathless drops and handle tunnel drops at hit-point
+
+**Bug B fix** — `game.js`:
+- Remove the entire evaporation `for` loop (lines 4567–4581)
+- Remove `getEvapRate()` function (line 560) if nothing else uses it (verify first)
+
+**Bug C fix** — `game.js` + `main.tsx`:
+- `game.js` line 390: remove `pooled` from `setWorldState` handler
+- `game.js`: remove `pooled` from all `postToHost({ type: 'worldUpdate', ... })` calls
+- `main.tsx` MSG_WORLD_UPDATE: remove `pooled` from `worldData` object
+- `main.tsx`: remove `pooled` from `KV_WORLD` reads/writes
+- Keep `pooled` in `saveSession()` / `KV_WORM_SESSION` so each player's own moisture persists across their own sessions
 
 ---
 
@@ -168,8 +273,7 @@ Fixed canvas sizing and layout issues only visible on desktop and fullscreen. Ro
 
 | ID | Issue | Priority |
 |----|-------|----------|
-| ISS-1 | Weekly drain persistence — Moves 3+4 ready to ship | P1 — Session 19 |
-| ISS-2 | `KV_WEEK` never written on drain — blocked by ISS-1 | Part of ISS-1 |
+| ISS-13 | `pooled` counter detached from drops — ghost saturation, fake drowning/flood | P1 — pre-launch |
 | ISS-3 | 17 `_underscore` function names | P2 |
 | ISS-4 | `draw()` 2,022 line monolith | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
@@ -186,6 +290,7 @@ Fixed canvas sizing and layout issues only visible on desktop and fullscreen. Ro
 
 | Fix | Session |
 |-----|---------|
+| Weekly drain persistence (Moves 3+4) — `KV_WEEK` written on drain, `weekStartTs` broadcast via Realtime | S19 |
 | Drain Snoo X misalignment — called outside world transform, 400px off on mobile | S18 |
 | Drain Snoo Y positioning — STOP_Y hardcoded H fraction, not derived from tap geometry | S18 |
 | Canvas only fills half screen on desktop / fullscreen black bar | S17 |
