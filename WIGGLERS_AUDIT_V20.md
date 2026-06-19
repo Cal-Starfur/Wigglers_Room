@@ -760,3 +760,48 @@ Fixed canvas sizing and layout issues only visible on desktop and fullscreen. Ro
 | Headstone dates were fake | S14 |
 | Any user could create a bin post | S14 |
 | Preview card had plain brown background | S14 |
+
+---
+
+## FEAT-3 — Passive Bridge Version Capture
+
+**Priority: P3 — low friction enhancement, log for future session**
+
+### The problem
+Reddit assigns its own internal version number on every `devvit upload`
+(e.g. `0.0.179`, `0.0.180`). This number only appears in the Codespace terminal
+output and on developers.reddit.com. Claude cannot see either.
+
+Current workaround: Claude auto-increments `devvit.yaml` by +1 after every push,
+assuming one upload per push. Works but is an estimate, not the real number.
+
+### The idea
+Use bridge3.js as a **passive listener only** — not as an active bottleneck.
+Bridge is already running in the Codespace. Instead of routing deploys through it
+(slow), just have it watch for the version string in `devvit upload` output and
+write it to `relay/outbox.json` automatically.
+
+```
+You run devvit upload in terminal (fast, unchanged)
+    ↓
+bridge3.js tails stdout, sees:
+"✓ Uploaded wigglers-room to r/wigglers_room_dev (0.0.180)"
+    ↓
+Bridge writes { devvitVersion: "0.0.180", ts: ... } to outbox
+    ↓
+Next Claude session reads outbox → syncs devvit.yaml with real number
+```
+
+### Why this is better than active bridge deploys
+- Zero wait time — you upload at full terminal speed
+- Bridge doesn't block or slow anything
+- Claude gets the real version, not a +1 estimate
+- Self-correcting — if you upload outside a Claude session, next session picks it up
+
+### What needs to change
+- `bridge3.js` — add passive stdout watcher for devvit upload output
+- `devvit-pipeline` skill — read version from outbox at session start
+- `propose_commit.py` — use real version from outbox instead of +1 estimate
+
+### When to build
+After PERF-1 and PERF-2 are closed. Low priority — current +1 estimate works fine.
