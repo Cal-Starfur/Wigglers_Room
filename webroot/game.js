@@ -2900,6 +2900,7 @@ function saveSession() {
       pSEG:              pSEG,
       generation:        generation,
       pHP:               pHP,
+      pAcid:             pAcid,
       // pHunger not saved — it is derived each frame as 1 - (pGut/pGutMax)
       pGut:              pGut,
       pX:                pSegs.length ? pSegs[0].x : null,
@@ -3164,7 +3165,8 @@ function setup() {
     generation = Math.max(0, Math.min(99,    saved.generation || 0));
     // ISS-14 fix: restore saved HP instead of hardcoding 1.0
     // pHP = 1.0 only happens in respawnPlayer() — that's the intentional fresh start
-    pHP     = Math.max(0.01, Math.min(1, saved.pHP || 1.0));
+    pHP     = Math.max(0.01, Math.min(1, saved.pHP  || 1.0));
+    pAcid   = Math.max(0,    Math.min(1, saved.pAcid || 0));
     // Compute pGutMax from restored pSR before clamping pGut — otherwise the
     // clamp uses the stale default and silently cuts the restored gut value.
     pGutMax = 4 + Math.floor((pSR - 4) / 3 * 4);
