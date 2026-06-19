@@ -656,10 +656,25 @@ Devvit.addCustomPostType({
                 updatedAt: serverNow,
               };
               await kvStore.put(KV_WORLD(roomId), JSON.stringify(worldData));
-              // Broadcast to all other viewers
+
+              // ── Move 3: Persist new weekStartTs when drain fires ─────────
+              // Only the player whose drain cinematic fires sends weeklyDrain:true.
+              // Server stamps a fresh weekStartTs so all future opens get the correct epoch.
+              let broadcastWeekStartTs: number | undefined;
+              if (message.weeklyDrain === true) {
+                broadcastWeekStartTs = serverNow;
+                await kvStore.put(KV_WEEK(roomId), JSON.stringify({
+                  weekStartTs: broadcastWeekStartTs,
+                }));
+              }
+
+              // ── Move 4: Broadcast new weekStartTs via Realtime on drain ──
+              // All open clients receive this and reset their local weekStartTs,
+              // preventing a second drain from firing in the same week.
               await realtime.send(RT_WORLD(roomId), JSON.stringify({
                 type: MSG_SET_WORLD_STATE,
                 ...worldData,
+                ...(broadcastWeekStartTs != null ? { weekStartTs: broadcastWeekStartTs } : {}),
               }));
             } catch (e) {
               console.warn('[main] World update failed:', e);
