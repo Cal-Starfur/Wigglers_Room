@@ -58,9 +58,10 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 
 | ID | Priority | Devvit version introduced | Summary |
 |----|----------|--------------------------|---------|
-| PERF-1 | **P1 — next session** | ~0.0.160 | Trash chunks: 21k canvas ops/frame — pre-render fix ready |
-| PERF-2 | **P1 — next session** | ~0.0.160 | pPath nested scans: up to 400k iterations/frame |
+| PERF-1 | ✅ SHIPPED S21 | ~0.0.160 | Trash chunks: 21k canvas ops/frame — offscreen pre-render |
+| PERF-2 | ✅ SHIPPED S22 | ~0.0.160 | pPath nested scans: Y-bucket index, O(2000) → O(10-30) |
 | ISS-13 Bug A | P1 — verify shipped | 0.0.170 | Tunnel drains may not decrement `pooled` — check S20 fix |
+| ISS-15 | P2 — needs arch analysis | 0.0.184 | Tea drifts out of tube through compost to lowest world-Y point |
 | PERF-3 | P2 | ~0.0.160 | Blade fringe: 1,788 canvas calls/frame — easy offscreen fix |
 | PERF-4 | P2 | ~0.0.160 | Debris + scraps: 19,200 canvas ops/frame |
 | ISS-3  | P2 | ~0.0.140 | 17 `_underscore` function names (S4 rename reverted) |
@@ -319,9 +320,32 @@ The two drain types look and feel identical to the player but are implemented di
 
 ---
 
+### ISS-15 — Tea Drifts Out of Tube Through Compost to Lowest World-Y Point
+
+**Priority: P2 — needs dedicated architectural analysis before any fix**
+**Introduced:** 0.0.184 | **Logged:** S22
+
+**Observed:** Tube dug upward then back down with no updrain connection. Tea enters the tube then drifts through the compost wall to the lowest world-Y point of the segment rather than staying inside the tube.
+
+**Note:** Root cause is unclear. There is a known architectural tension between world-Y as "gravity" and pPath-index as "tunnel direction" that has caused multiple related bugs across many sessions. This and FEAT-4 drain direction issues may share the same root. **Do not attempt to patch in isolation — requires a dedicated architectural analysis of how world-Y and pPath-index interact throughout the drop routing system before any fix is designed.**
+
+---
+
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
+
+---
+
+### Session 22 — 2026-06-20 | Devvit 0.0.184
+
+**Closed:** PERF-2
+**Opened:** ISS-15
+**Shipped:**
+
+| Commit | File | What |
+|--------|------|------|\
+| `8ce6daf` | game.js | PERF-2: pPath Y-bucket spatial index — drop scan O(2000) → O(10-30) per drop |
 
 ---
 
