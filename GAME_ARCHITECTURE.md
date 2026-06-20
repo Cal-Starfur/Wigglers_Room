@@ -19,12 +19,39 @@ Wigglers_Room/
 │   ├── icon.png              — 500x500 worm icon (preview card tap target)
 │   └── preview-bg.png        — 512x512 trash wallpaper reference (position guide for animated preview)
 ├── .github/workflows/
-│   └── deploy.yml            — tsc + devvit build check on every push — NO auto-upload
+│   ├── deploy.yml            — CI pipeline (4 jobs): typecheck → lint → test → build
+│   └── notify-calendar.yml   — triggers calendar sync in claude-skills on push to main
 ├── GAME_ARCHITECTURE.md      — This file
 ├── WIGGLERS_AUDIT.md     — Bug log, lessons learned, priority queue
 ├── devvit.yaml               — App config (redis, realtime, redditAPI, kvStore)
 └── README.md
 ```
+
+## CI Pipeline (Layer 1 — added 2026-06-20)
+
+Every push to `main` runs 4 parallel jobs via `.github/workflows/deploy.yml`:
+
+| Job | Command | Blocks build? |
+|---|---|---|
+| Typecheck | `tsc --noEmit` | ✓ yes |
+| Lint | `eslint src --ext .ts,.tsx` | ✓ yes |
+| Tests | `vitest run` | ✓ yes |
+| Build | `tsc --noEmit && devvit build` | — (runs last) |
+
+**Rules:**
+- Build only runs if Typecheck + Lint + Tests all pass
+- Lint is strict: `@typescript-eslint/recommended-requiring-type-checking`
+- Tests use `passWithNoTests: true` — add `.test.ts` files to `src/` to activate
+- Unused vars must be prefixed `_` or removed — no silent dead code
+- Empty catch blocks must have a comment — no silent swallows
+- `!=` is banned — use `!==` always
+
+**Files added this session:**
+- `.eslintrc.json` — strict TypeScript ESLint config
+- `vitest.config.ts` — test runner config
+- `.github/workflows/notify-calendar.yml` — calendar sync trigger
+
+
 
 ### Deploy Workflow (CRITICAL — read every session)
 ```
