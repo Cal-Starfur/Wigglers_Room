@@ -637,6 +637,32 @@ var pLastX = -999, pLastY = -999;
 // 2000 points ≈ several minutes of digging; keeps O(pPath) work bounded.
 var MAX_PPATH = 2000;
 
+// ── PERF-2: pPath Y-bucket spatial index ─────────────────────────────────
+// Divides pPath into 8px-tall Y slabs so nearestPathIdx() and the drop-attachment
+// scan skip the vast majority of the 2,000-point array.
+// Each bucket key is Math.floor(y / PPATH_BUCKET_H) → array of pPath indices.
+// The index is maintained incrementally: addPoint() inserts, splice() rebuilds.
+var _pPathBuckets = {};          // { bucketKey: [pPath indices] }
+var PPATH_BUCKET_H = 8;          // px — matches worm radius; ~1–3 buckets per scan
+function _pPathBucketKey(y) { return Math.floor(y / PPATH_BUCKET_H); }
+
+// Insert one index into the bucket for a given Y.
+function _pPathBucketInsert(idx, y) {
+  var k = _pPathBucketKey(y);
+  if (!_pPathBuckets[k]) _pPathBuckets[k] = [];
+  _pPathBuckets[k].push(idx);
+}
+
+// Full rebuild — called after splice() shifts all indices.
+// O(pPath.length) but only runs when MAX_PPATH is hit, not every frame.
+function _pPathBucketRebuild() {
+  _pPathBuckets = {};
+  for (var _bi = 0; _bi < pPath.length; _bi++) {
+    var _bp = pPath[_bi];
+    if (_bp) _pPathBucketInsert(_bi, _bp.y);
+  }
+}
+
 // ── Cocoon system ─────────────────────────────────────────────────────────
 var cocoons = [];
 var COCOON_KARMA_REQ  = 2800;
@@ -737,17 +763,26 @@ function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / H)); }
 
 // Find the nearest pPath index at or below a given world-y, within xTol horizontally
 function nearestPathIdx(wx, wy, xTol, yTol) {
+  // PERF-2: scan only the Y-buckets that overlap the search window instead of all 2,000 points.
   var best = -1, bestDist = 999999;
-  for (var i = 0; i < pPath.length; i++) {
-    var p = pPath[i];
-    if (!p) continue;
-    var a = p.alpha != null ? p.alpha : 1;
-    if (a <= 0) continue;
-    if (p.y < wy) continue; // must be at or below
-    if (yTol != null && p.y > wy + yTol) continue; // not too far below
-    if (Math.abs(p.x - wx) > xTol) continue;
-    var dist = Math.abs(p.y - wy);
-    if (dist < bestDist) { bestDist = dist; best = i; }
+  var _yMax = (yTol != null) ? wy + yTol : wy + 64; // cap at 64px when no yTol given
+  var kMin = _pPathBucketKey(wy);
+  var kMax = _pPathBucketKey(_yMax);
+  for (var k = kMin; k <= kMax; k++) {
+    var bucket = _pPathBuckets[k];
+    if (!bucket) continue;
+    for (var _bi = 0; _bi < bucket.length; _bi++) {
+      var i = bucket[_bi];
+      var p = pPath[i];
+      if (!p) continue;
+      var a = p.alpha != null ? p.alpha : 1;
+      if (a <= 0) continue;
+      if (p.y < wy) continue; // must be at or below
+      if (yTol != null && p.y > wy + yTol) continue; // not too far below
+      if (Math.abs(p.x - wx) > xTol) continue;
+      var dist = Math.abs(p.y - wy);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
   }
   return best;
 }
@@ -762,7 +797,11 @@ function addPoint(path, x, y, r, lastX, lastY) {
   var ti = getTier(y);
   if (ti < 2) return false; // only dense lower tiers hold tunnels
   if (dd > r * 8) path.push(null);
+  // PERF-2: insert into Y-bucket index before push so the index stays current.
+  // path === pPath check guards against any future secondary path arrays.
+  var _newIdx = path.length;
   path.push({x:x, y:y, r:r, ti:ti});
+  if (path === pPath) _pPathBucketInsert(_newIdx, y);
   // Prune oldest complete segment(s) when over cap — always cut on a null boundary
   // so no segment is left half-orphaned (drops referencing pruned indices detach safely).
   if (path.length > MAX_PPATH) {
@@ -772,6 +811,9 @@ function addPoint(path, x, y, r, lastX, lastY) {
     while (_pruneAt < path.length && path[_pruneAt] !== null) _pruneAt++;
     if (_pruneAt < path.length) _pruneAt++; // include the null itself
     path.splice(0, _pruneAt);
+    // PERF-2: rebuild the bucket index after splice — all indices shifted by _pruneAt.
+    // O(pPath.length) but only fires when MAX_PPATH is hit, not every frame.
+    if (path === pPath) _pPathBucketRebuild();
     // Shift all pathIdx references on active drops — they point into the OLD array
     // Drops that referenced pruned entries will have pathIdx < 0 after shift and must detach.
     // (updatePhysics already handles null/missing pPath[d.pathIdx] by detaching the drop.)
@@ -4523,7 +4565,33 @@ function updatePhysics() {
         var _scanRestricted = (d.isPoop && d.upDrain) && d.lastSegStart != null;
         var _rStart = _scanRestricted ? d.lastSegStart : _scanStart;
         var _rEnd   = _scanRestricted ? d.lastSegEnd   : pPath.length;
-        for (var _si = _rStart; _si < _rEnd; _si++) {
+
+        // PERF-2: build a candidate index set from Y-buckets so the inner loop
+        // only visits points near this drop instead of all 2,000.
+        // Restricted scans (upDrain / stalled poop) already have a tight index range
+        // and skip the bucket pass — the range walk is already O(segment size).
+        var _useBuckets = !_scanRestricted && Object.keys(_pPathBuckets).length > 0;
+        var _bucketCandidates = null;
+        if (_useBuckets) {
+          _bucketCandidates = [];
+          // Poop scans ±yTol in both directions; tea only looks downward (≥ _scanY).
+          var _bYMin = d.isPoop ? _scanY - _yTol : _scanY;
+          var _bYMax = _scanY + _yTol;
+          var _bkMin = _pPathBucketKey(_bYMin);
+          var _bkMax = _pPathBucketKey(_bYMax);
+          for (var _bk = _bkMin; _bk <= _bkMax; _bk++) {
+            var _bkt = _pPathBuckets[_bk];
+            if (!_bkt) continue;
+            for (var _bki = 0; _bki < _bkt.length; _bki++) {
+              _bucketCandidates.push(_bkt[_bki]);
+            }
+          }
+        }
+
+        // Scan: either bucket candidates (fast path) or the full index range (restricted / fallback).
+        var _scanLen = _useBuckets ? _bucketCandidates.length : (_rEnd - _rStart);
+        for (var _siLoop = 0; _siLoop < _scanLen; _siLoop++) {
+          var _si = _useBuckets ? _bucketCandidates[_siLoop] : (_rStart + _siLoop);
           var _sp = pPath[_si];
           if (!_sp) continue;
           var _sa = _sp.alpha != null ? _sp.alpha : 1;
