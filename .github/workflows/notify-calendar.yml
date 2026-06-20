@@ -1,0 +1,27 @@
+name: Notify Calendar on Push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger calendar sync in claude-skills
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CALENDAR_SYNC_PAT }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'Cal-Starfur',
+              repo: 'claude-skills',
+              event_type: 'wigglers-pushed',
+              client_payload: {
+                source_repo: 'Wigglers_Room',
+                ref: context.ref,
+                sha: context.sha,
+                actor: context.actor
+              }
+            })
