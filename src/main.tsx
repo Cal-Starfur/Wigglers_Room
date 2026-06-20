@@ -41,13 +41,13 @@ const MSG_SET_SESSION         = 'setSession';
 const MSG_SET_PLAYER_AVATAR   = 'setPlayerAvatar';
 const MSG_SET_WORLD_STATE     = 'setWorldState';
 const MSG_SET_PRESENCE        = 'setPresence';
-const _MSG_SET_FLOOD          = 'setFlood'; // reserved for future flood events
+const _MSG_SET_FLOOD          = 'setFlood'; // reserved for future flood events // eslint-disable-line @typescript-eslint/no-unused-vars
 const MSG_WORM_CLAIMED        = 'wormClaimed';
 
 // ─── KV key helpers ───────────────────────────────────────────────────────────
 const KV_WORM_SESSION  = (username: string) => `worm:${username}`;
 const KV_WORLD         = (postId: string)   => `world:${postId}`;
-const _KV_COCOONS      = (postId: string)   => `cocoons:${postId}`; // reserved — read via world state
+const _KV_COCOONS      = (postId: string)   => `cocoons:${postId}`; // reserved — read via world state // eslint-disable-line @typescript-eslint/no-unused-vars
 const KV_QUEUE         = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
 
@@ -474,7 +474,7 @@ function buildBgDataUrl(tick: number): string {
 // ── Pulsing warm amber glow builder ──────────────────────────────────────────
 // Transparent SVG layered over the bg → warm amber radial glow + gentle bob.
 // Wave speed 0.10 at 10fps ≈ 6 second breath cycle.
-function buildGlowDataUrl(tick: number): string {
+function _buildGlowDataUrl(tick: number): string { // eslint-disable-line @typescript-eslint/no-unused-vars
   const glow = 0.28 + Math.sin(tick * 0.10) * 0.12;
   const sc   = 1 + Math.sin(tick * 0.10) * 0.032;
   const svg  =
@@ -495,7 +495,7 @@ Devvit.addCustomPostType({
   height: 'tall',
 
   render: (context) => {
-    const { kvStore, postId, userId, realtime } = context;
+    const { kvStore, postId, userId: _userId, realtime } = context;
     const roomId = postId ?? 'unknown';
 
     const webView = useWebView({
@@ -523,7 +523,7 @@ Devvit.addCustomPostType({
             let user = await context.reddit.getCurrentUser().catch(() => null);
             if (!user) {
               // Mobile app sometimes needs currentUser hook value instead
-              try { user = await context.reddit.getCurrentUser(); } catch (_) {}
+              try { user = await context.reddit.getCurrentUser(); } catch (_) { /* optional */ }
             }
 
             // context.username is synchronously available — most reliable on mobile
@@ -674,7 +674,7 @@ Devvit.addCustomPostType({
               await realtime.send(RT_WORLD(roomId), JSON.stringify({
                 type: MSG_SET_WORLD_STATE,
                 ...worldData,
-                ...(broadcastWeekStartTs != null ? { weekStartTs: broadcastWeekStartTs } : {}),
+                ...(broadcastWeekStartTs !== null ? { weekStartTs: broadcastWeekStartTs } : {}),
               }));
             } catch (e) {
               console.warn('[main] World update failed:', e);
@@ -878,7 +878,7 @@ Devvit.addCustomPostType({
     const presenceChannel = useChannel({
       name: RT_PRESENCE(roomId),
       onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
+        try { webView.postMessage(msg); } catch (_) { /* webview may be closed */ }
       },
     });
     presenceChannel.subscribe();
@@ -886,7 +886,7 @@ Devvit.addCustomPostType({
     const worldChannel = useChannel({
       name: RT_WORLD(roomId),
       onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
+        try { webView.postMessage(msg); } catch (_) { /* webview may be closed */ }
       },
     });
     worldChannel.subscribe();
@@ -894,7 +894,7 @@ Devvit.addCustomPostType({
     const floodChannel = useChannel({
       name: RT_FLOOD(roomId),
       onMessage: (msg: any) => {
-        try { webView.postMessage(msg); } catch (_) {}
+        try { webView.postMessage(msg); } catch (_) { /* webview may be closed */ }
       },
     });
     floodChannel.subscribe();
@@ -903,7 +903,7 @@ Devvit.addCustomPostType({
     // One useInterval, one useState string. The glow is baked into the bg SVG
     // so there is only ever ONE animated <image> element — halving re-renders
     // and keeping the payload small enough for Devvit's state limits.
-    const [tick,   setTick]   = useState<number>(0);
+    const [_tick,  setTick]   = useState<number>(0); // _tick reserved for animation
     const [bgUrl,  setBgUrl]  = useState<string>(() => buildBgDataUrl(0));
 
     const anim = useInterval(() => {
