@@ -60,7 +60,7 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 |----|----------|--------------------------|---------|
 | PERF-1 | ✅ SHIPPED S21 | ~0.0.160 | Trash chunks: 21k canvas ops/frame — offscreen pre-render |
 | PERF-2 | ✅ SHIPPED S22 | ~0.0.160 | pPath nested scans: Y-bucket index, O(2000) → O(10-30) |
-| ISS-13 Bug A | P1 — verify shipped | 0.0.170 | Tunnel drains may not decrement `pooled` — check S20 fix |
+| ISS-13 Bug A | ✅ CLOSED S22 | 0.0.170 | Tunnel drains decrement `pooled` at `_teaHit` — verified correct |
 | ISS-15 | P2 — needs arch analysis | 0.0.184 | Tea drifts out of tube through compost to lowest world-Y point |
 | PERF-3 | P2 | ~0.0.160 | Blade fringe: 1,788 canvas calls/frame — easy offscreen fix |
 | PERF-4 | P2 | ~0.0.160 | Debris + scraps: 19,200 canvas ops/frame |
@@ -141,14 +141,14 @@ function _pPathBucket(y) { return Math.floor(y / PPATH_BUCKET_H); }
 
 ### ISS-13 Bug A — Tunnel Drains May Not Decrement pooled
 
-**Priority: P1 — verify S20 fix landed correctly**
-**Introduced:** 0.0.170 | **Partially fixed:** S20
+**✅ CLOSED S22 — verified correct in code**
+**Introduced:** 0.0.170 | **Fixed:** S20 | **Verified:** S22
 
-The `!d.inTunnel` guard on the sump entry decrement meant tunnel drops never reduced `pooled`. Bugs B and C were fixed in S20 (evaporation removed, pooled made runtime-only). Bug A fix needs verification — confirm the `_teaHit` block now decrements `pooled` for tunnel drops.
+The `!d.inTunnel` guard was removed in S20. Verified S22: `_teaHit` block correctly decrements `pooled` for tunnel drops with no `inTunnel` guard, poop excluded. Fix is confirmed live.
 
 ```js
-// Should now read (game.js ~line 4554):
-if (!d.isPoop) pooled = Math.max(0, pooled - 0.005); // no inTunnel guard
+// Confirmed in game.js _teaHit block:
+if (!d.isPoop) pooled = Math.max(0, pooled - 0.005); // no inTunnel guard ✓
 ```
 
 ---
@@ -339,7 +339,7 @@ Sessions newest first. Each entry: session number, date, Devvit version, summary
 
 ### Session 22 — 2026-06-20 | Devvit 0.0.184
 
-**Closed:** PERF-2
+**Closed:** PERF-2, ISS-13 Bug A (verified)
 **Opened:** ISS-15
 **Shipped:**
 
@@ -474,6 +474,7 @@ Root cause: one-time guard in `resizeCanvas()` prevented W/H from updating after
 | ISS-1 | Weekly drain weekStartTs not persisted across sessions | S19 | ~0.0.177 |
 | ISS-2 | weekStartTs not broadcast to other clients on drain | S19 | ~0.0.177 |
 | ISS-12 | Drain Snoo X misalignment — called in screen space not world space | S18 | ~0.0.175 |
+| ISS-13 Bug A | Tunnel drops didn't decrement pooled — missing inTunnel guard at _teaHit | S20 fix / S22 verified | 0.0.179 |
 | ISS-13 Bug B | Evaporation silently removed drops with no visual cause | S20 | 0.0.179 |
 | ISS-13 Bug C | pooled synced via KV/Realtime — ghost saturation on join | S20 | 0.0.179 |
 | ISS-14 Bug A | pHP hardcoded to 1.0 on every session load | S20 | 0.0.179 |
