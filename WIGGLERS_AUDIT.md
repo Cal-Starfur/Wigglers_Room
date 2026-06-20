@@ -2,7 +2,7 @@
 # Wigglers Room — Audit Log
 
 > **Rebuilt:** 2026-06-19 — restructured for clarity (was append-only since S14)
-> **Current session:** 20 | **Devvit version:** 0.0.179 | **game.js:** ~8,635 lines | **main.tsx:** ~959 lines
+> **Current session:** 22 | **Devvit version:** 0.0.186 | **game.js:** ~8,645 lines | **main.tsx:** ~959 lines
 > **Next P1:** PERF-1 (trash chunk offscreen pre-render) — largest single source of lag
 
 ---
@@ -10,6 +10,13 @@
 ## Section 1 — Devvit Platform Rules (Read Every Session)
 
 Hard-won lessons. Violating these causes silent failures or broken deploys.
+
+
+### GitHub CI (added 2026-06-20)
+- 4-job pipeline: typecheck → lint → test → build running on every push
+- Strict ESLint (`@typescript-eslint/recommended-requiring-type-checking`) — zero errors required
+- `notify-calendar.yml` auto-syncs project calendar in claude-skills on push
+- `vitest.config.ts` ready — add `.test.ts` files to `src/` to activate real tests
 
 ### Assets
 - PNG only — GIF/JPG rejected by Devvit uploader
