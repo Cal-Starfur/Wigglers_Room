@@ -41,14 +41,17 @@ const MSG_SET_SESSION         = 'setSession';
 const MSG_SET_PLAYER_AVATAR   = 'setPlayerAvatar';
 const MSG_SET_WORLD_STATE     = 'setWorldState';
 const MSG_SET_PRESENCE        = 'setPresence';
-const _MSG_SET_FLOOD          = 'setFlood'; // reserved for future flood events // eslint-disable-line @typescript-eslint/no-unused-vars
 const MSG_WORM_CLAIMED        = 'wormClaimed';
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _MSG_SET_FLOOD_RESERVED = 'setFlood'; // reserved — flood events wired in game.js
 
 // ─── KV key helpers ───────────────────────────────────────────────────────────
 const KV_WORM_SESSION  = (username: string) => `worm:${username}`;
 const KV_WORLD         = (postId: string)   => `world:${postId}`;
-const _KV_COCOONS      = (postId: string)   => `cocoons:${postId}`; // reserved — read via world state // eslint-disable-line @typescript-eslint/no-unused-vars
-const KV_QUEUE         = (postId: string)   => `queue:${postId}`;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _KV_COCOONS_RESERVED = (postId: string) => `cocoons:${postId}`; // reserved — accessed via world state
+const KV_QUEUE             = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
 
 // ─── Realtime channel helpers ─────────────────────────────────────────────────
@@ -495,7 +498,7 @@ Devvit.addCustomPostType({
   height: 'tall',
 
   render: (context) => {
-    const { kvStore, postId, userId: _userId, realtime } = context;
+    const { kvStore, postId, realtime } = context;
     const roomId = postId ?? 'unknown';
 
     const webView = useWebView({
@@ -903,7 +906,7 @@ Devvit.addCustomPostType({
     // One useInterval, one useState string. The glow is baked into the bg SVG
     // so there is only ever ONE animated <image> element — halving re-renders
     // and keeping the payload small enough for Devvit's state limits.
-    const [_tick,  setTick]   = useState<number>(0); // _tick reserved for animation
+    const [, setTick] = useState<number>(0);
     const [bgUrl,  setBgUrl]  = useState<string>(() => buildBgDataUrl(0));
 
     const anim = useInterval(() => {
