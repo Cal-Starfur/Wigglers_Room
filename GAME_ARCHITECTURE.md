@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-19 Session 22 | Devvit 0.0.183 | Next P1: PERF-2 (pPath Y-bucket index)
+> Last updated: 2026-06-20 Session 22 | Devvit 0.0.186 | Next P1: ISS-15 (arch analysis — tea/pPath direction)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -484,15 +484,25 @@ Declared **after** `useWebView` so `webView` is in scope.
 Pre-renders each chunk to `OffscreenCanvas` at spawn. Draw loop uses `ctx.drawImage()` instead of 701-line `drawTrashChunk()`.
 ~21,000 canvas ops/frame → ~156 drawImage calls. Commit: `67fff0c`
 
-### ⚠ P1 — START HERE: PERF-2 — pPath Y-bucket index
+### ✅ PERF-2 — pPath Y-bucket index — SHIPPED S22
 
-**Second largest source of lag.** Up to 400,000 pPath iterations/frame from nested scans in drop routing.
-Fix: Y-bucket spatial index — `nearestPathIdx()` scans 10–30 points instead of 2,000.
-Full spec: `WIGGLERS_AUDIT.md → PERF-2`
+Y-bucket spatial index on pPath. Drop attachment scan O(2,000) → O(10-30) per drop. Commit: `8ce6daf`
 
-### P1 — ISS-13 Bug A — Verify tunnel drain decrement
+### ✅ PERF-3 — Blade fringe offscreen canvas — SHIPPED S22
 
-Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pooled` at `_teaHit` block.
+`_buildBladeCanvas()` pre-renders all grass blades once in `setup()`. 1,788 calls/frame → 1 drawImage. Commit: `25093f9`
+
+### ✅ PERF-4 — Debris cap + rotate skip — SHIPPED S22 (partial)
+
+Debris cap 300→80. Skip `ctx.rotate()` for settled scraps with near-zero rotation. Pre-render deferred — `sz` varies continuously. Commit: `5af0fa6`
+
+### ✅ ISS-13 Bug A — Verified CLOSED S22
+
+Tunnel drops correctly decrement `pooled` at `_teaHit` — no `inTunnel` guard. Confirmed in code.
+
+### ⚠ P2 — START HERE: ISS-15 — Tea/pPath direction architectural analysis
+
+Tea drifts out of up-then-down tubes to the lowest world-Y point. Root cause unclear — tension between world-Y as "gravity" and pPath-index as "tunnel direction". **Needs dedicated architectural analysis before any fix.** See `WIGGLERS_AUDIT.md → ISS-15`.
 
 ### P2 — Code Health (game.js)
 | Task | What |
@@ -502,9 +512,8 @@ Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pool
 | S3  | Delete 4 dead functions |
 | S4  | Rename 17 `_underscore` functions → camelCase |
 | S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
-| PERF-3 | Blade fringe offscreen canvas — 1,788 calls → 1 drawImage |
-| PERF-4 | Debris/scraps pre-render + lower cap (300 → 80) |
 | FEAT-2 | Cross-device session continuity — see `WIGGLERS_AUDIT.md` |
+| ISS-15 | Tea/pPath direction bug — arch analysis required before fix |
 
 ### P3 — Pre-Launch
 - Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
@@ -522,10 +531,11 @@ Bugs B+C fixed S20. Verify Bug A fix landed: tunnel drops should decrement `pool
 | ID | Issue | Priority |
 |----|-------|----------|
 | PERF-1 | Trash chunks: offscreen pre-render | ✅ SHIPPED S21 (67fff0c) |
-| PERF-2 | pPath nested scans: up to 400k iterations/frame — Y-bucket fix ready | **P1 — next session** |
-| ISS-13 Bug A | Verify tunnel drain decrements pooled at _teaHit | P1 — verify |
-| PERF-3 | Blade fringe: 1,788 canvas calls/frame | P2 |
-| PERF-4 | Debris + scraps: ~19,200 canvas ops/frame | P2 |
+| PERF-2 | pPath nested scans: Y-bucket index | ✅ SHIPPED S22 (8ce6daf) |
+| PERF-3 | Blade fringe: 1,788 canvas calls/frame | ✅ SHIPPED S22 (25093f9) |
+| PERF-4 | Debris cap + rotate skip | ✅ SHIPPED S22 (5af0fa6) |
+| ISS-13 Bug A | Verify tunnel drain decrements pooled at _teaHit | ✅ CLOSED S22 |
+| ISS-15 | Tea exits tube through compost — needs arch analysis | P2 |
 | ISS-3 | 17 `_underscore` function names (S4 reverted) | P2 |
 | ISS-4 | `draw()` 2,022 line monolith (S5 reverted) | P2 |
 | ISS-5 | 5 duplicate Snoo SVG helper pairs | P2 |
