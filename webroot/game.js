@@ -3614,7 +3614,7 @@ function updatePlayer() {
           var debVx = (Math.random() - 0.5) * 2.2;
           var debVy = 0.8 + Math.random() * 1.2;
           var debSpin = (Math.random() - 0.5) * 0.18; // spin speed, faster for smaller bits
-          if (debris.length < 300) debris.push({
+          if (debris.length < 80) debris.push({
             x: tc2.x + (Math.random() - 0.5) * tc2.sz * 0.8,
             y: tc2.y + tc2.sz * 0.2,
             vy: debVy, vx: debVx,
@@ -6198,9 +6198,11 @@ function draw() {
     if (s.eaten || s.ti !== 1) continue;
     var scy = s.y - camY;
     if (scy < -20 || scy > H + 20) continue;
+    var sRot = s.rot || 0;
     ctx.save();
     ctx.translate(s.x, scy);
-    ctx.rotate(s.rot || 0);
+    // PERF-4: skip rotate() for settled scraps with near-zero rotation — saves a matrix multiply
+    if (Math.abs(sRot) > 0.02) ctx.rotate(sRot);
     ctx.globalAlpha = (s.alpha != null ? s.alpha : 1.0) * 0.78;
     drawDebrisFragment(ctx, s.name || s.t.name || 'default', s.sz, s.col || s.t.debrisCol, s.col2 || s.t.debrisCol2 || s.col);
     if (s.eating) {
