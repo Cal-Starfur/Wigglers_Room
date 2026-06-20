@@ -62,8 +62,8 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | PERF-2 | ✅ SHIPPED S22 | ~0.0.160 | pPath nested scans: Y-bucket index, O(2000) → O(10-30) |
 | ISS-13 Bug A | ✅ CLOSED S22 | 0.0.170 | Tunnel drains decrement `pooled` at `_teaHit` — verified correct |
 | ISS-15 | P2 — needs arch analysis | 0.0.184 | Tea drifts out of tube through compost to lowest world-Y point |
-| PERF-3 | P2 | ~0.0.160 | Blade fringe: 1,788 canvas calls/frame — easy offscreen fix |
-| PERF-4 | P2 | ~0.0.160 | Debris + scraps: 19,200 canvas ops/frame |
+| PERF-3 | ✅ SHIPPED S22 | ~0.0.160 | Blade fringe: 1,788 canvas calls/frame — offscreen pre-render |
+| PERF-4 | ✅ SHIPPED S22 | ~0.0.160 | Debris cap 300→80; skip rotate() for settled scraps |
 | ISS-3  | P2 | ~0.0.140 | 17 `_underscore` function names (S4 rename reverted) |
 | ISS-4  | P2 | ~0.0.140 | `draw()` 2,022-line monolith (S5 split reverted) |
 | ISS-5  | P2 | ~0.0.140 | 5 duplicate Snoo SVG helper pairs |
@@ -155,25 +155,27 @@ if (!d.isPoop) pooled = Math.max(0, pooled - 0.005); // no inTunnel guard ✓
 
 ### PERF-3 — Blade Fringe: 1,788 Canvas Calls/Frame
 
-**Priority: P2**
+**✅ SHIPPED S22 — Devvit 0.0.185**
 **Introduced:** ~0.0.160
 
-298 triangle fills every frame for grass blades at horizon. Pre-render to offscreen canvas once in `setup()`, replace loop with single `ctx.drawImage`.
+Pre-rendered all grass blades to an offscreen canvas (`_buildBladeCanvas()`) once in `setup()`. Draw loop replaced with single `ctx.drawImage(_bladeCanvas, 0, horizScreenY - 20)`. Canvas is WORLD_W × 20px, blades drawn at base Y=20.
 
-**Files:** `game.js` — `setup()`, `draw()` blade loop, new `_buildBladeCanvas()` helper
-**Expected speedup:** 1,788 calls → 1 drawImage
+**Files:** `game.js` — `_buildBladeCanvas()` (new), `setup()` call, `draw()` loop replaced
+**Result:** 1,788 calls/frame → 1 drawImage
 
 ---
 
 ### PERF-4 — Debris + Scraps: 19,200 Canvas Ops/Frame
 
-**Priority: P2**
+**✅ PARTIALLY SHIPPED S22 — Devvit 0.0.186**
 **Introduced:** ~0.0.160
 
-600 items × save/translate/rotate/drawDebrisFragment/restore. Three fixes:
-- Pre-render unique `(name, col, col2, sz)` combos to offscreen canvas (same as PERF-1)
-- Lower debris cap from 300 → 80
-- Skip `ctx.rotate()` for settled scraps where `Math.abs(s.rot) < 0.02`
+Two of three fixes shipped:
+- ✅ Debris spawn cap lowered 300 → 80
+- ✅ Skip `ctx.rotate()` for settled scraps where `Math.abs(s.rot) < 0.02`
+- 🔲 Pre-render unique `(name, col, col2, sz)` combos — deferred, `sz` varies continuously making this non-trivial
+
+**Files:** `game.js` — debris spawn cap, scraps draw loop
 
 ---
 
@@ -337,15 +339,19 @@ Sessions newest first. Each entry: session number, date, Devvit version, summary
 
 ---
 
-### Session 22 — 2026-06-20 | Devvit 0.0.184
+### Session 22 — 2026-06-20 | Devvit 0.0.186
 
-**Closed:** PERF-2, ISS-13 Bug A (verified)
+**Closed:** PERF-2, PERF-3, PERF-4 (partial), ISS-13 Bug A (verified)
 **Opened:** ISS-15
 **Shipped:**
 
 | Commit | File | What |
-|--------|------|------|\
+|--------|------|------|
 | `8ce6daf` | game.js | PERF-2: pPath Y-bucket spatial index — drop scan O(2000) → O(10-30) per drop |
+| `25093f9` | game.js | PERF-3: blade fringe offscreen pre-render — 1,788 canvas calls → 1 drawImage |
+| `5af0fa6` | game.js | PERF-4: debris cap 300→80; skip rotate() for settled scraps |
+| `a79f411` | WIGGLERS_AUDIT.md | Log ISS-15; mark PERF-1+2 shipped |
+| `dd2f263` | WIGGLERS_AUDIT.md | Close ISS-13 Bug A — verified pooled decrement correct |
 
 ---
 
