@@ -41,13 +41,13 @@ const MSG_SET_SESSION         = 'setSession';
 const MSG_SET_PLAYER_AVATAR   = 'setPlayerAvatar';
 const MSG_SET_WORLD_STATE     = 'setWorldState';
 const MSG_SET_PRESENCE        = 'setPresence';
-const MSG_SET_FLOOD           = 'setFlood';
+const _MSG_SET_FLOOD          = 'setFlood'; // reserved for future flood events
 const MSG_WORM_CLAIMED        = 'wormClaimed';
 
 // ─── KV key helpers ───────────────────────────────────────────────────────────
 const KV_WORM_SESSION  = (username: string) => `worm:${username}`;
 const KV_WORLD         = (postId: string)   => `world:${postId}`;
-const KV_COCOONS       = (postId: string)   => `cocoons:${postId}`;
+const _KV_COCOONS      = (postId: string)   => `cocoons:${postId}`; // reserved — read via world state
 const KV_QUEUE         = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
 
