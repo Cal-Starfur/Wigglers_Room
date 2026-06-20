@@ -139,6 +139,7 @@ function dropsPush(d) {
 var weatherQueue = []; // pending shed events {fireFrame, chunkIdx}
 var gardenTufts = [];  // pre-generated static grass tufts — never recomputed
 var gardenFlowers = []; // pre-generated static flowers
+var _bladeCanvas = null; // PERF-3: offscreen pre-render of blade fringe — rebuilt in setup()
 var bugs = [];   // fruit flies / gnats in tier 0 empty airspace
 var castings = [];
 var tLvl = 0;
@@ -3168,6 +3169,29 @@ function resizeCanvas() {
   _soilGradMW = -1;
 }
 
+// PERF-3: Build offscreen blade fringe canvas — called once in setup(), O(bladeCount) not O(bladeCount × frames).
+// Blades are drawn at y=0 (base); draw() stamps with ctx.drawImage(_bladeCanvas, -centreOffsetX + camX, horizScreenY).
+// Canvas is WORLD_W wide × 20px tall (max blade height is 16px + some headroom).
+function _buildBladeCanvas() {
+  var bladeCount = Math.floor(WORLD_W / 4);
+  var oc = document.createElement('canvas');
+  oc.width  = WORLD_W;
+  oc.height = 20; // tallest blade is 6 + 5*2 = 16px; 20px gives headroom
+  var octx = oc.getContext('2d');
+  for (var gi = 0; gi < bladeCount; gi++) {
+    var gbx = gi * 4 + (gi % 3);
+    var gbh = 6 + (gi % 6) * 2;
+    octx.fillStyle = (gi%4===0) ? '#5aaa28' : (gi%4===1) ? '#4a9020' : (gi%4===2) ? '#68c030' : '#3a8018';
+    octx.beginPath();
+    octx.moveTo(gbx,     20); // base at bottom of offscreen canvas
+    octx.lineTo(gbx + 3, 20);
+    octx.lineTo(gbx + 1 + (gi%2===0?1:-1), 20 - gbh);
+    octx.closePath();
+    octx.fill();
+  }
+  _bladeCanvas = oc;
+}
+
 function setup() {
   resizeCanvas();
   pPath = []; drops = []; bugs = []; castings = []; trashChunks = []; debris = []; weatherQueue = [];
@@ -3214,6 +3238,10 @@ function setup() {
       alpha: 0.55 + Math.random() * 0.4
     });
   }
+
+  // PERF-3: Pre-render blade fringe to offscreen canvas once — replaces 1,788 per-frame canvas calls.
+  // Blades are drawn at Y=0 (base of canvas); draw() stamps with offset = horizScreenY.
+  _buildBladeCanvas();
 
   // Restore persisted session
   var saved = loadSession();
@@ -5513,20 +5541,11 @@ function draw() {
       ctx.globalAlpha = 1;
     }
 
-    // Denser blade fringe at the horizon line — only when horizon is on screen
-    if (horizScreenY > -10 && horizScreenY < H) {
-      var bladeCount = Math.floor(WORLD_W / 4);
-      for (var gi = 0; gi < bladeCount; gi++) {
-        var gbx = gi * 4 + (gi % 3);
-        var gbh = 6 + (gi % 6) * 2;
-        ctx.fillStyle = (gi%4===0) ? '#5aaa28' : (gi%4===1) ? '#4a9020' : (gi%4===2) ? '#68c030' : '#3a8018';
-        ctx.beginPath();
-        ctx.moveTo(gbx,     horizScreenY);
-        ctx.lineTo(gbx + 3, horizScreenY);
-        ctx.lineTo(gbx + 1 + (gi%2===0?1:-1), horizScreenY - gbh);
-        ctx.closePath();
-        ctx.fill();
-      }
+    // PERF-3: Blade fringe — single drawImage instead of 1,788 per-frame canvas calls.
+    // _bladeCanvas is WORLD_W × 20px, blades drawn at base (y=20). Stamp at horizScreenY - 20
+    // so the blade bases sit exactly on the horizon line.
+    if (horizScreenY > -20 && horizScreenY < H && _bladeCanvas) {
+      ctx.drawImage(_bladeCanvas, 0, horizScreenY - 20);
     }
 
     // Static pre-generated flowers — world Y converted to screen (only when near horizon)
