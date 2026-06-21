@@ -1,5 +1,5 @@
 {
   "name": "Wigglers Room",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "postStartCommand": "node ~/bridge3.js &"
+  "postStartCommand": "bash .devcontainer/start-bridge.sh"
 }
