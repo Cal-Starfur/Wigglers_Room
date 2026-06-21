@@ -85,6 +85,9 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 | FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
+| ISS-16 | Audit | main.tsx | `_MSG_SET_FLOOD_RESERVED` — placeholder msg type for flood events; flood currently game.js-only. Investigate when multiplayer flood sync is needed. |
+| ISS-17 | Audit | main.tsx | `_KV_COCOONS_RESERVED` — placeholder KV key for cocoon storage; cocoons currently bundled in world state. Investigate when cocoons need dedicated KV or cross-player interactions. |
+
 ---
 
 ## Section 3 — Open Issue Detail
