@@ -64,7 +64,9 @@ Every push to `main` runs 4 parallel jobs via `.github/workflows/deploy.yml`:
 | 3 | Auto-versioning on merge | ❌ Not needed — Devvit auto-bumps version; audit log tracks sessions |
 | 4 | Auto-create issues on build failure | ❌ Not needed — CI failures caught and fixed same session |
 | 5 | Scheduled calendar sync every Monday 7am Pacific | ✅ Done — 2026-06-21 |
-| 6 | Cross-repo status dashboard | 🔲 Queued |
+| 6 | Cross-repo status dashboard | ✅ Done — built into calendar header 2026-06-21 |
+
+**Roadmap complete — 2026-06-21.**
 
 **Rollback approach:** Use GitHub commit API to query history by date/message, identify target SHA, revert via API or direct push. No branch protection needed — Claude can pinpoint and restore any commit on demand.
 
