@@ -53,6 +53,24 @@ Every push to `main` runs 4 parallel jobs via `.github/workflows/deploy.yml`:
 
 
 
+
+## GitHub Improvement Roadmap
+
+| Layer | Description | Status |
+|---|---|---|
+| 1 | CI quality gates (typecheck + lint + test + build) | ✅ Done — 2026-06-20 |
+| 2 | Branch protection on main | ❌ Not needed — GitHub commit history + API rollback covers this |
+| 2b | Auto CHANGELOG workflow | ❌ Not needed — redundant with native GitHub commit log (queryable via API) |
+| 3 | Auto-versioning on merge | 🔲 Next |
+| 4 | Auto-create issues on build failure | 🔲 Queued |
+| 5 | Scheduled calendar sync | 🔲 Queued |
+| 6 | Cross-repo status dashboard | 🔲 Queued |
+
+**Rollback approach:** Use GitHub commit API to query history by date/message, identify target SHA, revert via API or direct push. No branch protection needed — Claude can pinpoint and restore any commit on demand.
+
+
+---
+
 ### Deploy Workflow (CRITICAL — read every session)
 ```
 1. Claude pushes to GitHub
