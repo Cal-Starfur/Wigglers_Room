@@ -1,0 +1,13 @@
+{
+  "name": "Wigglers Room",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "postStartCommand": "export BRIDGE_TOKEN=$BRIDGE_TOKEN && node ~/bridge3.js &",
+  "secrets": {
+    "BRIDGE_TOKEN": {
+      "description": "GitHub PAT for bridge3.js \u2014 same as CALENDAR_SYNC_PAT"
+    }
+  },
+  "remoteEnv": {
+    "BRIDGE_TOKEN": "${localEnv:BRIDGE_TOKEN}"
+  }
+}
