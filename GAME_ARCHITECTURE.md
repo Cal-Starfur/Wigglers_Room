@@ -150,7 +150,7 @@ return (
 ```
 KV_WORM_SESSION(username)  — per-player session (position, HP, gut, karma, bornTs, weekStartTs...)
 KV_WORLD(postId)           — shared bin state (tLvl, castingEnrichment, scrapsLevel)
-                             ✅ ISS-18 FIXED S24 — authoritative, not stomped by session restore
+                             ✅ ISS-18 Phase 1+2 S25 — authoritative, not stomped by session restore
                              ⚠️ pooled REMOVED S20 — runtime-only, not synced
 KV_COCOONS(postId)         — all players' cocoons
 KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← P1 persistence target (see below)
