@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-22 Session 24 | Devvit 0.0.195 | Next P1: ISS-15 arch analysis (tea/pPath direction) OR FEAT-2 re-evaluation
+> Last updated: 2026-06-22 Session 25 | Devvit 0.0.201 | Next P1: FEAT-2 — device conflict overlay (debug build live, deploy July 1)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -527,49 +527,47 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### ✅ PERF-1 — Trash chunk offscreen pre-render — SHIPPED S21
+### 🔴 P1 — START HERE: FEAT-2 — Device conflict overlay not triggering
 
-Pre-renders each chunk to `OffscreenCanvas` at spawn. Draw loop uses `ctx.drawImage()` instead of 701-line `drawTrashChunk()`.
-~21,000 canvas ops/frame → ~156 drawImage calls. Commit: `67fff0c`
+Two devices with the same username both reach the playing state independently, diverging karma and world state. The conflict overlay code exists and renders — but `setDeviceConflict` is not reliably reaching game.js, or the `useState` guard is still not holding.
 
-### ✅ PERF-2 — pPath Y-bucket index — SHIPPED S22
+**Blocked on Codespaces** (resets 2026-07-01). Debug build is live at Devvit 0.0.201.
 
-Y-bucket spatial index on pPath. Drop attachment scan O(2,000) → O(10-30) per drop. Commit: `8ce6daf`
+**Session 26 plan:**
+1. Open game on desktop browser → backtick → `wigglers2025` → read `conflict=` field in debug overlay
+2. Open same post on mobile — read `conflict=` on both screens
+3. That single field tells us if `setDeviceConflict` is being sent at all
+4. Fix the failing layer, remove debug overlay, redeploy
 
-### ✅ PERF-3 — Blade fringe offscreen canvas — SHIPPED S22
+See `WIGGLERS_AUDIT.md → Session 25` for full investigation log.
 
-`_buildBladeCanvas()` pre-renders all grass blades once in `setup()`. 1,788 calls/frame → 1 drawImage. Commit: `25093f9`
+### ✅ ISS-18 — KV_WORLD authoritative — SHIPPED S24/S25
 
-### ✅ PERF-4 — Debris cap + rotate skip — SHIPPED S22 (partial)
+Bin state (`tLvl`, `castingEnrichment`, `scrapsLevel`) separated from worm session. No longer stomped by per-user session restore. Message ordering fixed (world state arrives before session triggers setup). Self-ghost worm fixed. Commits: `c83c6ea`, `78b3c58`, `21bf577`, `39b54a5`, `3db1a2d`
 
-Debris cap 300→80. Skip `ctx.rotate()` for settled scraps with near-zero rotation. Pre-render deferred — `sz` varies continuously. Commit: `5af0fa6`
+### ✅ PERF-1–4 — All shipped S21/S22
 
-### ✅ ISS-13 Bug A — Verified CLOSED S22
+PERF-1 (trash chunk pre-render), PERF-2 (pPath Y-bucket), PERF-3 (blade fringe), PERF-4 (debris cap). See closed issues table below.
 
-Tunnel drops correctly decrement `pooled` at `_teaHit` — no `inTunnel` guard. Confirmed in code.
+### P2 — After FEAT-2 resolves
 
-### ⚠ P2 — START HERE: ISS-15 — Tea/pPath direction architectural analysis
-
-Tea drifts out of up-then-down tubes to the lowest world-Y point. Root cause unclear — tension between world-Y as "gravity" and pPath-index as "tunnel direction". **Needs dedicated architectural analysis before any fix.** See `WIGGLERS_AUDIT.md → ISS-15`.
-
-### P2 — Code Health (game.js)
 | Task | What |
 |------|------|
+| ISS-15 | Tea/pPath direction bug — arch analysis required before any fix attempt |
+| FEAT-4 | Long-press drain/tunnel placement + sleep scoping + drain unification |
 | S2a | 18 raw message strings → `MSG_*` constants |
 | S2b | 5 duplicate Snoo SVG helper pairs → shared functions |
 | S3  | Delete 4 dead functions |
 | S4  | Rename 17 `_underscore` functions → camelCase |
 | S5  | Split `draw()`, `updatePhysics()`, `updatePlayer()` monoliths |
-| FEAT-2 | Cross-device session continuity — see `WIGGLERS_AUDIT.md` |
-| ISS-15 | Tea/pPath direction bug — arch analysis required before fix |
 
 ### P3 — Pre-Launch
+- Remove `drawDebugOverlay()` call and function (added S25, DEBUG_MODE only but should be cleaned)
 - Hash `DEBUG_PASSWORD` (currently plaintext `'wigglers2025'`)
 
 ### Future
 - FEAT-1: Cross-player tunnel clogging
 - FEAT-3: Passive bridge version capture
-- FEAT-4: Long-press drain/tunnel placement + sleep scoping + drain unification
 - ISS-11: Drain fires without a player open
 
 ---
