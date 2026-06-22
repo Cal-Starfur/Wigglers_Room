@@ -676,6 +676,10 @@ Devvit.addCustomPostType({
             // Update save timestamp to server time
             clamped.ts = serverNow;
 
+            // ISS-18: strip bin state from worm session — these belong to KV_WORLD
+            delete clamped.tLvl;
+            delete clamped.castingEnrichment;
+
             await kvStore.put(KV_WORM_SESSION(username), JSON.stringify(clamped));
             break;
           }
