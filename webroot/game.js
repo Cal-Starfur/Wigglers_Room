@@ -3130,8 +3130,9 @@ setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 300
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'hidden') {
     if (!deathScreen && pSegs.length) saveSession();
-    // FEAT-2: Release device token so next open on any device won't see stale conflict
-    if (!deviceConflictActive) postToHost({ type: 'deviceRelease' });
+    // FEAT-2: Do NOT release token on visibility hidden — mobile app-switch fires this
+    // and would tombstone the token while the session is still active.
+    // Token expiry is handled purely by 45s TTL (heartbeat stops when backgrounded).
   }
 });
 
