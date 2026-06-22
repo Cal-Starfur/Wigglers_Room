@@ -582,25 +582,9 @@ Devvit.addCustomPostType({
               // On error, proceed without conflict check — don't block the player
             }
 
-            // Load player worm session from KV (skip if conflict detected)
-            if (!deviceConflict) {
-              try {
-                const raw = await kvStore.get(KV_WORM_SESSION(username));
-                if (raw) {
-                  const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                  // Apply offline drain by preserving ts — game client handles the math
-                  webView.postMessage({ type: MSG_SET_SESSION, session, username });
-                } else {
-                  // New player — send empty session signal so game uses defaults
-                  webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
-                }
-              } catch (e) {
-                console.warn('[main] Session load failed:', e);
-                webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
-              }
-            }
-
-            // Load shared world state
+            // ISS-18: Load shared world state BEFORE session so globals are set
+            // when setup() → spawnScraps() runs. setSession triggers setup(); if
+            // setWorldState hasn't arrived yet, spawnScraps() uses stale defaults.
             try {
               const worldRaw = await kvStore.get(KV_WORLD(roomId));
               if (worldRaw) {
@@ -611,9 +595,7 @@ Devvit.addCustomPostType({
               console.warn('[main] World state load failed:', e);
             }
 
-            // Load shared week epoch — drives the bin's weekly drain clock
-            // KV_WEEK is the single source of truth for weekStartTs across all players.
-            // If it doesn't exist yet (first player ever on this post), we stamp it now.
+            // Load shared week epoch — must also arrive before setSession
             try {
               const weekRaw = await kvStore.get(KV_WEEK(roomId));
               let weekStartTs: number;
@@ -629,10 +611,28 @@ Devvit.addCustomPostType({
                   contributors: {},
                 }));
               }
-              // Send separately so it merges cleanly with any prior setWorldState
               webView.postMessage({ type: MSG_SET_WORLD_STATE, weekStartTs });
             } catch (e) {
               console.warn('[main] Week state load failed:', e);
+            }
+
+            // Load player worm session from KV — sent LAST so world state is ready
+            // when setSession triggers setup() → spawnScraps()
+            if (!deviceConflict) {
+              try {
+                const raw = await kvStore.get(KV_WORM_SESSION(username));
+                if (raw) {
+                  const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                  // Apply offline drain by preserving ts — game client handles the math
+                  webView.postMessage({ type: MSG_SET_SESSION, session, username });
+                } else {
+                  // New player — send empty session signal so game uses defaults
+                  webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+                }
+              } catch (e) {
+                console.warn('[main] Session load failed:', e);
+                webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+              }
             }
 
             // Load and send pending worm queue
