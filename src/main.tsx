@@ -45,6 +45,10 @@ const MSG_WORM_CLAIMED        = 'wormClaimed';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _MSG_SET_FLOOD_RESERVED = 'setFlood'; // reserved — flood events wired in game.js
+const MSG_DEVICE_HEARTBEAT    = 'deviceHeartbeat';   // FEAT-2: webview → host, renew active device token
+const MSG_DEVICE_RELEASE      = 'deviceRelease';     // FEAT-2: webview → host, clear token on close
+const MSG_DEVICE_TAKEOVER     = 'deviceTakeover';    // FEAT-2: webview → host, player confirmed takeover
+const MSG_SET_DEVICE_CONFLICT = 'setDeviceConflict'; // FEAT-2: host → webview, block open with conflict UI
 
 // ─── KV key helpers ───────────────────────────────────────────────────────────
 const KV_WORM_SESSION  = (username: string) => `worm:${username}`;
@@ -53,6 +57,7 @@ const KV_WORLD         = (postId: string)   => `world:${postId}`;
 const _KV_COCOONS_RESERVED = (postId: string) => `cocoons:${postId}`; // reserved — accessed via world state
 const KV_QUEUE             = (postId: string)   => `queue:${postId}`;
 const KV_WEEK          = (postId: string)   => `week:${postId}`;
+const KV_ACTIVE_DEVICE = (username: string) => `worm_active:${username}`; // FEAT-2: per-user active device token
 
 // ─── Realtime channel helpers ─────────────────────────────────────────────────
 // useChannel requires names with only [a-zA-Z0-9_] — no colons allowed.
@@ -552,20 +557,47 @@ Devvit.addCustomPostType({
               console.warn('[main] Avatar fetch failed:', e);
             }
 
-            // Load player worm session from KV
+            // FEAT-2: Check for active device token before loading session.
+            // If another device has an active token (written < 45s ago), send conflict signal.
+            // Otherwise claim the token for this device, then proceed normally.
+            const DEVICE_LOCK_TTL_MS = 45000;
+            let deviceConflict = false;
             try {
-              const raw = await kvStore.get(KV_WORM_SESSION(username));
-              if (raw) {
-                const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                // Apply offline drain by preserving ts — game client handles the math
-                webView.postMessage({ type: MSG_SET_SESSION, session, username });
-              } else {
-                // New player — send empty session signal so game uses defaults
-                webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+              const tokenRaw = await kvStore.get(KV_ACTIVE_DEVICE(username));
+              if (tokenRaw) {
+                const token = typeof tokenRaw === 'string' ? JSON.parse(tokenRaw) : tokenRaw;
+                const age = serverNow - (token.ts ?? 0);
+                if (age < DEVICE_LOCK_TTL_MS) {
+                  // Another device is active — send conflict, skip session load
+                  webView.postMessage({ type: MSG_SET_DEVICE_CONFLICT });
+                  deviceConflict = true;
+                }
+              }
+              if (!deviceConflict) {
+                // Claim token for this device
+                await kvStore.put(KV_ACTIVE_DEVICE(username), JSON.stringify({ ts: serverNow }));
               }
             } catch (e) {
-              console.warn('[main] Session load failed:', e);
-              webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+              console.warn('[main] Device token check failed:', e);
+              // On error, proceed without conflict check — don't block the player
+            }
+
+            // Load player worm session from KV (skip if conflict detected)
+            if (!deviceConflict) {
+              try {
+                const raw = await kvStore.get(KV_WORM_SESSION(username));
+                if (raw) {
+                  const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                  // Apply offline drain by preserving ts — game client handles the math
+                  webView.postMessage({ type: MSG_SET_SESSION, session, username });
+                } else {
+                  // New player — send empty session signal so game uses defaults
+                  webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+                }
+              } catch (e) {
+                console.warn('[main] Session load failed:', e);
+                webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+              }
             }
 
             // Load shared world state
@@ -860,6 +892,54 @@ Devvit.addCustomPostType({
               webView.postMessage({ type: MSG_SET_PRESENCE, players: queue });
             } catch (e) {
               console.warn('[main] requestPresence failed:', e);
+            }
+            break;
+          }
+
+          // ── FEAT-2: Device heartbeat — renew active device token ────────────
+          case MSG_DEVICE_HEARTBEAT: {
+            try {
+              const user = await context.reddit.getCurrentUser();
+              const username = user ? `u/${user.username}` : null;
+              if (!username) break;
+              await kvStore.put(KV_ACTIVE_DEVICE(username), JSON.stringify({ ts: serverNow }));
+            } catch (e) {
+              console.warn('[main] deviceHeartbeat failed:', e);
+            }
+            break;
+          }
+
+          // ── FEAT-2: Device release — clear token on tab close/background ─
+          case MSG_DEVICE_RELEASE: {
+            try {
+              const user = await context.reddit.getCurrentUser();
+              const username = user ? `u/${user.username}` : null;
+              if (!username) break;
+              await kvStore.del(KV_ACTIVE_DEVICE(username));
+            } catch (e) {
+              console.warn('[main] deviceRelease failed:', e);
+            }
+            break;
+          }
+
+          // ── FEAT-2: Device takeover — player confirmed, claim token ───────
+          case MSG_DEVICE_TAKEOVER: {
+            try {
+              const user = await context.reddit.getCurrentUser();
+              const username = user ? `u/${user.username}` : null;
+              if (!username) break;
+              // Overwrite token with this device's timestamp, send session
+              await kvStore.put(KV_ACTIVE_DEVICE(username), JSON.stringify({ ts: serverNow }));
+              const raw = await kvStore.get(KV_WORM_SESSION(username));
+              if (raw) {
+                const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                webView.postMessage({ type: MSG_SET_SESSION, session, username });
+              } else {
+                webView.postMessage({ type: MSG_SET_SESSION, session: null, username });
+              }
+            } catch (e) {
+              console.warn('[main] deviceTakeover failed:', e);
+              webView.postMessage({ type: MSG_SET_SESSION, session: null, username: '' });
             }
             break;
           }
