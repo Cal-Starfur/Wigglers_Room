@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-22 Session 23 | Devvit 0.0.188 | Next P1: ISS-15 (arch analysis — tea/pPath direction)
+> Last updated: 2026-06-22 Session 23 | Devvit 0.0.188 | Next P1: ISS-18 (bin state not authoritative — blocks multiplayer)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
