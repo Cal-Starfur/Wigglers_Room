@@ -505,6 +505,9 @@ Devvit.addCustomPostType({
   render: (context) => {
     const { kvStore, postId, realtime } = context;
     const roomId = postId ?? 'unknown';
+    // FEAT-2: useState persists across re-renders within the same webview mount.
+    // context._readyHandled does NOT — context is a fresh object each render.
+    const [readyHandled, setReadyHandled] = useState<boolean>(false);
 
     const webView = useWebView({
       url: 'index.html',
@@ -528,10 +531,11 @@ Devvit.addCustomPostType({
           // ── Game ready — send all initial state ──────────────────────────
           case MSG_READY: {
             // Guard: only handle the first 'ready' per mount.
-            // game.js retries up to 5 times — each would re-run the device lock check,
-            // which would find the token it just wrote and conflict with itself.
-            if ((context as any)._readyHandled) break;
-            (context as any)._readyHandled = true;
+            // game.js retries up to 5 times at 500ms — each would re-run the device
+            // lock, find the token it just wrote (<3s old), and conflict with itself.
+            // useState persists across re-renders; context object does not.
+            if (readyHandled) break;
+            setReadyHandled(true);
 
             // Get current user — try getCurrentUser() first, fall back to currentUser
             let user = await context.reddit.getCurrentUser().catch(() => null);
@@ -549,17 +553,7 @@ Devvit.addCustomPostType({
                 : 'u/You';
 
             // Send username first so game knows who it is
-            // DEBUG ISS-18: also send device token state so we can diagnose conflict detection
-            let _debugToken = 'none';
-            try {
-              const _dt = await kvStore.get(KV_ACTIVE_DEVICE(username));
-              if (_dt) {
-                const _dtp = typeof _dt === 'string' ? JSON.parse(_dt) : _dt;
-                const _age = serverNow - (_dtp.ts ?? 0);
-                _debugToken = `age=${Math.round(_age/1000)}s ts=${_dtp.ts}`;
-              }
-            } catch(_) {}
-            webView.postMessage({ type: MSG_SET_USERNAME, username, _debugToken });
+            webView.postMessage({ type: MSG_SET_USERNAME, username });
 
             // Fetch avatar — use Devvit's getSnoovatarUrl() method
             try {
