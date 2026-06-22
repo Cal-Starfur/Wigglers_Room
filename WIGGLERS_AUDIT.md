@@ -81,7 +81,7 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | ISS-10 | P3 | ~0.0.150 | `weeklyContrib` client-authoritative |
 | ISS-11 | Future | ~0.0.150 | Weekly drain only fires while a player is open |
 | FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
-| FEAT-2 | P2 | logged S20 | Cross-device session continuity (design doc below) |
+| FEAT-2 | ✅ SHIPPED S23 | 0.0.188 | Cross-device session continuity — heartbeat token, conflict overlay |
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 | FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
@@ -346,6 +346,18 @@ The two drain types look and feel identical to the player but are implemented di
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
+
+---
+
+### Session 23 — 2026-06-22 | Devvit 0.0.188
+
+**Shipped:** FEAT-2
+
+| Commit | File | What |
+|--------|------|------|
+| `19eb83b` | main.tsx | FEAT-2: KV_ACTIVE_DEVICE token, MSG_DEVICE_* constants, device check in MSG_READY |
+| `9cdeea2` | game.js | FEAT-2: heartbeat interval, conflict overlay draw, visibilitychange release |
+| `db50cd7` | main.tsx | Fix: kvStore.del → ts:0 tombstone (del not in Devvit KV API) |
 
 ---
 
