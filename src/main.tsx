@@ -527,6 +527,12 @@ Devvit.addCustomPostType({
 
           // ── Game ready — send all initial state ──────────────────────────
           case MSG_READY: {
+            // Guard: only handle the first 'ready' per mount.
+            // game.js retries up to 5 times — each would re-run the device lock check,
+            // which would find the token it just wrote and conflict with itself.
+            if ((context as any)._readyHandled) break;
+            (context as any)._readyHandled = true;
+
             // Get current user — try getCurrentUser() first, fall back to currentUser
             let user = await context.reddit.getCurrentUser().catch(() => null);
             if (!user) {
@@ -561,25 +567,26 @@ Devvit.addCustomPostType({
             // If another device has an active token (written < 45s ago), send conflict signal.
             // Otherwise claim the token for this device, then proceed normally.
             const DEVICE_LOCK_TTL_MS = 45000;
+            const DEVICE_LOCK_MIN_AGE_MS = 3000; // token must be >3s old to count as another device
+                                                  // prevents self-conflict from ready retries (<500ms apart)
             let deviceConflict = false;
             try {
               const tokenRaw = await kvStore.get(KV_ACTIVE_DEVICE(username));
               if (tokenRaw) {
                 const token = typeof tokenRaw === 'string' ? JSON.parse(tokenRaw) : tokenRaw;
                 const age = serverNow - (token.ts ?? 0);
-                if (age < DEVICE_LOCK_TTL_MS) {
-                  // Another device is active — send conflict, skip session load
+                // Only conflict if token is old enough to be from a *different* device open
+                // (not a retry from this same webview mount which fires within ~500ms)
+                if (age >= DEVICE_LOCK_MIN_AGE_MS && age < DEVICE_LOCK_TTL_MS) {
                   webView.postMessage({ type: MSG_SET_DEVICE_CONFLICT });
                   deviceConflict = true;
                 }
               }
               if (!deviceConflict) {
-                // Claim token for this device
                 await kvStore.put(KV_ACTIVE_DEVICE(username), JSON.stringify({ ts: serverNow }));
               }
             } catch (e) {
               console.warn('[main] Device token check failed:', e);
-              // On error, proceed without conflict check — don't block the player
             }
 
             // ISS-18: Load shared world state BEFORE session so globals are set
