@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-22 Session 24 | Devvit 0.0.188 | Next P1: ISS-15 arch analysis (tea/pPath direction) OR FEAT-2 re-evaluation
+> Last updated: 2026-06-22 Session 24 | Devvit 0.0.191 | Next P1: ISS-15 arch analysis (tea/pPath direction) OR FEAT-2 re-evaluation
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
