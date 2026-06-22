@@ -915,7 +915,7 @@ Devvit.addCustomPostType({
               const user = await context.reddit.getCurrentUser();
               const username = user ? `u/${user.username}` : null;
               if (!username) break;
-              await kvStore.del(KV_ACTIVE_DEVICE(username));
+              await kvStore.put(KV_ACTIVE_DEVICE(username), JSON.stringify({ ts: 0 })); // ts:0 = immediately expired
             } catch (e) {
               console.warn('[main] deviceRelease failed:', e);
             }
