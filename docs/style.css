@@ -1,0 +1,4 @@
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a1020;}
+#root{width:100vw;height:100vh;position:relative;overflow:hidden;cursor:none;}
+#c{position:absolute;top:0;left:0;transform-origin:top left;}
