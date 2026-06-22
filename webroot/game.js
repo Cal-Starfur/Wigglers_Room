@@ -329,6 +329,7 @@ window.addEventListener('message', function(e) {
   //   castingEnrichment, drops } }
   if (msg.type === 'setSession') {
     _devvitSessionReceived = true;
+    if (msg.session && msg.session.ts) _dbgSessionTs = msg.session.ts; // debug
     // Store username from session message as early self-identification
     if (msg.username) {
       window._pendingUsername = msg.username;
@@ -412,6 +413,7 @@ window.addEventListener('message', function(e) {
   // Sent by host on post open with the current shared bin state.
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
+    _dbgWorldState = msg; // debug
     if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
     // pooled intentionally excluded — derived at runtime from active drops, not shared via KV
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
@@ -7475,6 +7477,7 @@ function draw() {
 
   // Weather HUD — upper left
   drawWeatherHUD();
+  drawDebugOverlay();
   // Snoo cinematics drawn on top of world, below death screen
   drawSnooCinematic();
   // Queue system — pending cocoons and spectator HUD
@@ -7485,6 +7488,37 @@ function draw() {
   drawDeathScreen();
   // FEAT-2: Conflict overlay drawn on top of everything (blocks open if another device active)
   drawConflictOverlay();
+}
+
+
+// ── DEBUG overlay — shows KV state received from host ────────────────────────
+// Only active when DEBUG_MODE = true. Remove before public launch.
+var _dbgWorldState = {};   // last setWorldState payload received
+var _dbgSessionTs  = 0;    // ts from last setSession
+var _dbgTokenState = 'none'; // device token info from host
+
+function drawDebugOverlay() {
+  if (!DEBUG_MODE) return;
+  ctx.save();
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  var lines = [
+    'DBG user=' + (username || '?'),
+    'karma=' + Math.floor(karma) + ' sesTs=' + (_dbgSessionTs ? new Date(_dbgSessionTs).toISOString().slice(11,19) : 'none'),
+    'tLvl=' + tLvl.toFixed(3) + ' cast=' + castingEnrichment.toFixed(3) + ' scraps=' + scrapsLevel.toFixed(2),
+    'wkTs=' + (weekStartTs ? new Date(weekStartTs).toISOString().slice(5,16) : 'none'),
+    'token=' + _dbgTokenState,
+    'conflict=' + deviceConflictActive,
+  ];
+  var pad = 6, lh = 14;
+  var bw = 220, bh = pad*2 + lines.length * lh;
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(4, 4, bw, bh);
+  ctx.fillStyle = '#00ff88';
+  for (var di = 0; di < lines.length; di++) {
+    ctx.fillText(lines[di], 4 + pad, 4 + pad + lh * (di + 0.8));
+  }
+  ctx.restore();
 }
 
 // ── Weather HUD ───────────────────────────────────────────────────────────
