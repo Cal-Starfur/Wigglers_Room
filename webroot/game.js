@@ -3349,6 +3349,10 @@ function setup() {
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
   spawnScraps();
+  // ISS-18: Prime KV_WORLD immediately after setup so any joining device gets
+  // current bin state. Without this, KV_WORLD stays empty until the first
+  // food drop / valve fill / drain — which may be many minutes away.
+  postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
 }
 
 function updateCocoons() {
