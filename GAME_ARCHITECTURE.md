@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-22 Session 25 | Devvit 0.0.201 | Next P1: FEAT-2 — device conflict overlay (debug build live, deploy July 1)
+> Last updated: 2026-06-22 Session 25 | Devvit 0.0.201 | Next P1: ISS-19 — localStorage race (root cause of all world-sharing bugs, fix spec ready, deploy July 1)
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -527,19 +527,31 @@ Declared **after** `useWebView` so `webView` is in scope.
 
 ## Priority Queue — Next Session
 
-### 🔴 P1 — START HERE: FEAT-2 — Device conflict overlay not triggering
+### 🔴 P1 — START HERE: ISS-19 — localStorage race (root cause of all world-sharing bugs)
 
-Two devices with the same username both reach the playing state independently, diverging karma and world state. The conflict overlay code exists and renders — but `setDeviceConflict` is not reliably reaching game.js, or the `useState` guard is still not holding.
+**Discovered:** Session 25, 2026-06-22. Full spec: `docs/ISS-19-SPEC.md`
 
-**Blocked on Codespaces** (resets 2026-07-01). Debug build is live at Devvit 0.0.201.
+The game boots from localStorage after a 3-second fallback timer. On Reddit mobile,
+Devvit's session response arrives at ~3.2 seconds — just after the timer fires.
+The game starts from local device storage, ignores the KV session entirely, and
+the conflict detection / world state sharing never gets a chance to run.
 
-**Session 26 plan:**
-1. Open game on desktop browser → backtick → `wigglers2025` → read `conflict=` field in debug overlay
-2. Open same post on mobile — read `conflict=` on both screens
-3. That single field tells us if `setDeviceConflict` is being sent at all
-4. Fix the failing layer, remove debug overlay, redeploy
+This is the root cause of every ISS-18 and FEAT-2 symptom observed in Session 25.
 
-See `WIGGLERS_AUDIT.md → Session 25` for full investigation log.
+**3-change fix (all in game.js, ~15 lines total):**
+1. Add late-arrival branch in setSession handler — re-runs setup() if Devvit responds after fallback
+2. Add `_bootedFromKV` flag to track which path setup() ran from
+3. Increase fallback timer 3000ms → 8000ms (belt-and-suspenders)
+
+**Blocked on Codespaces** (resets 2026-07-01). Do not touch code before then.
+
+**Session 26 plan:** Apply ISS-19 fix → CI → deploy → test two devices → FEAT-2 should now work automatically once ISS-19 is resolved. Estimated 30 minutes total.
+
+### ⚠️ P1 — FEAT-2 (after ISS-19): Device conflict overlay
+
+Once ISS-19 is fixed, the conflict detection should work because setSession will
+now arrive before the game starts. If the overlay still doesn't show after ISS-19,
+read `conflict=` in the debug overlay (0.0.201) to find the next failure point.
 
 ### ✅ ISS-18 — KV_WORLD authoritative — SHIPPED S24/S25
 
