@@ -81,7 +81,8 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | ISS-10 | P3 | ~0.0.150 | `weeklyContrib` client-authoritative |
 | ISS-11 | Future | ~0.0.150 | Weekly drain only fires while a player is open |
 | FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
-| FEAT-2 | P1 — July 1 (Codespaces reset) | S25 | Device conflict overlay not showing on mobile. Debug build live (0.0.201). S26: enable DEBUG_MODE on desktop, read conflict= field, fix and redeploy. |
+| ISS-19 | P1 — July 1 (START HERE) | S25 | localStorage race — game boots from local save before Devvit responds. Root cause of all ISS-18/FEAT-2 symptoms. Fix spec in docs/ISS-19-SPEC.md. |
+| FEAT-2 | P1 — July 1 (after ISS-19) | S25 | Device conflict overlay not showing on mobile. Debug build live (0.0.201). S26: enable DEBUG_MODE on desktop, read conflict= field, fix and redeploy. |
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 | FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
