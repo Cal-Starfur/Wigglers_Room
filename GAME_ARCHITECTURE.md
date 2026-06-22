@@ -1,7 +1,7 @@
 
 
 # Wigglers Room — Game Architecture
-> Last updated: 2026-06-22 Session 23 | Devvit 0.0.188 | Next P1: ISS-18 (bin state not authoritative — blocks multiplayer)
+> Last updated: 2026-06-22 Session 24 | Devvit 0.0.188 | Next P1: ISS-15 arch analysis (tea/pPath direction) OR FEAT-2 re-evaluation
 > Repo: https://github.com/Cal-Starfur/Wigglers_Room | Branch: main
 
 ---
@@ -150,6 +150,7 @@ return (
 ```
 KV_WORM_SESSION(username)  — per-player session (position, HP, gut, karma, bornTs, weekStartTs...)
 KV_WORLD(postId)           — shared bin state (tLvl, castingEnrichment, scrapsLevel)
+                             ✅ ISS-18 FIXED S24 — authoritative, not stomped by session restore
                              ⚠️ pooled REMOVED S20 — runtime-only, not synced
 KV_COCOONS(postId)         — all players' cocoons
 KV_WEEK(postId)            — { weekStartTs, pot, contributors } ← P1 persistence target (see below)
