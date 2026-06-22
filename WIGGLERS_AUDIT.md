@@ -81,13 +81,13 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | ISS-10 | P3 | ~0.0.150 | `weeklyContrib` client-authoritative |
 | ISS-11 | Future | ~0.0.150 | Weekly drain only fires while a player is open |
 | FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
-| FEAT-2 | ⚠ PARKED | S23 | Cross-device conflict detection — parked pending ISS-18 (bin not authoritative). No point preventing two sessions if bin state isn't shared. |
+| FEAT-2 | P2 — ISS-18 resolved | S23 | Cross-device conflict detection — ISS-18 now fixed. Re-evaluate after ISS-18 deploy confirms bins are shared. |
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 | FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
 | ISS-16 | Audit | main.tsx | `_MSG_SET_FLOOD_RESERVED` — placeholder msg type for flood events; flood currently game.js-only. Investigate when multiplayer flood sync is needed. |
 | ISS-17 | Audit | main.tsx | `_KV_COCOONS_RESERVED` — placeholder KV key for cocoon storage; cocoons currently bundled in world state. Investigate when cocoons need dedicated KV or cross-player interactions. |
-| ISS-18 | P1 — blocks multiplayer | S23 | Bin state not authoritative — world state is per-client, not per-bin. Two devices show completely different bins. Prerequisite for all multiplayer work. |
+| ISS-18 | ✅ SHIPPED S24 | S23 | KV_WORLD now authoritative — tLvl/castingEnrichment removed from worm session; scrapsLevel added to all worldUpdate sends. |
 
 ---
 
@@ -381,6 +381,19 @@ On open, `MSG_READY` must send the full authoritative `KV_WORLD` snapshot and th
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
+
+---
+
+### Session 24 — 2026-06-22 | Devvit 0.0.183
+
+**Shipped:** ISS-18 (KV_WORLD authoritative)
+
+| Commit | File | What |
+|--------|------|------|
+| `c83c6ea` | game.js | ISS-18: remove tLvl/castingEnrichment from saveSession(); add scrapsLevel to all 6 worldUpdate sends |
+| `78b3c58` | main.tsx | ISS-18: strip tLvl/castingEnrichment from KV_WORM_SESSION on MSG_SAVE_SESSION |
+
+**Root cause fixed:** Session restore was overwriting bin state — `loadSession()` was stomping `setWorldState` with per-user values. Now `KV_WORLD` is the only source of truth for bin state on open.
 
 ---
 
