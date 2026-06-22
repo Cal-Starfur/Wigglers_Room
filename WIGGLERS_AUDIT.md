@@ -2,7 +2,7 @@
 # Wigglers Room — Audit Log
 
 > **Rebuilt:** 2026-06-19 — restructured for clarity (was append-only since S14)
-> **Current session:** 22 | **Devvit version:** 0.0.186 | **game.js:** ~8,645 lines | **main.tsx:** ~959 lines
+> **Current session:** 25 | **Devvit version:** 0.0.201 | **game.js:** ~8,950 lines | **main.tsx:** ~1,050 lines
 > **Next P1:** PERF-1 (trash chunk offscreen pre-render) — largest single source of lag
 
 ---
@@ -381,6 +381,97 @@ On open, `MSG_READY` must send the full authoritative `KV_WORLD` snapshot and th
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
+
+---
+
+### Session 25 — 2026-06-22 | Devvit 0.0.201
+
+**Focus:** ISS-18 — make KV_WORLD authoritative and independent from per-user session state. Blocked at end of session by GitHub Codespaces core-hour limit (resets 2026-07-01).
+
+**Deployed versions this session:** 0.0.191 → 0.0.201 (10 uploads)
+
+---
+
+#### What we shipped
+
+**ISS-18 Phase 1 — Strip bin state from worm session (shipped, confirmed working)**
+
+`tLvl` and `castingEnrichment` were being saved inside `KV_WORM_SESSION` (per-user) and restored on every session load, overwriting whatever `KV_WORLD` (shared) had sent. This was the architectural root cause: the bin belonged to each user, not to the post.
+
+| Commit | File | What |
+|--------|------|------|
+| `c83c6ea` | game.js | Removed `tLvl`/`castingEnrichment` from `saveSession()`; added `scrapsLevel` to all 6 `worldUpdate` sends |
+| `78b3c58` | main.tsx | `MSG_SAVE_SESSION` now strips `tLvl`/`castingEnrichment` before writing `KV_WORM_SESSION` |
+
+**ISS-18 Phase 2 — Fix message ordering race (shipped)**
+
+`setSession` was sent before `setWorldState` in the `MSG_READY` handler. Since `setSession` triggers `setup()` → `spawnScraps()`, world globals (`_hostScrapsLevel`, `tLvl`, `castingEnrichment`) were still at defaults when scraps spawned. Reordered: `setWorldState` → `weekStartTs` → `setSession`.
+
+| Commit | File | What |
+|--------|------|------|
+| `21bf577` | main.tsx | Send `setWorldState` and `weekStartTs` before `setSession` |
+| `39b54a5` | game.js | Send `worldUpdate` immediately after `spawnScraps()` to prime `KV_WORLD` on first join |
+
+**ISS-18 Phase 3 — Fix self-ghost worm (shipped)**
+
+`requestPresence` fired at boot before `username` was known. When the presence response returned with the player's own username, the self-filter (`p.username === username`) failed because `username` was still `''`. The player appeared as a blue ghost worm in their own bin.
+
+| Commit | File | What |
+|--------|------|------|
+| `3db1a2d` | game.js | Defer `requestPresence` until after `setUsername`; retroactive `otherPlayers` prune in `setUsername` and `setSession` handlers; `_pendingUsername` fallback in `setPresence` filter |
+
+**FEAT-2 — Device conflict detection (partially working, investigation ongoing)**
+
+The "Already Playing Elsewhere" overlay exists and renders. The device lock (`KV_ACTIVE_DEVICE`) check is wired. But two devices can still both reach the playing state with the same username and diverging game state.
+
+| Commit | File | What |
+|--------|------|------|
+| `6b8309a` | game.js | Boot `setup()+loop()` on `setDeviceConflict` so overlay actually renders; `_loopRunning` flag; re-run `setup()` on takeover |
+| `0038e98` | main.tsx | Dedup `MSG_READY` per mount; 3s minimum token age to prevent self-conflict from retry loop |
+| `6cdd3a9` | main.tsx | Move `readyHandled` to `useState` — `context` object is recreated each render, state persists |
+
+**DEBUG overlay (live in 0.0.201, must remove before launch)**
+
+| Commit | File | What |
+|--------|------|------|
+| `92577c9` | game.js | On-screen debug panel (top-left, DEBUG_MODE only): shows `username`, `karma`, `sesTs`, `tLvl`, `castingEnrichment`, `scrapsLevel`, `weekStartTs`, `deviceConflictActive` |
+
+---
+
+#### What we learned
+
+**Weather syncs. Session state does not.**
+
+By end of session, `weekStartTs` (which drives weather simulation) was confirmed syncing between devices — both showed the same weather. This proves `KV_WORLD` and `KV_WEEK` are genuinely shared across devices for the same post.
+
+`KV_WORM_SESSION` (per-user) is also shared — both devices load the same karma value on open. But since both devices run independently after that, they diverge: each earns karma separately, each saves independently (every 30s), and last-write-wins corrupts the canonical state.
+
+**The conflict detection is broken at the Devvit layer, not the logic layer.**
+
+Every time Devvit fires a Realtime message, it re-renders the component and creates a fresh `context` object. Any state stored directly on `context` (like `_readyHandled`) is reset. The `game.js` retry loop sends `ready` up to 5 times at 500ms intervals — each one that hits `MSG_READY` after a re-render re-claims the device token with a fresh timestamp, evicting the other device's lock silently. Moving to `useState` (persists across renders) is the right architectural fix and was shipped, but needs verification once Codespaces is back.
+
+**The open investigation: is the conflict overlay actually showing?**
+
+At session end it was unclear whether `setDeviceConflict` is being sent at all, or whether it's sent but the overlay isn't rendering. The debug build (`92577c9`) includes `deviceConflictActive` in the on-screen panel. That will tell us definitively.
+
+---
+
+#### What is NOT fixed yet
+
+| Issue | Status |
+|-------|--------|
+| Two devices same username both reach playing state | Under investigation — conflict detection not reliably blocking |
+| Scraps layout differs between devices | By design — positions are random per `spawnScraps()`. Density matches via `scrapsLevel`. Layout would require storing full chunk list in KV (not worth it). |
+| Debug overlay in production build | Must remove `drawDebugOverlay()` call and function before public launch |
+
+---
+
+#### Next steps (waiting on Codespaces — resets 2026-07-01)
+
+1. Open game on two devices with DEBUG_MODE on — read `conflict=` field from each device's overlay. This tells us if `setDeviceConflict` is being sent.
+2. If `conflict=false` on Device 2: the lock isn't being written or read correctly — add `console.warn` logging to the `MSG_READY` handler and check Devvit logs.
+3. If `conflict=true` on Device 2 but game still loads: the overlay is rendering but being dismissed or overwritten — check tap handler and `deviceConflictActive` flag lifecycle.
+4. Remove debug overlay before any public post.
 
 ---
 
