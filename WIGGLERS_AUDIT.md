@@ -81,12 +81,13 @@ Hard-won lessons. Violating these causes silent failures or broken deploys.
 | ISS-10 | P3 | ~0.0.150 | `weeklyContrib` client-authoritative |
 | ISS-11 | Future | ~0.0.150 | Weekly drain only fires while a player is open |
 | FEAT-1 | Future | logged S20 | Cross-player tunnel clogging (design doc below) |
-| FEAT-2 | ✅ SHIPPED S23 | 0.0.188 | Cross-device session continuity — heartbeat token, conflict overlay |
+| FEAT-2 | ⚠ PARKED | S23 | Cross-device conflict detection — parked pending ISS-18 (bin not authoritative). No point preventing two sessions if bin state isn't shared. |
 | FEAT-3 | P3 | logged S20 | Passive bridge version capture (design doc below) |
 | FEAT-4 | P2 | logged S21 | Long-press drain/tunnel placement + sleep scoping + drain visual unification (design doc below) |
 
 | ISS-16 | Audit | main.tsx | `_MSG_SET_FLOOD_RESERVED` — placeholder msg type for flood events; flood currently game.js-only. Investigate when multiplayer flood sync is needed. |
 | ISS-17 | Audit | main.tsx | `_KV_COCOONS_RESERVED` — placeholder KV key for cocoon storage; cocoons currently bundled in world state. Investigate when cocoons need dedicated KV or cross-player interactions. |
+| ISS-18 | P1 — blocks multiplayer | S23 | Bin state not authoritative — world state is per-client, not per-bin. Two devices show completely different bins. Prerequisite for all multiplayer work. |
 
 ---
 
@@ -343,21 +344,59 @@ The two drain types look and feel identical to the player but are implemented di
 
 ---
 
+### ISS-18 — Bin State Not Authoritative
+
+**Priority: P1 — blocks all multiplayer work**
+**Introduced:** architecture (always present) | **Logged:** S23
+
+**Observed:** Opening the same Reddit post on two devices shows completely different world states — different tea levels, different compost, different scraps. Each device is running a fully independent bin with no shared state.
+
+**Root cause:** `KV_WORLD` (per-post, shared) is shallow and event-driven. It only gets updated when specific events fire (`worldUpdate` on food drop, drain, flood). Between events, each client runs its own in-memory world state with no sync. When a new device opens the post, it reads whatever partial snapshot is in `KV_WORLD` — which may be stale or nearly empty — then immediately diverges.
+
+Compounding this: `tLvl` and `castingEnrichment` are saved inside `KV_WORM_SESSION` (per-user, not per-post). So each user loads their own personal copy of tea level from their own session save, not from the shared bin. The bin has no authoritative living state.
+
+**What needs to change:**
+
+`KV_WORLD` must become the single source of truth for all bin state that should be shared:
+- `tLvl` — tea level (currently also in per-user session save — remove it from there)
+- `castingEnrichment` — compost richness
+- `scrapsLevel` — trash density
+- `pooled` — active tea drops (currently runtime-only — may need to be shared)
+
+World state must be written to `KV_WORLD` continuously (on every `saveSession` or on a regular interval), not only on specific events.
+
+On open, `MSG_READY` must send the full authoritative `KV_WORLD` snapshot and the client must use it — not its own local copy from `KV_WORM_SESSION`.
+
+`tLvl` must be removed from `saveSession` / `KV_WORM_SESSION` entirely. It belongs to the bin, not the worm.
+
+**Prerequisite for:**
+- FEAT-2 (cross-device conflict — no point if bin isn't shared)
+- True multiplayer presence (FEAT-1, FEAT-4)
+- Any feature that assumes the bin is a real shared place
+
+**Files:** `game.js` (`saveSession`, `setWorldState` handler, `worldUpdate` sends), `main.tsx` (`MSG_SAVE_SESSION`, `MSG_WORLD_UPDATE`, `MSG_READY` world load)
+
+---
+
 ## Section 5 — Session Log
 
 Sessions newest first. Each entry: session number, date, Devvit version, summary, commits.
 
 ---
 
-### Session 23 — 2026-06-22 | Devvit 0.0.188
+### Session 23 — 2026-06-22 | Devvit 0.0.190
 
-**Shipped:** FEAT-2
+**Shipped:** FEAT-2 (partially — parked after architectural discovery)
+**Opened:** ISS-18
 
 | Commit | File | What |
 |--------|------|------|
 | `19eb83b` | main.tsx | FEAT-2: KV_ACTIVE_DEVICE token, MSG_DEVICE_* constants, device check in MSG_READY |
 | `9cdeea2` | game.js | FEAT-2: heartbeat interval, conflict overlay draw, visibilitychange release |
 | `db50cd7` | main.tsx | Fix: kvStore.del → ts:0 tombstone (del not in Devvit KV API) |
+| `830899e` | game.js | Fix: remove deviceRelease from visibilitychange (mobile app-switch was killing token) |
+
+**Finding:** FEAT-2 conflict detection cannot work because ISS-18 means the bin isn't shared at all. Two devices don't fight over the same bin — they each run a completely independent one. FEAT-2 parked until ISS-18 is resolved.
 
 ---
 
