@@ -10,9 +10,9 @@
 
 ```
 Wigglers_Room/
-├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~959 lines
+├── src/main.tsx              — Devvit host (KV, Realtime, auth, message routing) ~1039 lines
 ├── webroot/
-│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8790 lines
+│   ├── game.js               — All game logic — vanilla JS + Canvas — ~8894 lines
 │   ├── index.html            — Webview shell (minimal — just loads game.js + style.css)
 │   └── style.css             — Reset + canvas positioning (minimal)
 ├── assets/
