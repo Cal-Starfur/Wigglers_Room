@@ -2243,7 +2243,7 @@ function updateSnoo() {
           weekStartTs = Date.now();
           weeklyContrib = 0;
           saveSession();
-          postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: false });
+          postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, weekStartTs: weekStartTs, weeklyDrain: false });
         }
         // Ease camera back to where the player is
         // camY will naturally follow the player again via updatePlayer
@@ -2991,10 +2991,9 @@ function saveSession() {
       weeklyContrib:     weeklyContrib,
       emergencyKarmaPot: emergencyKarmaPot,
       emergencyRequested: emergencyRequested,
-      // ── World-state persistence ────────────────────────────────────────
-      tLvl:              tLvl,
-      castingEnrichment: castingEnrichment,
-      // pooled intentionally not saved — resets to 0 each session, built by food drops
+      // ── World-state (tLvl, castingEnrichment) NOT saved here ──────────
+      // These belong to the bin (KV_WORLD), not the worm (KV_WORM_SESSION).
+      // setWorldState from KV_WORLD is the authoritative source on open — ISS-18.
     };
     // Always write localStorage — works for local dev and as a fallback
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
@@ -3341,10 +3340,10 @@ function setup() {
       pSleeping = true;
     }
 
-    // ── Restore world-state so multi-mechanic testing persists across reloads ─
-    tLvl              = Math.max(0, Math.min(1,   saved.tLvl              || 0));
-    castingEnrichment = Math.max(0, Math.min(1,   saved.castingEnrichment || 0));
-    // pooled not restored — resets to 0 each session and is rebuilt by food drops
+    // tLvl and castingEnrichment intentionally NOT restored from session save.
+    // They belong to the bin (KV_WORLD), not the worm. setWorldState (sent from
+    // MSG_READY handler) is authoritative and arrives after setSession — ISS-18.
+    // pooled not restored — resets to 0 each session and is rebuilt by food drops.
   }
 
   initPlayer(saved);
@@ -4747,7 +4746,7 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
   }
 
   // (Rain removed — saturation driven by tea drops from food only)
@@ -4800,7 +4799,7 @@ function updatePhysics() {
     // Broadcast to host — server will re-broadcast via Realtime to all viewers.
     // In production the setFlood message from the host is authoritative;
     // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, floodActive: true, lastFloodTs: Date.now() });
   }
   // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
@@ -4909,7 +4908,7 @@ function triggerWeeklyDrain() {
   window._drainMsgT = frame;
   saveSession();
   // Broadcast reset world state so all viewers sync to the drained sump.
-  postToHost({ type: 'worldUpdate', tLvl: 0, castingEnrichment: castingEnrichment, weekStartTs: weekStartTs, weeklyDrain: true });
+  postToHost({ type: 'worldUpdate', tLvl: 0, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, weekStartTs: weekStartTs, weeklyDrain: true });
   // Chain feed cinematic immediately — no gap between drain and refill
   weeklyFeedPending = true;
   triggerSnoo('feed');
@@ -8221,7 +8220,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment });
+        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
       }
     }
 
@@ -8824,7 +8823,7 @@ window.addEventListener('keydown', function(e) {
       var fs3 = loadSession();
       if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
     } catch(e2) {}
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, floodActive: true, lastFloodTs: Date.now() });
+    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, floodActive: true, lastFloodTs: Date.now() });
   }
   // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
