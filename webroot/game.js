@@ -361,11 +361,17 @@ window.addEventListener('message', function(e) {
         try { localStorage.setItem(SESSION_KEY, JSON.stringify(msg.session)); } catch(e2) {}
       }
     }
-    // If setup() is still waiting for this session, kick it off now
+    // If setup() is still waiting for this session, kick it off now.
+    // Also handle the takeover case: loop() already running in conflict mode
+    // (setup() ran with empty pSegs), now re-run setup to actually spawn worm.
     if (window._devvitSetupPending) {
       window._devvitSetupPending = false;
       clearTimeout(window._devvitSetupTimer);
       setup(); loop();
+    } else if (window._loopRunning && deviceConflictActive) {
+      // Takeover approved — clear conflict, re-run setup to spawn worm with saved session
+      deviceConflictActive = false;
+      setup();
     }
   }
 
@@ -7985,6 +7991,7 @@ function updatePendingWorms() {
 }
 
 function loop() {
+  window._loopRunning = true;
   if (!W || !H) { requestAnimationFrame(loop); return; }
   frame++;
   // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
