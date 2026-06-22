@@ -532,6 +532,12 @@ window.addEventListener('message', function(e) {
     window._unclaimedDeathMsg  = (msg.username || '?') + '\'s worm starved unclaimed...';
     window._unclaimedDeathMsgT = frame;
   }
+
+  // ── FEAT-2: setDeviceConflict — another device is already active ──────────
+  // Blocks game open and shows conflict overlay with Take Over / Wait buttons.
+  if (msg.type === 'setDeviceConflict') {
+    deviceConflictActive = true;
+  }
 });
 
 // Derived rates — called each frame from updatePhysics
@@ -3111,16 +3117,30 @@ function formatOfflineTime(sec) {
   return Math.round(sec/86400) + 'd';
 }
 
+// FEAT-2: Cross-device session continuity constants
+var DEVICE_HEARTBEAT_MS = 15000;  // renew active device token every 15s
+var DEVICE_LOCK_TTL_MS  = 45000;  // token older than 45s is considered stale
+var deviceConflictActive = false;  // true if another device is currently active
+
 // Auto-save every 30 seconds while alive
 setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 30000);
 
 // ISS-14 fix: save on exit so active worm position/HP/gut persist across sessions
 // Fires on tab switch, app background, and most close events (mobile and desktop)
 document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden' && !deathScreen && pSegs.length) {
-    saveSession();
+  if (document.visibilityState === 'hidden') {
+    if (!deathScreen && pSegs.length) saveSession();
+    // FEAT-2: Release device token so next open on any device won't see stale conflict
+    if (!deviceConflictActive) postToHost({ type: 'deviceRelease' });
   }
 });
+
+// FEAT-2: Heartbeat — renew active device token every 15s while worm is alive
+setInterval(function() {
+  if (!deviceConflictActive && !deathScreen && playerState !== 'queued' && pSegs.length) {
+    postToHost({ type: 'deviceHeartbeat' });
+  }
+}, DEVICE_HEARTBEAT_MS);
 
 // Broadcast local player position to host every 2 seconds for Realtime presence.
 // The host fans this out to other viewers via Realtime subscribe.
@@ -7436,6 +7456,8 @@ function draw() {
   // Weather location UI — one-time setup overlay
   // Death screen drawn on top of everything
   drawDeathScreen();
+  // FEAT-2: Conflict overlay drawn on top of everything (blocks open if another device active)
+  drawConflictOverlay();
 }
 
 // ── Weather HUD ───────────────────────────────────────────────────────────
@@ -7682,6 +7704,67 @@ function drawQueueHUD() {
     ctx.fillText('Your worm starved before you arrived...', W/2, _qY-20);
     ctx.restore();
   }
+}
+
+// FEAT-2: Conflict overlay — drawn when another device is already active
+function drawConflictOverlay() {
+  if (!deviceConflictActive) return;
+  // Dim background
+  ctx.globalAlpha = 0.72;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // Panel
+  var _cW = Math.min(W * 0.85, 320), _cH = 160;
+  var _cX = W/2 - _cW/2, _cY = H/2 - _cH/2;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.roundRect(_cX, _cY, _cW, _cH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Title
+  ctx.fillStyle = '#f0e0b0';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Already Playing Elsewhere', W/2, _cY + 30);
+
+  // Body text
+  ctx.fillStyle = '#999';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('Your worm is open on another device.', W/2, _cY + 56);
+  ctx.fillText('Take over or wait for that session to close.', W/2, _cY + 74);
+
+  // Buttons
+  var _bW = (_cW - 48) / 2, _bH = 40;
+  var _takeX = _cX + 16, _waitX = _cX + 16 + _bW + 16;
+  var _btnY  = _cY + _cH - 56;
+
+  // Take Over button
+  ctx.fillStyle = '#4a7a3a';
+  ctx.beginPath();
+  ctx.roundRect(_takeX, _btnY, _bW, _bH, 8);
+  ctx.fill();
+  ctx.fillStyle = '#c8f0a0';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('Take Over', _takeX + _bW/2, _btnY + 25);
+
+  // Wait button
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath();
+  ctx.roundRect(_waitX, _btnY, _bW, _bH, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#888';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('Wait', _waitX + _bW/2, _btnY + 25);
+
+  ctx.textAlign = 'left';
 }
 
 function drawDeathScreen() {
@@ -8230,6 +8313,26 @@ root.addEventListener('click', function(e) {
 
   // Wake from sleep on any tap
   if (pSleeping) { trySleep(); return; }
+
+  // FEAT-2: Conflict overlay — intercept tap to handle Take Over / Wait
+  if (deviceConflictActive) {
+    var _cW = Math.min(W * 0.85, 320), _cH = 160;
+    var _cX = W/2 - _cW/2, _cY = H/2 - _cH/2;
+    var _takeW = (_cW - 48) / 2, _takeH = 40;
+    var _takeBtn  = {x: _cX + 16,             y: _cY + _cH - 56, w: _takeW, h: _takeH};
+    var _waitBtn  = {x: _cX + 16 + _takeW + 16, y: _cY + _cH - 56, w: _takeW, h: _takeH};
+    function _cInBox(b) { return cx >= b.x && cx <= b.x+b.w && cy >= b.y && cy <= b.y+b.h; }
+    if (_cInBox(_takeBtn)) {
+      // Player chose to take over — notify host, receive session
+      deviceConflictActive = false;
+      postToHost({ type: 'deviceTakeover' });
+    }
+    // Wait button: do nothing (dismiss overlay, let other device keep playing)
+    if (_cInBox(_waitBtn)) {
+      deviceConflictActive = false;
+    }
+    return;
+  }
 
   // Death screen — single smart respawn button
   if (deathScreen) {
