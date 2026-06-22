@@ -310,6 +310,14 @@ window.addEventListener('message', function(e) {
   // Devvit host sends: { type: 'setUsername', username: 'u/SoilKing42' }
   if (msg.type === 'setUsername' && msg.username) {
     username = msg.username;
+    window._pendingUsername = msg.username; // used by setPresence to filter self before setup()
+    // Retroactively prune self from otherPlayers if presence arrived before username was set
+    otherPlayers = otherPlayers.filter(function(p) { return p.username !== username; });
+    // Now that we know our username, request presence — self-filter will work correctly
+    if (!window._presenceRequested) {
+      window._presenceRequested = true;
+      postToHost({ type: 'requestPresence' });
+    }
   }
 
   // ── setSession — server-authoritative save data ───────────────────────────
@@ -321,6 +329,11 @@ window.addEventListener('message', function(e) {
   //   castingEnrichment, drops } }
   if (msg.type === 'setSession') {
     _devvitSessionReceived = true;
+    // Store username from session message as early self-identification
+    if (msg.username) {
+      window._pendingUsername = msg.username;
+      otherPlayers = otherPlayers.filter(function(p) { return p.username !== msg.username; });
+    }
     if (msg.session) {
       // ISS-14 fix: merge KV session with local localStorage session.
       // The mobile webview can be killed before postToHost(saveSession) is processed
@@ -409,7 +422,11 @@ window.addEventListener('message', function(e) {
   if (msg.type === 'setPresence' && Array.isArray(msg.players)) {
     var now = Date.now();
     msg.players.forEach(function(p) {
-      if (!p || p.username === username) return; // skip self
+      // Skip self — check both current username and any pending username from setSession.
+      // username may still be '' when first presence arrives (race on boot).
+      if (!p) return;
+      if (username && p.username === username) return;
+      if (window._pendingUsername && p.username === window._pendingUsername) return;
       // Find existing entry or create one
       var existing = null;
       for (var i = 0; i < otherPlayers.length; i++) {
@@ -8865,7 +8882,8 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
 (function() {
   // Always send ready — host will respond with setSession if it's listening
   postToHost({ type: 'ready' });
-  postToHost({ type: 'requestPresence' });
+  // requestPresence is deferred: fired after setUsername arrives so the self-filter works.
+  // See setUsername handler above.
   window._devvitSetupPending = true;
 
   // Start game after timeout whether or not host responds.
