@@ -549,7 +549,17 @@ Devvit.addCustomPostType({
                 : 'u/You';
 
             // Send username first so game knows who it is
-            webView.postMessage({ type: MSG_SET_USERNAME, username });
+            // DEBUG ISS-18: also send device token state so we can diagnose conflict detection
+            let _debugToken = 'none';
+            try {
+              const _dt = await kvStore.get(KV_ACTIVE_DEVICE(username));
+              if (_dt) {
+                const _dtp = typeof _dt === 'string' ? JSON.parse(_dt) : _dt;
+                const _age = serverNow - (_dtp.ts ?? 0);
+                _debugToken = `age=${Math.round(_age/1000)}s ts=${_dtp.ts}`;
+              }
+            } catch(_) {}
+            webView.postMessage({ type: MSG_SET_USERNAME, username, _debugToken });
 
             // Fetch avatar — use Devvit's getSnoovatarUrl() method
             try {
