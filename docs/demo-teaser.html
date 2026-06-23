@@ -542,6 +542,24 @@ document.getElementById('card-welcome').addEventListener('click', function() {
 document.getElementById('root').style.paddingTop = '44px';
 </script>
 
+<!-- ── Demo: localStorage shim ─────────────────────────────────────────── -->
+<script>
+// ── Demo: block localStorage so no session is saved or loaded ─────────────
+(function() {
+  var _memStore = {};
+  var _noop = {
+    getItem:    function()    { return null; },
+    setItem:    function()    {},
+    removeItem: function()    {},
+    clear:      function()    {},
+    key:        function()    { return null; },
+    length:     0
+  };
+  try { Object.defineProperty(window, 'localStorage', { value: _noop, writable: false }); }
+  catch(e) {}
+})();
+</script>
+
 <!-- ── The actual game ──────────────────────────────────────────────────── -->
 <script>
 
