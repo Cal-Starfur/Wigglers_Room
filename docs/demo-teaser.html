@@ -208,12 +208,6 @@ body{background:#0a1020;}
   <div class="pdot" id="pd4"></div>
 </div>
 
-<!-- Keyboard hint -->
-<div id="kb-hint">
-  Mouse to steer &nbsp;·&nbsp;
-  <span class="kb">Space</span> poop &nbsp;·&nbsp;
-  <span class="kb">S</span> sleep
-</div>
 
 <!-- Demo overlay -->
 <div id="demo-overlay">
@@ -222,7 +216,7 @@ body{background:#0a1020;}
   <div class="step-card" id="card-welcome">
     <h2>You're in the bin</h2>
     <p>25 worms are already here. Steer down through the compost layers, then sleep.</p>
-    <div class="step-hint">Drag / mouse · <span class="kb" style="background:rgba(212,136,10,.15);border-color:rgba(212,136,10,.4);color:var(--amber-glow)">S</span> sleep</div>
+    <div class="step-hint">Drag or mouse to steer</div>
   </div>
 
   <!-- Eat card — shown on entering scraps, dismissed on first eat -->
@@ -236,7 +230,7 @@ body{background:#0a1020;}
   <div class="step-card" id="card-active">
     <h2>Active worm zone</h2>
     <p>This is where most worms live. Keep going deeper — the compost layer is where you can sleep.</p>
-    <div class="step-hint">️ Go deeper</div>
+    <div class="step-hint">Go deeper</div>
   </div>
 
   <!-- Layer: compost -->
@@ -268,16 +262,6 @@ body{background:#0a1020;}
   <p id="intro-desc" style="font-size:0.92rem;color:var(--text-dim);line-height:1.7;
             max-width:320px;margin-bottom:28px;text-wrap:balance;">
     A multiplayer idle worm composting sim<br>that lives inside Reddit posts
-  </p>
-  <button class="btn-p" onclick="_enterBin()" autofocus
-    style="margin-bottom:12px;font-family:inherit;font-size:0.95rem;font-weight:700;
-           padding:13px 28px;min-height:48px;border-radius:40px;border:none;cursor:pointer;
-           background:var(--amber);color:var(--soil-dark);
-           transition:background 0.18s,transform 0.12s;display:inline-block;">
-    Play the demo
-  </button>
-  <p style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;opacity:0.7;">
-    Move mouse or drag to steer
   </p>
 </div>
 
