@@ -212,31 +212,39 @@ body{background:#0a1020;}
 <!-- Demo overlay -->
 <div id="demo-overlay">
 
-  <!-- Welcome card — shown after intro dismissed -->
-  <div class="step-card" id="card-welcome">
-    <h2>You're in the bin</h2>
-    <p>25 worms are already here. Steer down through the compost layers, then sleep.</p>
+  <!-- Step 1: Steer to a scrap and eat -->
+  <div class="step-card" id="card-eat">
+    <h2>Find a scrap to eat</h2>
+    <p>Steer Wiggler towards the food chunks — touch one to start eating.</p>
     <div class="step-hint">Drag or mouse to steer</div>
   </div>
 
-  <!-- Eat card — shown on entering scraps, dismissed on first eat -->
-  <div class="step-card" id="card-eat">
-    <h2>Steer into the scraps</h2>
-    <p>Move through the food chunks to eat. Your gut fills as you feed.</p>
-    <div class="step-hint">Steer into the scraps to eat</div>
+  <!-- Step 2: Fill the stomach -->
+  <div class="step-card" id="card-full">
+    <h2>Keep eating</h2>
+    <p>Your gut fills as you feed. Keep going until it's full.</p>
+    <div class="step-hint">Stay in the scraps</div>
   </div>
 
-  <!-- Layer: active zone -->
-  <div class="step-card" id="card-active">
-    <h2>Active worm zone</h2>
-    <p>This is where most worms live. Keep going deeper — the compost layer is where you can sleep.</p>
-    <div class="step-hint">Go deeper</div>
+  <!-- Step 3: Poop -->
+  <div class="step-card" id="card-poop">
+    <h2>Time to poop</h2>
+    <p>A full gut means it's time to cast. Press Space or long-press to poop.</p>
+    <div class="step-hint">Space · or long press</div>
   </div>
 
-  <!-- Layer: compost -->
-  <div class="step-ca  <div class="step-card" id="card-compost">
-    <h2>Compost layer</h2>
+  <!-- Step 4: Steer to compost layer -->
+  <div class="step-card" id="card-compost">
+    <h2>Go deeper</h2>
+    <p>Steer down into the compost layer — that's where worms sleep.</p>
+    <div class="step-hint">Keep going down</div>
   </div>
+
+  <!-- Step 5: Sleep -->
+  <div class="step-card" id="card-sleep">
+    <h2>Time to sleep</h2>
+    <p>You're in the compost layer. Hold still and Wiggler will drift off.</p>
+    <div class="step-hint">Hold still…</div>
   </div>
 
 </div>
@@ -291,12 +299,15 @@ var _demoNpcTimers = {};  // username -> frame of next waypoint move
 var _demoNpcIdx = {};     // username -> current waypoint index
 
 // 3. Demo state
-var _demoState = 'welcome'; // welcome -> steering -> scraps -> active -> compost -> sleeping -> done
-var _demoLastTier = 0; // worm spawns in tier 0 — no false trigger on boot
+// States: idle -> eating -> full -> pooped -> compost -> done
+var _demoState = 'idle';
+var _demoLastTier = 0;
 var _demoHeldFrames = 0;
 var _demoLastHeadY = -1;
-var _DEMO_SLEEP_FRAMES = 90; // ~1
-var _demoStartGut = -1;      // baseline gut when eat card shows.5s
+var _DEMO_SLEEP_FRAMES = 90;
+var _demoStartGut = -1;      // gut baseline when eat card shows
+var _demoFullGut = -1;       // gut level when gut fills (triggers poop step)
+var _demoPoopCount = -1;     // cast count baseline (to detect a poop)
 
 // 4. Inject NPCs as presence after game boots
 function _injectNPCs() {
@@ -369,82 +380,95 @@ function _demoTick() {
   if (_demoFrame % 120 === 0) _updateNPCPositions();
 
   if (_demoState === 'done') return;
-  if (_demoState === 'welcome') return;
 
-  // Read player head position from game globals
+  // Need game globals to be ready
   if (typeof pSegs === 'undefined' || !pSegs.length) return;
-  var headY = pSegs[0].y; // world Y
+  var headY = pSegs[0].y;
 
-  // Detect tier
-  var tier = 0;
-  if (typeof H !== 'undefined' && H > 0) {
-    if (headY < H)     tier = 0;
-    else if (headY < 2*H) tier = 1;
-    else if (headY < 3*H) tier = 2;
-    else tier = 3;
+  // ── Step 1: idle → eating (first time gut rises above zero) ──────────────
+  if (_demoState === 'idle') {
+    if (typeof pGut !== 'undefined' && pGut > 0.01) {
+      _demoState = 'eating';
+      _demoStartGut = pGut;
+      _fadeOut('card-eat');
+      _showCard('card-full');
+      _setProgress(1);
+    }
+    return;
   }
 
-  // Tier transitions
-  if (tier !== _demoLastTier) {
-    _demoLastTier = tier;
-    if (tier === 0 && _demoState === 'steering' && headY > H * 0.15) _enterScraps();
-    if (tier === 1 && (_demoState === 'scraps' || _demoState === 'steering')) _enterActive();
-    if (tier >= 2 && (_demoState === 'active' || _demoState === 'scraps' || _demoState === 'steering')) _enterCompost();
+  // ── Step 2: eating → full (gut reaches ~0.8 full) ────────────────────────
+  if (_demoState === 'eating') {
+    if (typeof pGut !== 'undefined') {
+      if (_demoStartGut < 0) _demoStartGut = pGut;
+      if (pGut >= 0.8) {
+        _demoFullGut = pGut;
+        _demoState = 'full';
+        _fadeOut('card-full');
+        _showCard('card-poop');
+        _setProgress(2);
+        // Capture current cast count so we can detect a new poop
+        _demoPoopCount = (typeof pCasts !== 'undefined') ? pCasts : 0;
+      }
+    }
+    return;
   }
 
-  // Eat detection — dismiss eat card when pGut increases
-  if (_demoState === 'scraps' && typeof pGut !== 'undefined') {
-    if (_demoStartGut < 0) _demoStartGut = pGut;
-    if (pGut > _demoStartGut + 0.05) _enterActive();
+  // ── Step 3: full → pooped (player presses Space/long-press) ──────────────
+  if (_demoState === 'full') {
+    var curCasts = (typeof pCasts !== 'undefined') ? pCasts : 0;
+    if (_demoPoopCount >= 0 && curCasts > _demoPoopCount) {
+      _demoState = 'pooped';
+      _fadeOut('card-poop');
+      _showCard('card-compost');
+      _setProgress(3);
+    }
+    return;
   }
 
-  // Sleep detection (player holds still in compost)
-  if (_demoState === 'compost' && typeof pSleeping !== 'undefined') {
-    if (pSleeping) {
-      _demoState = 'sleeping';
+  // ── Step 4: pooped → compost (player reaches tier ≥ 2) ───────────────────
+  if (_demoState === 'pooped') {
+    var tier = 0;
+    if (typeof H !== 'undefined' && H > 0) {
+      if (headY < H)         tier = 0;
+      else if (headY < 2*H)  tier = 1;
+      else                   tier = 2;
+    }
+    if (tier >= 2) {
+      _demoState = 'compost';
+      _fadeOut('card-compost');
+      _showCard('card-sleep');
+      _setProgress(4);
+      _showToast('Compost layer — hold still to sleep');
+    }
+    return;
+  }
+
+  // ── Step 5: compost → done (player sleeps) ───────────────────────────────
+  if (_demoState === 'compost') {
+    if (typeof pSleeping !== 'undefined' && pSleeping) {
+      _demoState = 'done';
+      _fadeOut('card-sleep');
+      _setProgress(5);
       _triggerEnd();
       return;
     }
-    // Count still frames
+    // Fallback: count still frames as proxy for sleeping
     var moved = Math.abs(headY - _demoLastHeadY);
     if (moved < 1.5) {
       _demoHeldFrames++;
+      if (_demoHeldFrames >= _DEMO_SLEEP_FRAMES) {
+        _demoState = 'done';
+        _fadeOut('card-sleep');
+        _setProgress(5);
+        _triggerEnd();
+        return;
+      }
     } else {
       _demoHeldFrames = 0;
     }
   }
   _demoLastHeadY = headY;
-}
-
-function _enterScraps() {
-  if (_demoState === 'done') return;
-  _demoState = 'scraps';
-  _fadeOut('card-welcome');
-  _showCard('card-eat');
-  _setProgress(1);
-  _demoStartGut = -1;
-}
-
-function _enterActive() {
-  if (_demoState === 'done') return;
-  _demoState = 'active';
-  _fadeOut('card-eat');
-  _fadeOut('card-welcome');
-  _showCard('card-active');
-  _setProgress(2);
-  _showToast('Active worm zone');
-  // P1 fix: show kb-hint immediately when entering steering zone (not hidden until too late)
-  document.getElementById('kb-hint').classList.add('show');
-}
-
-function _enterCompost() {
-  if (_demoState === 'done') return;
-  _demoState = 'compost';
-  _fadeOut('card-eat');
-  _fadeOut('card-active');    // active card goes when player reaches compost
-  _showCard('card-compost'); // compost card stays until player sleeps
-  _setProgress(3);
-  _showToast('Compost layer');
 }
 
 function _triggerEnd() {
@@ -488,10 +512,8 @@ function _enterBin() {
   intro.style.opacity = '0';
   setTimeout(function() {
     intro.classList.add('hidden');
-    // Show welcome card now that game is visible
-    var wc = document.getElementById('card-welcome');
-    wc.classList.add('show');
-    setTimeout(function() { wc.classList.remove('show'); }, 3500);
+    // Show step 1 card — steer to a scrap to eat
+    _showCard('card-eat');
   }, 520);
 }
 
@@ -504,49 +526,7 @@ document.addEventListener('keydown', function() {
   if (!_introDismissed) _enterBin();
 }, {once: true});
 
-// 7. Dismiss welcome card on intentional input only
-// mousemove fires synthetically on load — require actual delta from first position
-var _firstMouseX = -1, _firstMouseY = -1, _mouseReady = false;
-
-function _startSteering() {
-  if (!_introDismissed) return;
-  if (_demoState !== 'welcome') return;
-  _demoState = 'steering';
-  // Do NOT dismiss card-welcome here — it stays until player reaches the active zone
-  document.getElementById('kb-hint').classList.add('show');
-  setTimeout(function(){ document.getElementById('kb-hint').classList.remove('show'); }, 4000);
-}
-
-// Mouse: record initial position on first move, only trigger after real movement (>20px)
-document.addEventListener('mousemove', function(e) {
-  if (_demoState !== 'welcome') return;
-  if (_firstMouseX < 0) { _firstMouseX = e.clientX; _firstMouseY = e.clientY; return; }
-  var dx = e.clientX - _firstMouseX;
-  var dy = e.clientY - _firstMouseY;
-  if (Math.sqrt(dx*dx + dy*dy) > 20) _startSteering();
-});
-
-// Touch: any real finger touch is intentional
-document.addEventListener('touchstart', function() {
-  _startSteering();
-}, {passive: true});
-
-// Click anywhere dismisses it
-document.addEventListener('click', function() {
-  _startSteering();
-});
-
-// Keydown: any key dismisses
-document.addEventListener('keydown', function(e) {
-  _startSteering();
-});
-
-// Also make the card itself a big tap target
-document.getElementById('card-welcome').addEventListener('click', function() {
-  _startSteering();
-});
-
-// 8. Adjust root div padding for HUD
+// 7. Adjust root div padding for HUD
 document.getElementById('root').style.paddingTop = '44px';
 </script>
 
