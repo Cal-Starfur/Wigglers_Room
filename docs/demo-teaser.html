@@ -240,10 +240,11 @@ body{background:#0a1020;}
   </div>
 
   <!-- Layer: compost -->
-  <div class="step-card" id="card-compost">
+  <div class="step-ca  <div class="step-card" id="card-compost">
     <h2>Compost layer</h2>
-    <p>Rich with worm castings. This is where you sleep. Hold still for 1.5s or press <kbd style="background:rgba(212,136,10,.15);border:1px solid rgba(212,136,10,.4);border-radius:3px;padding:1px 5px;color:var(--amber-glow)">S</kbd>.</p>
-    <div class="step-hint">Hold still · or press S</div>
+    <p>This is where worms sleep. Long press on mobile, or press S on keyboard.</p>
+    <div class="step-hint">Long press · or press S</div>
+  </div>
   </div>
 
 </div>
@@ -397,13 +398,13 @@ function _demoTick() {
   // Tier transitions
   if (tier !== _demoLastTier) {
     _demoLastTier = tier;
-    // tier 0 trigger removed — eat card shows on _startSteering instead
+    if (tier === 0 && _demoState === 'steering' && headY > H * 0.15) _enterScraps();
     if (tier === 1 && (_demoState === 'scraps' || _demoState === 'steering')) _enterActive();
     if (tier >= 2 && (_demoState === 'active' || _demoState === 'scraps' || _demoState === 'steering')) _enterCompost();
   }
 
   // Eat detection — dismiss eat card when pGut increases
-  if ((_demoState === 'steering' || _demoState === 'scraps') && typeof pGut !== 'undefined') {
+  if (_demoState === 'scraps' && typeof pGut !== 'undefined') {
     if (_demoStartGut < 0) _demoStartGut = pGut;
     if (pGut > _demoStartGut + 0.05) _enterActive();
   }
@@ -515,9 +516,7 @@ function _startSteering() {
   if (!_introDismissed) return;
   if (_demoState !== 'welcome') return;
   _demoState = 'steering';
-  _fadeOut('card-welcome');
-  _showCard('card-eat');      // show eat card immediately — dismissed when pGut increases
-  _demoStartGut = -1;
+  // Do NOT dismiss card-welcome here — it stays until player reaches the active zone
   document.getElementById('kb-hint').classList.add('show');
   setTimeout(function(){ document.getElementById('kb-hint').classList.remove('show'); }, 4000);
 }
