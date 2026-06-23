@@ -150,12 +150,26 @@ body{background:#0a1020;}
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 #end-screen.show{display:flex}
+
+/* Intro screen — mirrors end screen exactly */
+#intro-screen {
+  position:fixed;inset:0;
+  background:rgba(8,4,1,0.97);
+  z-index:700;
+  flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;
+  padding:24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display:flex;
+}
+#intro-screen.hidden{display:none}
 #end-screen img{
   width:88px;height:88px;margin-bottom:18px;
   filter:drop-shadow(0 4px 20px rgba(212,136,10,0.5));
   animation:wfloat 3s ease-in-out infinite;
 }
 @keyframes wfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
 #end-screen h2{
   font-size:clamp(1.6rem,5vw,2.2rem);font-weight:700;
   color:var(--text);margin-bottom:10px;line-height:1.2;
@@ -215,12 +229,12 @@ body{background:#0a1020;}
 <!-- Demo overlay -->
 <div id="demo-overlay">
 
-  <!-- Welcome card -->
-  <div class="step-card show" id="card-welcome">
+  <!-- Welcome card — shown after intro dismissed -->
+  <div class="step-card" id="card-welcome">
     <span class="icon">🪱</span>
-    <h2>Welcome to the bin</h2>
-    <p>You're a worm. 25 others are already living here. Steer down through the compost layers, then sleep.</p>
-    <div class="step-hint" style="cursor:pointer" onclick="_startSteering()">👆 Tap here or move mouse to start</div>
+    <h2>You're in the bin</h2>
+    <p>25 worms are already here. Steer down through the compost layers, then sleep.</p>
+    <div class="step-hint">👆 Drag / mouse · <span class="kb" style="background:rgba(212,136,10,.15);border-color:rgba(212,136,10,.4);color:var(--amber-glow)">S</span> sleep</div>
   </div>
 
   <!-- Layer: active zone -->
@@ -243,6 +257,31 @@ body{background:#0a1020;}
 
 <!-- Game canvas (game.js writes to #root > #c) -->
 <div id="root"><canvas id="c"></canvas></div>
+
+<!-- Intro screen -->
+<div id="intro-screen">
+  <img id="intro-worm"
+    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAfzElEQVR42u2cabSeV3Xff+eZ33m4872Srq4lS7JkecAD2A7IBttgG2hpc+UkEAJJWggpoQ1dbddqsi5K8iEpKc3YhAZCGEKI1EABA7GJsRWMR3m25uHO03vvOz/vMz/n9IOkVSdNmtTGsgnaa91v73rvOf/z33v/99n7PXDRLtpFu2gX7aJdtIt20X4YTbwWFqGUEoD2t9ajACmEUBeP6e8HTlNK6f+Iz2gXGfh/A6MLIVKAdrvdZ2Wta3Qhd8hEVdDSrm7aJwzsJ4UQy2c/v18XYm/6WgPQeFXA238WvEa3sTtvZz+qouAOKwgHQYKUoCSIgEglrShq3Bejf0KI0mNKKU0IIX+oGfjAAw8Yt9xyS6KU+gBp8lt0XcdbXCRotSVJIolTZJogZaKZGaGVJoaQfVUZC+dXsvnhfWr/fp3JyddMbBSvhtt26msf9BfX/6B75gz9feUEoetKSaHiBJWmJFGMDHyS0FMq9lKtamtjb75R60Tid0uViV94sfu/2qZdOLfdryOEVEpd2T01/3uPf2F/2luvS2uw39CqJUHGRqGQcQJpipQKoXRhYRvhmbqY/rP/FRfd1ofXZ4++TwiR/kPJ558cA8/HL/f4qfuShaXboiRJc2PDuqqW0IDE84hWasi2iwwikiBi+shxWs01tk2Mo4tQ5jaVYXRjzd75hh2VarWDUrzarnxBGLh//35dnGXfdScff/S2bx96SD555oReX1xEiyLUuaOUcUIaRkRBSOj5xGHMUy+c5IGHHiVNlCYcU+X83nDnsYffKUDx4IP6D4ULDwwMCIBnvvyVu4NCnk13vEOe8T2effpp9DhByZSk55F0XCLXJ1xrUTtyEq/R4o2vv4GNGy6hsdSAKFF23lCR17wLgLU19UMAoBK33HJLqpTSjFz29vl6k9bpU1qjucITjz+Coeskvke0Wifp+YRr6zx83/187cQR5sfKPLR4isXWOqlwqM/WNCFSYQhtl1JKE3v3pueqmH+6ACqFANTxe+/dNnbJ1ss0z+U3fuk/aL/8m59kVRhoSJJ6G9nxzsa95w7T2DKAv3GQhbV1bv3wz7FqKabnlombEYEXoKSs1mpkfziy8INn/0d+YPjGUrlsDG7enO4c38C2oQy33XgdcTcg7XRJ4pi06/PMseMMX3c1y26Pr372kzx97328/p1vZ66xTBpK4lYPFUZKDqL+/w9Tie83Y41XHr8HAbBU+qZkvcZAuU/d/e738TOiy/jYDjqtNiqMSdIEv9ej6/X49x/+KIvdlBsu20wofWLdolDtw/cC/PUOMj/YHAbvpagAgKmpKW3fvn3yBwLAm2+5JQXwDx/d4WgJY1dfI6rl16HHKcr3ibtd0jhGSonSdYqVPm4f3EXXTHnXv/xnpMUd+CsNitkiaCgRaUrL5qeFEGr/5OQ/SlBPTU1p51RABoiFEMkPTi08NSXYt0+pgaFQ+D0Vrq6TTE/z2L33sum22xgdGoE4IWp2cEoZ3nzXHWzu1hnaPYYXOehuFzW3RDFjY1lKmaWKiLLWdwAmP/QhwYEDf9fV2FmRK4Q6X7XUnj/yY92nH/sv4dpSq/Pc9/YWr7jp2Pejtn7lY+DNN2sAMld80qwOCH+1odylVe7/6j38xde/wQvTs3zz2/cT5vL81Xce5NTcKW677c0MqwpbZuYYOfQ4A51VRkdsVRwo6a1U+qqv+pWz8eFBeb7KUQ88YCilhBBCnf9Thw6ZQoh08Xvf22FF/md1N9honjizu33s2G8hBPCxHwAG3nyzBOgYyR/HtdYvGD1fyFxZXfuW28Wn772PRx95GOV2ePz4MR546AEm33Ibt7ZuI1lYxju5gDs9T5IxqVy1I92wZdSoRcH+K665aXb/uUsF9bGPaS924xPfPGFfeselNhAIISKllNNbXPg8J49bzdmFOFps6kJL3zSzenhEiJ3LLzcevuIACiHk/v379atuuumFh778tV8dzeQ+JoMwft077jRPN5a4YddlDOkGzxz8LqM7d/Gud/843VqLVjukbhdxh8dw8jlV1A29vlpf8bPDH50CbSecj3/K87wf0Ql/XIatq0SajtSffjhrZYTrd44cCeozwxmVXrs0vyCT5RUzCWNlJzITn5geA5Z37dr1srLyhRKhYv/+/dreu+9O7/uDz312WKn36hlbmlqsmWmELhTRagNncIgQg9WFddZXG6y3ewghKWuRGjQjsrs3n7au3/rTu274se+iUtaUGs0HvY+rRusnjHYDrzZPIj10w6J3cpHSRAUra9M6sSz9VVdTfqTCdkuY41XZuXTbFVffMXlYTU1p4mUw8BUH8HxcUkqJA3v3ansPHEi//uuf+EzJk+/THDt1CnldCIlC4bc9ei2XZqON226TRAFOGjGSSRm8ZFDNZl0RWTa58sDj5Y27n9g6vusutbCyefXICSk8VxoqFiIOhF4whF3OqPZsRw1dOyqsvKX5K23qT82pynCZqL+ydnz00kvvvPPOzvn1vZZdWJ1f5AOf+YypDhyQ87e+6Uvtx55938xjz6CZNqkQJHFCnCRnLxH8AC1NKMqIghFRsvOsxa5YrNfVyVPLXPX6666/7ooN16985Vt0jp5MYyOn67apmYbEMiSGm5Ib3Sz8ZovOGYvhN0xQnOij/ujRVHQcIxq0H7zzzjs76h8pg141AJVCPP7gPUNCiJXJyUn9lve/PwCYQ7tl9NLNJG5LLR2fo1frEPgpqYxRSOJUkkiJbgo0x6KnFN89PcPMwrSoDA1x5fV3pUtHplWohBZ7vu636iSlPmxbkMsIrIyiM72MVBGNI/Okfg8QqVEsa3UjmxiFvl8HxIHJSf62DHrNAKimpjQh9snvfM3b/o0vfPLNd73nA188+OU/+k+devttcWP9TUGrpwr9VWMgjNBth/qaS7vl4UUxEoVp6xh5weh4gcWkxxOHTiJVyuR77kZ7+Fm9c/okaQS+kcUVPt5am2I1h66BpoPfiQliINIUK0GaKZcMhkdoIX56z+Tk02pqShN7X36T6hW5T9u/f7/+PfM5/d+894Pl1ItG1qdP/szeu97yLlGf/0hfubR5oLJJ6AJh9A9gFQs4piCrC4w0QYQeRhyQSQMKUZsNWwdZT2O++tjj3HjF63nbxktpPXcIrblOd6FOS1k41QpBGtDzI/IFE82SoCtqM4ukSSRyG4a1sNp3ol4uvO/WD33wwMtNHK8YA89pKrX37Mmm8D8aX/qDT0Qzp07c2K3XB9qNWnrrv7ibbZfYehS7IEOy5QpWLoeVL2Fm82T7yvTqHVI/IJOXhF7K4vQ8VibLWy6/DvfwYTS/R3u1Q0dlcd0AKWDzZcOcOTaP126QkyFrcy11eHqZTLW6yK6dv8ZP7P38O8fGvKMPPVQ4sLQUAtFrBsCpqSkN0Pbt25cAfOoPf/eGEuodlsPlrhdmC5VieUPFTudrluZ1faGiCIRApClhrU4Sx4DAKuaw05Q4lLhhjNQEZsbi6YV5tkzsZuf4ZuaPPY9fa9GNFK5lEEiJCEJUu81gMaW7OM8TnZgvHp8llBLHb2c3fPXT1275xie/8L3vfW/wW/d//QOV1P74/v379b3fBxd+2QBOTk7q+/btSwH5y7/80dfvqOZ+ZVhv3S6DgNmFNrGRoZzPUug0sdt1/PUmQgqiMERTAiEVmhKAQMYpaRCRJDFKxWgyJY56GHaOvbuvZ/2ZJ9CQdL2UtsjRU6BIUUKjtb5KRvf49uoKX15eJRGI0WKGLX3Fai7r/GyYzbzxwU/913pH2J/4xT/+YghC7d8/qe/de+DVy8LnXDb9nY//6sRQIfvBpVr937VXV8xgvqlOHJ1O833DItdfJZO19Olaj4ceP8o7h3ajFGdvX+KzLcwkigjdLn6rg9dq43U6CJlg2gZurca/+qn3sOGaa3n29z+PO10jFg493SaSKRoSJXtovsuhbovPLywxVshx1UiZxbbHC4trTAwPppqT2b72wjF27d6y8Z7f/6WJk9nPfGrv3ve3XjUdeL6G/ORv/8ZPiiT9vePPP19cmj6FaZrp9NyC7jVbxu7dOTZsnUAPfPpKWaxcjjMzc8SdOjI9u2YJpFIRxZJYaqS6SagZmJqEKMIqZqmmPTrPPotuOLj5fhqrDcJMhtQwUDIkCdo044hvLizjmCYFXWe543PV+AbMrEWt2dafm69JJQUblpc2hgvOx994SfhvH/rcr31ECPEXLyep6C8HvA984L1jdq/9V0UjyD15+Hiczee0qo3Wb0gu2bKZ3MAgrbV1AikY37KV1dU17n/6KDdffhX5fJ7ACwm9gDAIiIOYXjeg2WoTdjsYqYfeXWdoxybiTpv2C6fRHYGSOq5Q1Houhm4i0jbNoM13VlY57Hm8ddsmBksOrVBR80JKWQeVJIRhJCo5S+zaWFVzSw156NhMKag33nr9Ddd87paP/35nampKO3jwoLogDDxy5IgA0N3ejqNzM/YpTaXDg0Pm4nobkTXZuPlS8pU+hNAI3SZuarDY9NCcIm6asLi2jNHzSc0MmpMhDhO8rku3sY5bWyPpNEhlgJHP0lnpkq9aeGlM31CZRFOovKCufGYWl7C0kNP1NR7zOlyxdQOhpRP2QsqlHHMtl78+Os2WisMVm4fJOiapZgilJfpfPjkb37g9LWWyrTuBT/Hgg9o5h3jlAazVagJg3QsGwlQozw1x7AYVy8DMFelGkNcUbs/nzPQSowNl5lZXOT07y9jIIKeXFhnfWmHx+HGUlIRRTK/t0lhvEYYxSjfJOiWypk59rY5uFegFIWK9iWFrLM8t03Nd5sIWHc9leEOZt/VtYLHp42QcNvYVGN24ienZeeZX64wMVdF0xWon4NmFFo4h2Nhf0DphokYGSt1XLYnkLXNIjw0Rx0KdXqoTxYpqucvmkT6adSgW84z2Vzh8YoaF5Rpvu/VN2Lk8h755PzvyBYYmhuk2XeJ2D10Z2GaWpOcTeRFB1KXViklCkyjo0XJTmt2Y0Hc5PLNEHUWt16ZYsamMDlIxU0IvIAhiRrYOs7S8StkCt5Tjsek1bF3DJME2NLxYQ8lUjVcQfuxVLziAg4ODZ2OFpmaztoUKfLGWSPw4od3q8kKvx86NQ9TrHdquy5Wvu5zBlSYtLyBstND6ChyaP05paYYNxSoGGsQRqufhrdWpd1yiOCJvCyqOzlrdoJvqGDQIwi6DV02gxR7bVwXbNw9zbN2j3Qu5eqKPTpBy/PgcEwM5mm6M3/WQcUiqO0SJoh3EVBwD2zSEY5mUc9l5gF3n93QhXXi4WhXNlQVCpRjuqxK4LrmCjW3nwLRZXF0jTSWnZpboxmC1O+Qsh42bNtLRdb792FNMZDNcuWEDKqOxkNboaj6t0CNbyDC2vZ8dl/Qxd3qdlTN1tm0o42FQtwRzy3VSoXj6zDLF/gHSKKQZaNQabaZbHhE6jqZY7oXU3ITdFZskUGgZh4wBa11f6SiMOLoE4PC5PV0QAG8GDgJBq3GZ13VpdHqqWjUolLK4XsD8ygKmoVHJZ5lfrbPuuvQXy1x22VYSP6IbRayv1xkfqbJxuJ81M4NKY8gZ1N2EXkWx+9qtTIz3cfTEaeY7LdRYhuW8QdeHztIalmnhJmAaks5ajVDBo00X29SYa3h0hMUmW5GmCk0p8ppAWTqRkhi6hRvEtP2EfJi8rPGQl9RU2vXzZ+k+NDTw3FrPp5ekwtQ18rZFEoWUHJNLRgfw44S8Y9CXzdLq+cwuLXN0fpHFZodYaAwMjdDzIk6dmmF9vUMuV6FcLFOqDNBDcHi+yz2PneapmVWOzNaZqfUYHxtjdLCMnc0wXC0yPlRltJJDhiHrfkQ3kkhdR0YJHT/GtnSKORsvCvBRSAFFx1RW1jaWgnjtnf/8rV88y4qD8oIBODm5XwJMvOH27xqZwuqZWlN/8NnjarbWRuoOEui4Ln4QkDEM/DDG0jS6Xky92cXvdqkU8ngYtGLFyIZRYk1weG4J03JwLJvjp+b5xnceITFMMvki77juMoaclGIph1nu49TSOn6qOFnr0uh6CF1DKkkvkqSpJKcpDJkwkDUp2CZ+Cp1Q0Yvh6NK6CmIYzDrRJaXBCOBj+1AXTEgD2sGDB9X1V2wbjdzWh0+enrG3TIzSV3XE0uo6gdQAjVI+w2A5jwDCRFFvNijlbYIoIuj1aLXaVCslsraN1EyErhN7PVyvh2XavP3Gy9lYNChksvhRSjGX4bljZ6iWyowND3Do6CnmGj5BIvCTFKkgkQlpoihaJo6tM1jMEAUxSmistFostl1mWyEF2xKv21gx1uL0L+956MkFXqKQfll94dTt7bRlVNQFamzDJvG2t97Bu+++k0rZZm6thp9IIqUTp5B3DEaqJRwBGhq9MCWMElbrbVK/i99ts2XLVoY2bWBwsI9iVqfZ7FDreAhS8hnw45iVtse3Hn2aMExpeSlKSYSKyeiCsq1TtixiKXFsg0wmgxuBJhRNz2O0nOO6rWNkDCEsXcmOG2UX5hevZ2pKg30XLgaer0RMy/SwMvTCiChJOHJinqV2ytDIGO/50bvww5CZ2ip+nKKETs8P0XUTTUoMlVK0dELP4/Ryk6Ozyzz73HN0/ZRNWy/F6R/h1FqHfN8gvplldr3LEycW8RJFqxfywplF+goWFf1sQ6poW/Q5FpYQFLIOBVMn7nYJ3TZ+mrLgJvSNjrNzy0aUjFFpSiwlhVLR2sPN2r59yJfSZNNejox55LFDm1sdn2ohl/ZXihw/eZwvfv7PCWJFtjxAFPhct3s7ExNDNNptglQjTKCvr8yWsQrj1QwFS0MmCfmsQ8/3WFpaYGVhnrV6g04qOLFY56GjCzw23cCVGh0/IkgSVtsdtowMMjpQpBNIUnHWZXWRkiVhsdnEjWI2bx4l0TTiVGIZFmkikVLDNHTZDUNm5ua3Htx3SzI5iQ5cWBf2kkT5YYxlGnS6PXbu2Mode3Yz3u+QKMHwSB/loSF0J8sVV27HcOD0Wo31joudKdAKUoJYkdEVZVunkM+ilOLUwhpnFtfQEKy1uqRJiG2ZGEJhCEV/qYipa3zn8AxSWAiZEiQh612frucykDWY6yX0bb6EQnWAof4Spqbww4Bmx0XTNGzTJEgS5lbWmmdJsUdcMBe++dy4RrEy+ITmZJJuFOvtrqsqfQNcc8Me5lebmJbJ5ks24/U81jsBpeoIb7v1Zu562xsJ04Djc0scXXdp+iGZTIZKwUKGEbZpoOuCROgsNjuESpK1DSwZYRgWoVCMlArYIkXoFr0oYbySAZlywo3QKwPs3LmVvGUShSEKyZVbNzBSLdJxXTRdkMqUOJF6miiK5cq3/kZ1dSEAPDdLIv78y18+LAztUBhLUcjl5eGjJzhwzwOstSLCOKZYKGEKnfpag0cff5xIGVQHNjI+sZk333Yjg305ojRG6hrbtm1BF6AJwVjV5soNWWwkSZQQRClZ08ANfMDANA3cMKGkSUR7lYG8hi8UrpdSLpbJOA5xkpDN2FiGRpLAlsEKWUujmMsiZSqTJBaZjPPCF7/9yHcBceDAgQunA8/3zJVSlErV2DJ0dEPD7bQ5c/gZ+osmi4vLhFGCk9HRlMKWKVnH4Kvf/CtanYRcZZS7f/Rd3Pj6XSy22tzz8POsdmOiKKbRi8k5NmN9WcIoYqCYxzAMNF1H0wStZp2k16ZgRGy+dAs7rr6aXTu2YQgQQscQOlJKioUcLc/nr1+YZ/vGIa7dNooXhCihYZoGWwYqxre+9TvmS4l9LwvAc00k+Z9/8ec24veuMYRgba2lXXn5Nj7ygbu5asc4va7P7FKdTRNbsLMOYZISp4p2o4EKXWZnZ3j21AJ1V3HjTW/gJ+++k3I5w7Ib0PFSHj2xSqMnyeYLxDJmseuhGRb5bIbljsdll+1gx+W7oDxIw1OUsg7ZzFmN6cchlmUSR5IojDm5tI7pOORMg0bXA4TQhE7J0QeSxw7r54YALryMKWYyPxJ73WwShXJleV4sLDdoJ3kWGz5B5DG/vEKtHeCHIY5tEUYxEhgb6SOXdTjwpQOcPHESO19GGVneevsbGRsskDE1hISVbg9NM/CCkFwmSxDFJHFCaOYY27yZIEn4s3sO8tyZJQDCMMGyDSzHRilw/eDcFWnK4yfm8SNwLBtDQMcL1Zm1ZmmuE74J4GMfm7pwSeR8vHj+xHSzF/jJrks2aLtHKmrl5Avs/+q3eO7kPKVSkW6nTbfXQ0lI0pRUSoQmEJpGf38///q97+KNV2+h4Jjc/91HaUewafM4SRLTV8xQtQzWGg1CZeIHEWEiCQIPQ9fI5zK47RYZQ2O0kmV2cZkgjrAsE6UUcRSRygTH1ig4JsdmFzi+VOfUwipC0wWakDO1lnHizOzrhNDYt2/fBXVhAZDIZN62bQb6BwitMjhVqiJCtVaozc/hdjp0uy5S00hliu042JZNp+NSqzUYGhun3o2orTdoN+qcPH4GDAcvitA1MA0o5DKoKMDUEiyVYBk6IGi5PtvGhnjvnTfRX8ox2Felv5ghjiQ9z0dK0AyTjGNTICWXJnznsWd44fQCwwVbTVRzek6TydxS438qJZmamuJCJxHeevnrFoMobXV6gUqThChRbB6/hLfedB1ZGTBWytKYPknQaYLQ6PohrhcihU4UJfzhp7/I4VNzmE6GG6+5giu3jxNFMdmMw5YNA2c7dilkLYuC7TBSyWPoGqlUtDo9lJ3n1HKDp6ZXsbJ5ChmbruuTJpJCRsdzfQ4fn6PZ6dHzfF431sdt20cZyBqi7QfqiokRY8vEQOnFYelCyhjt/fv2tSIljhm6JfpL+ShNI9p+zKk1j1pPMjE+jqNCylqKSmMWZ2bx/R4Z28GwTFTYZSRvYumCsU0TFIplltbbeFHC0rrLmZUuHTcgFYKWF9IJYqQCoWkMFHOcWVjim999kvWWiy503F5AnMY4hsmIY7Bw6iSHT80zMVTFymTQDQOZJghJ1PQjcWbdW3zLZTuPvxwZ85KHi6ampsTBgweZ2LDpRCTlHb1er5x1LPqLdvLw89NksjkRRzHl6gC5bAbSCLdRxwtC+itlctU+3nTDVUyM9dEOFE8fOY1E5977D6LrJt0godbqMVgto2SMY+iEaUoYpaRC59INIwTtBp7fY3zDCCqV1FZXcITk5OkZojgm5zgMlAug6yRoeEEoLV2IbpDoeVNnuRt86L997f5Dk6AfeQkduZcF4LmrH3Fqdnauf8uWL7ntbsG2jCvr3cjIZwxRzWgqDHxhOjaNdhc0nfGRQYq2YH19lcSPMPIlllYbuEHK6blFxkb6iXsNDJUihE7JFgRJSiwVBVOnkrFpuD3CRJHN2oz1F7h616X4YcLRw8fQkhBDxax6McOVMoWMSbsXsu4GaZCklB1DixORLnW8P8874iPPztW+NgXaf3+J4H1fxtumpqa0P/2TP+ksrqx8fWLbZfcenV7Qxgb7Vej2RivVQuKHgXIsR0vSGMsyGRodQSYKFXQ5fOwkz56aJ1cqUau3GBrshzQkDiIydoYgivBihRsmCE1hmxpRkhBrBls2jhEmktWlNU6fOMF6x0WZFmP9VXKWSS9MVCyVHC05ZG1Ln1nvChMeNnV+7Nhq87eX2/4MoB18GeDB929GWkxOoh04wPlBHfPdb7/1yNLq+lZDg7HBisxkbfnU0Wnhp+g3XTZBmiQs1tZpNBvk81lqHZ+NW7cz0l/k8UeeoFwsMr/WodULMTVJf94hbygsYClUbB4a4PSZGVZbbcYqRTYOlGkECfVeqCaKluzE6LVuj8GMSYz6wnLH+9Nmx7vvXPP8PHFeOwOWR46gpqamNNd1jeXl5fi66264r+FGj1u6boVRsP2FmSVNs3NaVkVkbUuZGqLW7LB94xCbq1lkGNCuN0nDmLVGk6zjYOmCoXKOnG0ihKCUsUnjhG6zjQwDdEMnk8khTQdUioGQuko1QJtvh3PdKH44Z+r7ji3V9wVhfApQU/+Hdd+X3xq/UlP64sULvPqKKz5Y64TXDpTz1qUDzk/Gfki54KRKobf8EM00MWSKnsYYKqIRKVJlIpQilpJOkEAS0ep2KRg6CVBwMhQKOfQ0Vk/NriilaXI0nzEyQqXtOPmPS17yR81Go6P+JlG+b8C9oiO+L6qX9dnZWbWyunqo26p/bWVl+SuFSt8TGUu/XUB+dmkt1nRDra23aHuRwLToH6gQJhpL623iOCI6V5JlRIrQBJV8hjBOMXVFp9tJI2FoG8uOEELXltuduYxpv/fZ+ZXP+r4fntufds5VX5Fft79iAB48eFDNzs7K80OYR44c0a+55hr9iSefPr595xX3ekHvliBOhnK2qQ1X8qLe9aQfJ6LV9QmlQTFrYVkaXiSpOBqDGQ031XEMDT+OVc31yTmOdnhhPUqkerK/mP2m45TufurMzDN79mDMzp59e+uVAu6VduG/1/bs2WMcPHgwefeH312cP3TqfZ12t7xzYuCnVlbWLtERieFkRNtPdF3XkbFLJ0jQdYtc6rPWdqXQdKkbmuEFIZZh/2Y3iD69XK8f+1ukuGBvyrwq7w1MgbbvRfLh7bfv2dGuN76SM40dHS8kSpXsK+aUYUhtudVjYaUth3MGmor0hp+QMc1VpfiFE0ur+1+0j/Nx94I+RPGqPBty8OwmxZ49e4z+/n794EOP1DZc94bP1Vc6T2ZNsuWcsz2XMbUgjsWZpbYoZmwtp0ut0YsOt4Pgt5Hhz8/UWo/sAWP27FdecOBeVQb+Q4y86Q1v2Bv1wp+td91rpaFHRP7ztgr+9Ph84c/gVPhquOoPgonJyUn9xYe69aofGRgfv7L8dwxEiYtw/T9nbyb1qam/cVOkTZ5l3EXgXkKIuQjaRbtoF+2ivUbtfwPkXnMU3pkpVQAAAABJRU5ErkJggg=="
+    alt="Enter the bin"
+    onclick="_enterBin()"
+    style="width:140px;height:140px;object-fit:contain;
+           cursor:pointer;
+           filter:drop-shadow(0 4px 28px rgba(212,136,10,0.6));
+           animation:wfloat 3s ease-in-out infinite;
+           -webkit-tap-highlight-color:transparent;">
+  <h2 style="font-size:clamp(1.8rem,5vw,2.4rem);font-weight:700;
+             color:var(--text);margin:18px 0 10px;line-height:1.2;">
+    wiggler<span style="color:var(--amber-glow)">s</span>room
+  </h2>
+  <p style="font-size:0.92rem;color:var(--text-dim);line-height:1.7;
+            max-width:320px;margin-bottom:28px;">
+    A multiplayer idle worm composting sim<br>that lives inside Reddit posts
+  </p>
+  <p style="font-size:0.78rem;color:var(--amber);letter-spacing:.05em;
+            animation:pulse 2s ease-in-out infinite">
+    tap the worm to enter
+  </p>
+</div>
 
 <!-- End screen -->
 <div id="end-screen">
@@ -436,11 +475,33 @@ function _setProgress(n) {
   });
 }
 
+// 6b. Intro screen dismissal
+var _introDismissed = false;
+function _enterBin() {
+  if (_introDismissed) return;
+  _introDismissed = true;
+  var intro = document.getElementById('intro-screen');
+  intro.style.transition = 'opacity 0.5s';
+  intro.style.opacity = '0';
+  setTimeout(function() {
+    intro.classList.add('hidden');
+    // Show welcome card now that game is visible
+    var wc = document.getElementById('card-welcome');
+    wc.classList.add('show');
+    setTimeout(function() { wc.classList.remove('show'); }, 3500);
+  }, 520);
+}
+// Keyboard also dismisses intro
+document.addEventListener('keydown', function() {
+  if (!_introDismissed) _enterBin();
+}, {once: true});
+
 // 7. Dismiss welcome card on intentional input only
 // mousemove fires synthetically on load — require actual delta from first position
 var _firstMouseX = -1, _firstMouseY = -1, _mouseReady = false;
 
 function _startSteering() {
+  if (!_introDismissed) return;  // wait until intro is dismissed
   if (_demoState !== 'welcome') return;
   _demoState = 'steering';
   _fadeOut('card-welcome');
