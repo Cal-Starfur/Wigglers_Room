@@ -217,6 +217,7 @@ body{background:#0a1020;}
   <div class="pdot" id="pd1"></div>
   <div class="pdot" id="pd2"></div>
   <div class="pdot" id="pd3"></div>
+  <div class="pdot" id="pd4"></div>
 </div>
 
 <!-- Keyboard hint -->
@@ -234,6 +235,13 @@ body{background:#0a1020;}
     <h2>You're in the bin</h2>
     <p>25 worms are already here. Steer down through the compost layers, then sleep.</p>
     <div class="step-hint">Drag / mouse · <span class="kb" style="background:rgba(212,136,10,.15);border-color:rgba(212,136,10,.4);color:var(--amber-glow)">S</span> sleep</div>
+  </div>
+
+  <!-- Eat card — shown on entering scraps, dismissed on first eat -->
+  <div class="step-card" id="card-eat">
+    <h2>Steer into the scraps</h2>
+    <p>Move through the food chunks to eat. Your gut fills as you feed.</p>
+    <div class="step-hint">Steer into the scraps to eat</div>
   </div>
 
   <!-- Layer: active zone -->
@@ -305,11 +313,12 @@ var _demoNpcTimers = {};  // username -> frame of next waypoint move
 var _demoNpcIdx = {};     // username -> current waypoint index
 
 // 3. Demo state
-var _demoState = 'welcome'; // welcome -> steering -> active -> compost -> sleeping -> done
+var _demoState = 'welcome'; // welcome -> steering -> scraps -> active -> compost -> sleeping -> done
 var _demoLastTier = -1;
 var _demoHeldFrames = 0;
 var _demoLastHeadY = -1;
-var _DEMO_SLEEP_FRAMES = 90; // ~1.5s
+var _DEMO_SLEEP_FRAMES = 90; // ~1
+var _demoStartGut = -1;      // baseline gut when eat card shows.5s
 
 // 4. Inject NPCs as presence after game boots
 function _injectNPCs() {
@@ -400,8 +409,15 @@ function _demoTick() {
   // Tier transitions
   if (tier !== _demoLastTier) {
     _demoLastTier = tier;
-    if (tier === 1 && (_demoState === 'steering' || _demoState === 'welcome')) _enterActive();
-    if (tier >= 2 && (_demoState === 'active' || _demoState === 'steering')) _enterCompost();
+    if (tier === 0 && _demoState === 'steering') _enterScraps();
+    if (tier === 1 && (_demoState === 'scraps' || _demoState === 'steering')) _enterActive();
+    if (tier >= 2 && (_demoState === 'active' || _demoState === 'scraps' || _demoState === 'steering')) _enterCompost();
+  }
+
+  // Eat detection — dismiss eat card when pGut increases
+  if (_demoState === 'scraps' && typeof pGut !== 'undefined') {
+    if (_demoStartGut < 0) _demoStartGut = pGut;
+    if (pGut > _demoStartGut + 0.05) _enterActive();
   }
 
   // Sleep detection (player holds still in compost)
@@ -422,27 +438,38 @@ function _demoTick() {
   _demoLastHeadY = headY;
 }
 
+function _enterScraps() {
+  if (_demoState === 'done') return;
+  _demoState = 'scraps';
+  _fadeOut('card-welcome');
+  _showCard('card-eat');
+  _setProgress(1);
+  _demoStartGut = -1;
+}
+
 function _enterActive() {
   if (_demoState === 'done') return;
   _demoState = 'active';
-  _fadeOut('card-welcome');    // welcome card goes away when player reaches active zone
-  _showCard('card-active');   // active card appears — stays until player reaches compost
-  _setProgress(1);
+  _fadeOut('card-eat');
+  _fadeOut('card-welcome');
+  _showCard('card-active');
+  _setProgress(2);
   _showToast('Active worm zone');
 }
 
 function _enterCompost() {
   if (_demoState === 'done') return;
   _demoState = 'compost';
+  _fadeOut('card-eat');
   _fadeOut('card-active');    // active card goes when player reaches compost
   _showCard('card-compost'); // compost card stays until player sleeps
-  _setProgress(2);
+  _setProgress(3);
   _showToast('Compost layer');
 }
 
 function _triggerEnd() {
   _demoState = 'done';
-  _setProgress(3);
+  _setProgress(4);
   _showToast('Sleeping — the bin is alive');
   setTimeout(function() {
     document.getElementById('end-screen').classList.add('show');
@@ -463,8 +490,9 @@ function _showToast(msg) {
   setTimeout(function(){ el.classList.remove('show'); }, 2500);
 }
 function _setProgress(n) {
-  ['pd0','pd1','pd2','pd3'].forEach(function(id,i) {
+  ['pd0','pd1','pd2','pd3','pd4'].forEach(function(id,i) {
     var d = document.getElementById(id);
+    if (!d) return;
     d.classList.toggle('active', i === n);
     d.classList.toggle('done', i < n);
   });
