@@ -173,6 +173,8 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
     <span class="sort-lbl">SORT BY</span>
     <button class="sort-btn active">🔥 Hot</button>
     <button class="sort-btn">📅 Schedule</button>
+    <div style="flex:1"></div>
+    <button class="sort-btn" onclick="document.getElementById('session-logger').scrollIntoView({behavior:'smooth'})" style="color:var(--orange);font-size:.72rem">🛠️ + Log Session</button>
   </div>
   <div id="calendar-feed"></div>
 </div>
@@ -506,5 +508,252 @@ updateProgress();
   });
 })();
 </script>
+
+<!-- ═══ SESSION LOG → POST GENERATOR ════════════════════════════════════════ -->
+<div id="session-logger" style="max-width:1100px;margin:40px auto 60px;padding:0 16px">
+
+  <!-- Header -->
+  <div style="background:#1c1c1c;border-radius:4px 4px 0 0;padding:12px 16px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:1.1rem">🛠️</span>
+    <span style="font-weight:700;color:#fff;font-size:.9rem">Session Log → Post Generator</span>
+    <span style="font-size:.72rem;color:rgba(255,255,255,.5);margin-left:4px">Fill in after each dev session. Generates draft posts for the calendar.</span>
+  </div>
+
+  <!-- Form -->
+  <div style="background:#fff;border:1px solid #edeff1;border-top:none;border-radius:0 0 4px 4px;padding:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label style="display:block;font-size:.72rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Session #</label>
+        <input id="sl-session" type="number" placeholder="26" min="1"
+          style="width:100%;border:1px solid #edeff1;border-radius:3px;padding:8px 10px;font-size:.9rem;color:#1c1c1c">
+      </div>
+      <div>
+        <label style="display:block;font-size:.72rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Devvit version</label>
+        <input id="sl-version" type="text" placeholder="0.0.202"
+          style="width:100%;border:1px solid #edeff1;border-radius:3px;padding:8px 10px;font-size:.9rem;color:#1c1c1c">
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:.72rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">What shipped / what you fixed <span style="color:#ff4500">*</span></label>
+      <textarea id="sl-shipped" rows="3" placeholder="ISS-19 fixed — localStorage race condition. Game now waits for Devvit KV before init. First thing players see is real world state.&#10;FEAT-2 device conflict overlay now shows on mobile."
+        style="width:100%;border:1px solid #edeff1;border-radius:3px;padding:8px 10px;font-size:.85rem;color:#1c1c1c;resize:vertical;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:.72rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">What broke / surprised you (the good stuff)</label>
+      <textarea id="sl-broke" rows="2" placeholder="The bug only showed in production — never in playtest. Took 3 weeks to diagnose. Turned out to be a timing issue in Devvit message delivery."
+        style="width:100%;border:1px solid #edeff1;border-radius:3px;padding:8px 10px;font-size:.85rem;color:#1c1c1c;resize:vertical;font-family:inherit;line-height:1.5"></textarea>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:.72rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Best quote or moment from the session</label>
+      <input id="sl-quote" type="text" placeholder="'It only breaks in production' — the most expensive words in game dev"
+        style="width:100%;border:1px solid #edeff1;border-radius:3px;padding:8px 10px;font-size:.85rem;color:#1c1c1c">
+    </div>
+
+    <button onclick="generateSessionPosts()"
+      style="background:#ff4500;color:#fff;border:none;border-radius:4px;padding:9px 20px;font-size:.85rem;font-weight:700;cursor:pointer">
+      Generate Posts →
+    </button>
+  </div>
+
+  <!-- Generated posts preview -->
+  <div id="sl-preview" style="display:none;margin-top:16px"></div>
+</div>
+
+<script>
+var SL_KEY = 'wr_session_log_v1';
+var ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+
+function getSessionLogs() {
+  try { return JSON.parse(localStorage.getItem(SL_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveSessionLogs(d) { localStorage.setItem(SL_KEY, JSON.stringify(d)); }
+
+function generateSessionPosts() {
+  var session = document.getElementById('sl-session').value.trim();
+  var version = document.getElementById('sl-version').value.trim();
+  var shipped = document.getElementById('sl-shipped').value.trim();
+  var broke   = document.getElementById('sl-broke').value.trim();
+  var quote   = document.getElementById('sl-quote').value.trim();
+
+  if (!shipped) {
+    alert('Fill in what shipped — that\'s the post material.');
+    return;
+  }
+
+  var preview = document.getElementById('sl-preview');
+  preview.style.display = 'block';
+  preview.innerHTML = '<div style="background:#fff;border:1px solid #edeff1;border-radius:4px;padding:16px;color:#878a8c;font-size:.85rem">Generating posts with Claude...</div>';
+
+  var prompt = 'You are writing Reddit posts for Wigglers Room, a multiplayer idle worm composting game that runs inside Reddit posts. Built by a solo dev using Claude as primary dev partner. No download, no app, runs via Reddit Devvit platform.\n\n' +
+    'SESSION DATA:\n' +
+    'Session: ' + (session || 'latest') + '\n' +
+    'Devvit version: ' + (version || 'latest') + '\n' +
+    'What shipped: ' + shipped + '\n' +
+    (broke ? 'What broke/surprised: ' + broke + '\n' : '') +
+    (quote ? 'Best quote/moment: ' + quote + '\n' : '') +
+    '\nWrite exactly 3 Reddit posts from this session. Each post must be written as the developer sharing genuinely. No hype, no marketing language. Honest dev diary tone.\n\n' +
+    'Return ONLY a JSON array with exactly 3 objects. Each object: {"subreddit": "r/name", "title": "post title", "body": "full post body", "why": "one sentence on why this community"}\n\n' +
+    'Target communities to choose from (pick 3 different ones based on the content):\n' +
+    'r/incremental_games — for idle/mechanic/design posts\n' +
+    'r/gamedev — for technical bug stories, architecture decisions\n' +
+    'r/CozyGamers — for player experience, emotional hooks\n' +
+    'r/GrowAGarden — for shared world, offline mechanics, community events\n' +
+    'r/ClaudeAI — for AI dev workflow moments\n' +
+    'r/devvit — for Devvit-specific technical stories\n' +
+    'r/indiegaming — for solo dev stories, shipping moments\n\n' +
+    'The body should be 150-250 words. Write like a real Reddit post, not an ad. Include the game link placeholder [LINK] at the end if relevant.\n\n' +
+    'Return only the JSON array, no other text.';
+
+  fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var text = data.content && data.content[0] && data.content[0].text ? data.content[0].text : '';
+    // Strip code fences
+    text = text.replace(/```json|```/g, '').trim();
+    var posts;
+    try { posts = JSON.parse(text); } catch(e) {
+      preview.innerHTML = '<div style="background:#fff;border:1px solid #edeff1;border-radius:4px;padding:16px;color:#ff4500;font-size:.85rem">Parse error — ' + e.message + '<br><pre style="font-size:.75rem;margin-top:8px;white-space:pre-wrap">' + text.substring(0,300) + '</pre></div>';
+      return;
+    }
+    renderGeneratedPosts(posts, session, version, shipped, broke, quote);
+  })
+  .catch(function(e) {
+    preview.innerHTML = '<div style="background:#fff;border:1px solid #edeff1;border-radius:4px;padding:16px;color:#ff4500;font-size:.85rem">Error: ' + e.message + '</div>';
+  });
+}
+
+function renderGeneratedPosts(posts, session, version, shipped, broke, quote) {
+  var preview = document.getElementById('sl-preview');
+  var html = '<div style="font-size:.75rem;font-weight:700;color:#878a8c;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Generated ' + posts.length + ' posts — review and add to calendar</div>';
+
+  posts.forEach(function(p, i) {
+    html += '<div style="background:#fff;border:1px solid #edeff1;border-radius:4px;margin-bottom:10px;overflow:hidden">' +
+      '<div style="background:#f6f7f8;padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #edeff1">' +
+        '<span style="font-size:.7rem;font-weight:700;background:#ff4500;color:#fff;padding:2px 8px;border-radius:2px">' + (p.subreddit || '') + '</span>' +
+        '<span style="font-size:.7rem;color:#878a8c;flex:1">' + (p.why || '') + '</span>' +
+        '<button onclick="addToCalendar(' + i + ')" id="add-btn-' + i + '" ' +
+          'style="background:#0079d3;color:#fff;border:none;border-radius:3px;padding:5px 12px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add to Calendar</button>' +
+      '</div>' +
+      '<div style="padding:12px 14px">' +
+        '<div style="font-size:.9rem;font-weight:600;color:#1c1c1c;margin-bottom:6px">' + escH(p.title || '') + '</div>' +
+        '<div style="font-size:.82rem;color:#3c3c3c;line-height:1.6;white-space:pre-wrap">' + escH(p.body || '') + '</div>' +
+      '</div></div>';
+  });
+
+  // Store generated posts temporarily
+  window._generatedPosts = posts;
+  window._sessionMeta = { session: session, version: version, shipped: shipped, broke: broke, quote: quote };
+
+  preview.innerHTML = html;
+}
+
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function addToCalendar(i) {
+  var p = window._generatedPosts[i];
+  var meta = window._sessionMeta || {};
+  if (!p) return;
+
+  // Find next day number from POSTS array
+  var maxDay = POSTS.reduce(function(m, post) { return Math.max(m, post.num); }, 150);
+  // Also check localStorage for previously added session posts
+  var added = getSessionLogs();
+  var localMax = added.reduce(function(m, entry) { return Math.max(m, entry.num || 0); }, maxDay);
+  var nextDay = localMax + 1;
+
+  var newPost = {
+    num: nextDay,
+    date: 'Session ' + (meta.session || '?'),
+    subreddit: p.subreddit || 'r/gamedev',
+    title: p.title || '',
+    body: p.body || '',
+    phase: 'Phase 3 — Launch',
+    stream: 'gamer',
+    session_generated: true
+  };
+
+  // Save to local session log
+  added.push(newPost);
+  saveSessionLogs(added);
+
+  // Add to live POSTS array so it shows up immediately in calendar
+  POSTS.push(newPost);
+
+  // Update the button
+  var btn = document.getElementById('add-btn-' + i);
+  if (btn) { btn.innerHTML = '✓ Added as Day ' + nextDay; btn.style.background = '#46d160'; btn.disabled = true; }
+
+  // Rebuild calendar to show new post
+  if (document.getElementById('tab-calendar').classList.contains('active')) {
+    buildCalendar();
+  }
+
+  // Push to GitHub
+  pushNewPostToGitHub(newPost);
+}
+
+function pushNewPostToGitHub(newPost) {
+  // Read current file, append new post to POSTS array, push back
+  // We use a lightweight approach: store session posts in a separate JSON file
+  // docs/session-posts.json — array of posts added via the session logger
+  var ghUrl = 'https://api.github.com/repos/Cal-Starfur/Wigglers_Room/contents/docs/session-posts.json';
+
+  // Try to read existing session-posts.json
+  fetch(ghUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var existing = [];
+    var fileSha = null;
+    if (data.content) {
+      try {
+        existing = JSON.parse(atob(data.content.replace(/\n/g,'')));
+        fileSha = data.sha;
+      } catch(e) {}
+    }
+    existing.push(newPost);
+    var content = btoa(unescape(encodeURIComponent(JSON.stringify(existing, null, 2))));
+    var payload = { message: 'Session log: add Day ' + newPost.num + ' post — ' + newPost.subreddit, content: content };
+    if (fileSha) payload.sha = fileSha;
+    return fetch(ghUrl, { method: 'PUT', headers: { 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result.content) {
+      console.log('Pushed Day ' + newPost.num + ' to session-posts.json ✓');
+    }
+  })
+  .catch(function(e) {
+    console.log('GitHub push note: ' + e.message + ' — post saved locally');
+  });
+}
+
+// On page load, pull any previously session-logged posts from localStorage and merge into POSTS
+(function() {
+  var added = getSessionLogs();
+  if (added.length) {
+    var existingNums = new Set(POSTS.map(function(p){ return p.num; }));
+    added.forEach(function(p) {
+      if (!existingNums.has(p.num)) {
+        POSTS.push(p);
+        existingNums.add(p.num);
+      }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
