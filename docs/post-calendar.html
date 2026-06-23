@@ -2,587 +2,310 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wigglers Room — Post Calendar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wigglers Room — Marketing Hub</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#dae0e6;--card:#fff;--header:#1c1c1c;--orange:#ff4500;--blue:#0079d3;
+  --border:#edeff1;--light:#f6f7f8;--text:#1c1c1c;--meta:#878a8c;
+  --green:#46d160;--teal:#0dd3bb;--red:#ff585b;--yellow:#ffd635;
+}
+body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:var(--text);min-height:100vh}
 
-  :root {
-    --reddit-bg:       #dae0e6;
-    --reddit-card:     #ffffff;
-    --reddit-header:   #1c1c1c;
-    --reddit-orange:   #ff4500;
-    --reddit-blue:     #0079d3;
-    --reddit-border:   #ccc;
-    --reddit-light:    #f6f7f8;
-    --reddit-text:     #1c1c1c;
-    --reddit-meta:     #878a8c;
-    --reddit-sub:      #1c1c1c;
-    --reddit-upvote:   #ff4500;
-    --reddit-pill-bg:  #f6f7f8;
-    --phase1:          #0dd3bb;
-    --phase2:          #ff585b;
-    --phase3:          #ffd635;
-    --done-bg:         #f6f7f8;
-  }
+/* NAV */
+.nav{background:var(--header);height:48px;display:flex;align-items:center;padding:0 20px;gap:16px;position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.1)}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.nav-snoo{font-size:1.5rem;line-height:1}
+.nav-wm{font-size:1rem;font-weight:700;color:#fff;letter-spacing:-.01em}
+.nav-wm span{color:var(--orange)}
+.nav-div{width:1px;height:20px;background:rgba(255,255,255,.2)}
+.nav-sub{color:rgba(255,255,255,.6);font-size:.8rem;font-weight:500}
+.nav-sp{flex:1}
+.nav-pill{background:rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;font-size:.72rem;color:rgba(255,255,255,.8);white-space:nowrap}
+.nav-pill strong{color:var(--orange)}
 
-  body {
-    background: var(--reddit-bg);
-    font-family: -apple-system, BlinkMacSystemFont, 'IBM Plex Sans', 'Noto Sans', sans-serif;
-    font-size: 14px;
-    color: var(--reddit-text);
-    min-height: 100vh;
-  }
+/* TAB BAR */
+.tab-bar{background:var(--card);border-bottom:1px solid var(--border);display:flex;padding:0 20px;position:sticky;top:48px;z-index:100}
+.tab-btn{background:none;border:none;padding:12px 16px;font-size:.85rem;font-weight:700;color:var(--meta);cursor:pointer;border-bottom:3px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--orange);border-bottom-color:var(--orange)}
 
-  /* ── Reddit-style top nav ── */
-  .reddit-nav {
-    background: var(--reddit-header);
-    height: 48px;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 16px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-  }
-  .nav-logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-  }
-  .nav-snoo { font-size: 1.6rem; line-height: 1; }
-  .nav-wordmark {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: -0.01em;
-  }
-  .nav-wordmark span { color: var(--reddit-orange); }
-  .nav-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
-  .nav-sub-name {
-    color: rgba(255,255,255,0.7);
-    font-size: 0.8rem;
-    font-weight: 500;
-  }
-  .nav-spacer { flex: 1; }
-  .progress-pill {
-    background: rgba(255,255,255,0.1);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.8);
-    white-space: nowrap;
-  }
-  .progress-pill strong { color: var(--reddit-orange); }
+/* LAYOUT */
+.page{max-width:1100px;margin:0 auto;padding:20px 16px;display:grid;grid-template-columns:640px 1fr;gap:24px;align-items:start}
+@media(max-width:900px){.page{grid-template-columns:1fr}.sidebar{display:none}}
+.tab-pane{display:none}.tab-pane.active{display:block}
 
-  /* ── Layout ── */
-  .page-wrap {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 20px 16px;
-    display: grid;
-    grid-template-columns: 640px 1fr;
-    gap: 24px;
-    align-items: start;
-  }
-  @media (max-width: 900px) {
-    .page-wrap { grid-template-columns: 1fr; }
-    .sidebar { display: none; }
-  }
+/* SUB HEADER */
+.sub-hdr{background:var(--card);border:1px solid var(--border);border-radius:4px;margin-bottom:16px;overflow:hidden}
+.sub-banner{height:80px;background:linear-gradient(135deg,#1a5c28 0%,#2d8a44 40%,#8b6914 70%,#5c3d0a 100%);position:relative;display:flex;align-items:flex-end;padding:0 16px}
+.sub-banner::after{content:'🪱🌱🌿';position:absolute;font-size:1.4rem;bottom:8px;right:16px;opacity:.5;letter-spacing:4px}
+.sub-icon{width:56px;height:56px;background:#fff;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:1.6rem;position:relative;top:20px;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.sub-info{padding:28px 16px 14px}
+.sub-name{font-size:1.1rem;font-weight:700;margin-bottom:2px}
+.sub-handle{font-size:.78rem;color:var(--meta);margin-bottom:10px}
+.sub-join{display:inline-block;background:var(--blue);color:#fff;border-radius:20px;padding:5px 14px;font-size:.78rem;font-weight:700;cursor:default}
 
-  /* ── Subreddit header ── */
-  .sub-header {
-    background: var(--reddit-card);
-    border: 1px solid var(--reddit-border);
-    border-radius: 4px;
-    margin-bottom: 16px;
-    overflow: hidden;
-  }
-  .sub-banner {
-    height: 96px;
-    background: linear-gradient(135deg, #1a5c28 0%, #2d8a44 40%, #8b6914 70%, #5c3d0a 100%);
-    position: relative;
-    display: flex;
-    align-items: flex-end;
-    padding: 0 16px 0;
-  }
-  .sub-banner::after {
-    content: '🪱🌱🪱🌿🪱';
-    position: absolute;
-    font-size: 1.4rem;
-    bottom: 8px;
-    right: 16px;
-    opacity: 0.6;
-    letter-spacing: 4px;
-  }
-  .sub-icon {
-    width: 64px;
-    height: 64px;
-    background: #fff;
-    border-radius: 50%;
-    border: 4px solid #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8rem;
-    position: relative;
-    top: 24px;
-    z-index: 1;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  }
-  .sub-info {
-    padding: 32px 16px 16px;
-  }
-  .sub-name {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--reddit-text);
-    margin-bottom: 2px;
-  }
-  .sub-handle {
-    font-size: 0.8rem;
-    color: var(--reddit-meta);
-    margin-bottom: 12px;
-  }
-  .sub-join {
-    display: inline-block;
-    background: var(--reddit-blue);
-    color: #fff;
-    border-radius: 20px;
-    padding: 6px 16px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: default;
-  }
+/* SORT BAR */
+.sort-bar{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin-bottom:10px;display:flex;gap:4px;align-items:center}
+.sort-lbl{font-size:.75rem;font-weight:700;color:var(--meta);margin-right:4px}
+.sort-btn{background:none;border:none;padding:5px 9px;border-radius:2px;font-size:.78rem;font-weight:700;color:var(--meta);cursor:pointer}
+.sort-btn:hover,.sort-btn.active{background:var(--light);color:var(--text)}
 
-  /* ── Sort bar ── */
-  .sort-bar {
-    background: var(--reddit-card);
-    border: 1px solid var(--reddit-border);
-    border-radius: 4px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-  .sort-btn {
-    background: none;
-    border: none;
-    padding: 6px 10px;
-    border-radius: 2px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--reddit-meta);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .sort-btn:hover { background: var(--reddit-light); color: var(--reddit-text); }
-  .sort-btn.active { color: var(--reddit-text); background: var(--reddit-light); }
+/* PHASE DIVIDER */
+.phase-div{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
+.phase-pill{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border-radius:20px;color:#fff;white-space:nowrap}
+.phase-line{flex:1;height:1px;background:var(--border)}
+.phase-desc{font-size:.7rem;color:var(--meta);white-space:nowrap}
 
-  /* ── Phase label ── */
-  .phase-divider {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 20px 0 8px;
-  }
-  .phase-pill {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 3px 10px;
-    border-radius: 20px;
-    color: #fff;
-    white-space: nowrap;
-  }
-  .phase-line {
-    flex: 1;
-    height: 1px;
-    background: var(--reddit-border);
-  }
-  .phase-desc {
-    font-size: 0.72rem;
-    color: var(--reddit-meta);
-    white-space: nowrap;
-  }
+/* POST CARD */
+.post-card{background:var(--card);border:1px solid var(--border);border-radius:4px;margin-bottom:10px;display:flex;overflow:hidden;transition:border-color .15s;cursor:pointer}
+.post-card:hover{border-color:#898989}
+.post-card.expanded{border-color:var(--orange)}
+.post-card.done{opacity:.55;border-left:3px solid var(--green)}
 
-  /* ── Post card (Reddit style) ── */
-  .post-card {
-    background: var(--reddit-card);
-    border: 1px solid var(--reddit-border);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    display: flex;
-    overflow: hidden;
-    transition: border-color 0.15s;
-    cursor: pointer;
-  }
-  .post-card:hover { border-color: #898989; }
-  .post-card.expanded { border-color: var(--reddit-orange); }
-  .post-card.done {
-    opacity: 0.55;
-    border-left: 3px solid #46d160;
-  }
-  .post-card.done:hover { opacity: 0.75; }
+.vote-col{width:40px;background:var(--light);display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:3px;flex-shrink:0}
+.v-arr{font-size:1rem;color:var(--meta);line-height:1;cursor:default}
+.v-num{font-size:.68rem;font-weight:700;color:var(--text);text-align:center}
 
-  /* Vote column */
-  .vote-col {
-    width: 40px;
-    background: var(--reddit-light);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 8px 4px;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  .vote-arrow {
-    font-size: 1.1rem;
-    color: var(--reddit-meta);
-    line-height: 1;
-    cursor: default;
-  }
-  .vote-count {
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: var(--reddit-text);
-    text-align: center;
-  }
+.post-col{flex:1;padding:8px;min-width:0}
+.flair-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap}
+.day-flair{font-size:.66rem;font-weight:700;padding:2px 7px;border-radius:2px;color:#fff;white-space:nowrap}
+.sub-flair{font-size:.72rem;color:var(--blue);font-weight:500}
+.sub-flair a{color:inherit;text-decoration:none}
+.sub-flair a:hover{text-decoration:underline}
+.date-flair{font-size:.7rem;color:var(--meta)}
+.post-title{font-size:.95rem;font-weight:500;line-height:1.35;color:var(--text);margin-bottom:6px}
+.post-body{display:none;font-size:.85rem;line-height:1.65;color:#3c3c3c;margin-bottom:10px;padding:10px 12px;background:var(--light);border-radius:3px;white-space:pre-wrap;word-break:break-word;border-left:3px solid var(--border)}
+.post-card.expanded .post-body{display:block}
 
-  /* Post body col */
-  .post-col {
-    flex: 1;
-    padding: 8px 8px 8px 8px;
-    min-width: 0;
-  }
-  .post-flair-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-    flex-wrap: wrap;
-  }
-  .day-flair {
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 2px;
-    color: #fff;
-    white-space: nowrap;
-  }
-  .sub-flair {
-    font-size: 0.72rem;
-    color: var(--reddit-blue);
-    font-weight: 500;
-  }
-  .sub-flair a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .sub-flair a:hover { text-decoration: underline; }
-  .date-flair {
-    font-size: 0.7rem;
-    color: var(--reddit-meta);
-  }
+.actions{display:flex;gap:2px;align-items:center;flex-wrap:wrap}
+.act-btn{background:none;border:none;padding:5px 8px;border-radius:2px;font-size:.72rem;font-weight:700;color:var(--meta);cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.act-btn:hover{background:var(--light);color:var(--text)}
+.act-btn.copy{color:var(--orange)}.act-btn.copy:hover{background:#fff1ed}
+.act-btn.copied{color:var(--green)}
+.act-btn.marked{color:var(--green)}
 
-  .post-title-line {
-    font-size: 1rem;
-    font-weight: 500;
-    line-height: 1.35;
-    color: var(--reddit-text);
-    margin-bottom: 6px;
-  }
+/* DAY 21 */
+.launch-banner{background:#fff3eb;border-bottom:1px solid #ffd4b8;padding:5px 10px;font-size:.72rem;font-weight:700;color:var(--orange)}
+.sub-post{border-top:1px solid var(--border);padding:8px 8px 0}
+.sp-label{font-size:.7rem;font-weight:700;color:var(--blue);margin-bottom:4px}
+.sp-title{font-size:.88rem;font-weight:500;margin-bottom:6px;color:var(--text)}
+.sp-body{display:none;font-size:.83rem;line-height:1.6;color:#3c3c3c;margin-bottom:8px;padding:8px 10px;background:var(--light);border-radius:3px;white-space:pre-wrap;word-break:break-word;border-left:3px solid var(--border)}
+.sub-post.expanded .sp-body{display:block}
 
-  /* Expanded body */
-  .post-body-text {
-    display: none;
-    font-size: 0.875rem;
-    line-height: 1.65;
-    color: #3c3c3c;
-    margin-bottom: 10px;
-    padding: 10px 12px;
-    background: var(--reddit-light);
-    border-radius: 3px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-left: 3px solid var(--reddit-border);
-  }
-  .post-card.expanded .post-body-text { display: block; }
+/* TRACKER TAB */
+.tracker-header{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:14px 16px;margin-bottom:12px}
+.tracker-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.tracker-sub{font-size:.78rem;color:var(--meta)}
 
-  /* Action bar */
-  .post-actions {
-    display: flex;
-    gap: 2px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .action-btn {
-    background: none;
-    border: none;
-    padding: 5px 8px;
-    border-radius: 2px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--reddit-meta);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-  }
-  .action-btn:hover { background: var(--reddit-light); color: var(--reddit-text); }
-  .action-btn.copy-action { color: var(--reddit-orange); }
-  .action-btn.copy-action:hover { background: #fff1ed; }
-  .action-btn.copied-action { color: #46d160; }
-  .action-btn.mark-action.is-done { color: #46d160; }
+.tracker-card{background:var(--card);border:1px solid var(--border);border-radius:4px;margin-bottom:8px;overflow:hidden}
+.tracker-card.has-data{border-left:3px solid var(--orange)}
+.tracker-row{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer}
+.tracker-row:hover{background:var(--light)}
+.t-day{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.t-sub{font-size:.78rem;color:var(--meta);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-stats{display:flex;gap:12px;align-items:center;margin-left:auto}
+.t-stat{font-size:.75rem;text-align:center}
+.t-stat .val{font-weight:700;font-size:.9rem;color:var(--text)}
+.t-stat .lbl{color:var(--meta);font-size:.65rem}
+.t-stat.empty .val{color:var(--border)}
+.t-arrow{font-size:.8rem;color:var(--meta)}
 
-  /* Day 21 triple post */
-  .launch-banner {
-    background: #fff3eb;
-    border-bottom: 1px solid #ffd4b8;
-    padding: 6px 10px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--reddit-orange);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .sub-post-section {
-    border-top: 1px solid var(--reddit-border);
-    padding: 8px 8px 0 8px;
-  }
-  .sub-post-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: var(--reddit-blue);
-    margin-bottom: 4px;
-  }
-  .sub-post-title {
-    font-size: 0.9rem;
-    font-weight: 500;
-    margin-bottom: 6px;
-    color: var(--reddit-text);
-  }
-  .sub-post-body {
-    display: none;
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: #3c3c3c;
-    margin-bottom: 8px;
-    padding: 8px 10px;
-    background: var(--reddit-light);
-    border-radius: 3px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-left: 3px solid var(--reddit-border);
-  }
-  .sub-post-section.expanded .sub-post-body { display: block; }
+.tracker-detail{display:none;padding:12px 16px;border-top:1px solid var(--border);background:var(--light)}
+.tracker-card.open .tracker-detail{display:block}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+.detail-field label{display:block;font-size:.7rem;font-weight:700;color:var(--meta);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.detail-field input{width:100%;border:1px solid var(--border);border-radius:3px;padding:6px 8px;font-size:.85rem;color:var(--text);background:var(--card)}
+.detail-field input:focus{outline:none;border-color:var(--orange)}
+.detail-field.full{grid-column:1/-1}
+.detail-field textarea{width:100%;border:1px solid var(--border);border-radius:3px;padding:6px 8px;font-size:.83rem;color:var(--text);background:var(--card);resize:vertical;min-height:60px;font-family:inherit;line-height:1.5}
+.detail-field textarea:focus{outline:none;border-color:var(--orange)}
+.save-btn{background:var(--orange);color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:.8rem;font-weight:700;cursor:pointer}
+.save-btn:hover{background:#e03d00}
+.save-confirm{display:none;font-size:.75rem;color:var(--green);font-weight:700;margin-left:8px}
 
-  /* Hidden textarea */
-  .copy-src {
-    position: absolute; left: -9999px; opacity: 0;
-    pointer-events: none; width: 1px; height: 1px;
-  }
+/* CHART */
+.chart-wrap{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:16px;margin-bottom:16px}
+.chart-title{font-size:.8rem;font-weight:700;color:var(--meta);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.bar-chart{display:flex;flex-direction:column;gap:6px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-label{font-size:.7rem;color:var(--meta);width:60px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:18px;background:var(--light);border-radius:2px;overflow:hidden;position:relative}
+.bar-fill{height:100%;background:var(--orange);border-radius:2px;transition:width .4s ease;min-width:0}
+.bar-val{font-size:.7rem;font-weight:700;color:var(--text);width:30px;flex-shrink:0}
+.no-data{font-size:.8rem;color:var(--meta);text-align:center;padding:20px 0}
 
-  /* ── Sidebar ── */
-  .sidebar { position: sticky; top: 68px; }
-  .sidebar-widget {
-    background: var(--reddit-card);
-    border: 1px solid var(--reddit-border);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 16px;
-  }
-  .widget-header {
-    background: var(--reddit-orange);
-    color: #fff;
-    padding: 10px 12px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .widget-body { padding: 12px; }
-  .widget-stat {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 5px 0;
-    border-bottom: 1px solid var(--reddit-light);
-    font-size: 0.8rem;
-  }
-  .widget-stat:last-child { border-bottom: none; }
-  .stat-label { color: var(--reddit-meta); }
-  .stat-val { font-weight: 700; color: var(--reddit-text); }
-  .progress-bar-wrap { margin: 10px 0; }
-  .progress-track {
-    height: 8px;
-    background: var(--reddit-light);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 4px;
-  }
-  .progress-fill {
-    height: 100%;
-    background: var(--reddit-orange);
-    border-radius: 4px;
-    transition: width 0.4s ease;
-    width: 0%;
-  }
-  .rules-list {
-    list-style: none;
-    padding: 0;
-  }
-  .rules-list li {
-    padding: 7px 0;
-    border-bottom: 1px solid var(--reddit-light);
-    font-size: 0.8rem;
-    color: var(--reddit-text);
-    line-height: 1.4;
-    display: flex;
-    gap: 8px;
-  }
-  .rules-list li:last-child { border-bottom: none; }
-  .rule-num {
-    font-weight: 700;
-    color: var(--reddit-orange);
-    flex-shrink: 0;
-    min-width: 16px;
-  }
+/* REPLY BANK TAB */
+.reply-filter{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.filter-lbl{font-size:.75rem;font-weight:700;color:var(--meta);margin-right:4px}
+.filter-btn{background:var(--light);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.75rem;font-weight:600;color:var(--meta);cursor:pointer;transition:all .15s}
+.filter-btn:hover{border-color:var(--orange);color:var(--orange)}
+.filter-btn.active{background:var(--orange);border-color:var(--orange);color:#fff}
+
+.reply-card{background:var(--card);border:1px solid var(--border);border-radius:4px;margin-bottom:8px;overflow:hidden}
+.reply-q{padding:12px 14px 10px;display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.reply-q:hover{background:var(--light)}
+.q-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
+.q-text{font-size:.9rem;font-weight:500;flex:1;line-height:1.35}
+.q-cat{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.q-arr{font-size:.8rem;color:var(--meta);flex-shrink:0;transition:transform .2s}
+.reply-card.open .q-arr{transform:rotate(90deg)}
+
+.reply-body{display:none;padding:0 14px 12px;border-top:1px solid var(--border);margin-top:2px}
+.reply-card.open .reply-body{display:block}
+.reply-text{font-size:.85rem;line-height:1.65;color:#3c3c3c;white-space:pre-wrap;padding:10px 12px;background:var(--light);border-radius:3px;margin:10px 0 10px;border-left:3px solid var(--border)}
+.reply-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.reply-tag{font-size:.68rem;background:#e8f0fe;color:var(--blue);border-radius:3px;padding:2px 7px;font-weight:600}
+.reply-actions{display:flex;gap:6px}
+.r-copy-btn{background:var(--orange);color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:.75rem;font-weight:700;cursor:pointer}
+.r-copy-btn:hover{background:#e03d00}
+.r-copy-btn.copied{background:var(--green)}
+
+/* CAT COLORS */
+.cat-game{background:#eaf5ea;color:#2d6a2d}
+.cat-tech{background:#e8f0fe;color:#1a56b0}
+.cat-comp{background:#fef3e8;color:#a04000}
+.cat-gamer{background:#f3e8fe;color:#6b21a8}
+
+/* SIDEBAR */
+.sidebar{position:sticky;top:96px}
+.widget{background:var(--card);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:16px}
+.wgt-hdr{background:var(--orange);color:#fff;padding:9px 12px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.wgt-body{padding:12px}
+.w-stat{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--light);font-size:.8rem}
+.w-stat:last-child{border-bottom:none}
+.w-lbl{color:var(--meta)}.w-val{font-weight:700}
+.prog-wrap{margin:10px 0}
+.prog-track{height:8px;background:var(--light);border-radius:4px;overflow:hidden;margin-top:4px}
+.prog-fill{height:100%;background:var(--orange);border-radius:4px;transition:width .4s ease;width:0%}
+.w-list{list-style:none}
+.w-list li{padding:6px 0;border-bottom:1px solid var(--light);font-size:.78rem;color:var(--text);line-height:1.4;display:flex;gap:7px}
+.w-list li:last-child{border-bottom:none}
+.w-num{font-weight:700;color:var(--orange);flex-shrink:0;min-width:14px}
+
+/* COPY HIDDEN */
+.copy-src{position:absolute;left:-9999px;opacity:0;pointer-events:none;width:1px;height:1px}
 </style>
 </head>
 <body>
 
-<!-- Reddit nav bar -->
-<nav class="reddit-nav">
+<nav class="nav">
   <a class="nav-logo" href="#">
     <span class="nav-snoo">🪱</span>
-    <span class="nav-wordmark">wiggler<span>s</span>room</span>
+    <span class="nav-wm">wiggler<span>s</span>room</span>
   </a>
-  <div class="nav-divider"></div>
-  <span class="nav-sub-name">post calendar</span>
-  <div class="nav-spacer"></div>
-  <div class="progress-pill"><strong id="nav-posted">0</strong> / 30 posted</div>
+  <div class="nav-div"></div>
+  <span class="nav-sub">marketing hub</span>
+  <div class="nav-sp"></div>
+  <div class="nav-pill"><strong id="nav-posted">0</strong> / 30 posted</div>
 </nav>
 
-<div class="page-wrap">
-  <main>
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('calendar')">📅 Post Calendar</button>
+  <button class="tab-btn" onclick="switchTab('tracker')">📊 Post Tracker</button>
+  <button class="tab-btn" onclick="switchTab('replies')">💬 Reply Bank</button>
+</div>
 
-    <!-- Subreddit header -->
-    <div class="sub-header">
-      <div class="sub-banner">
-        <div class="sub-icon">🪱</div>
-      </div>
-      <div class="sub-info">
-        <div class="sub-name">Wigglers Room — 30-Day Post Calendar</div>
-        <div class="sub-handle">r/wigglers_room_dev • Your post queue. Click any post to expand. Copy → paste → post.</div>
-        <span class="sub-join">Join 1</span>
-      </div>
+<div class="page">
+<main>
+
+<!-- ═══ TAB: CALENDAR ═══════════════════════════════════════════════════ -->
+<div class="tab-pane active" id="tab-calendar">
+  <div class="sub-hdr">
+    <div class="sub-banner"><div class="sub-icon">🪱</div></div>
+    <div class="sub-info">
+      <div class="sub-name">30-Day Post Calendar</div>
+      <div class="sub-handle">Click any post to expand · Copy · Paste · Mark done</div>
+      <span class="sub-join">Join 1</span>
     </div>
+  </div>
+  <div class="sort-bar">
+    <span class="sort-lbl">SORT BY</span>
+    <button class="sort-btn active">🔥 Hot</button>
+    <button class="sort-btn">📅 Schedule</button>
+  </div>
+  <div id="calendar-feed"></div>
+</div>
 
-    <!-- Sort bar -->
-    <div class="sort-bar">
-      <span style="font-size:0.8rem; font-weight:700; color:var(--reddit-meta); margin-right:4px;">SORT BY</span>
-      <button class="sort-btn active">🔥 Hot</button>
-      <button class="sort-btn">✨ New</button>
-      <button class="sort-btn">📅 Schedule</button>
+<!-- ═══ TAB: TRACKER ════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-tracker">
+  <div class="tracker-header">
+    <div class="tracker-title">Post Performance Tracker</div>
+    <div class="tracker-sub">Log upvotes, comments and top reactions after each post goes live. Click a row to expand and enter data.</div>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-title">Upvotes by post</div>
+    <div class="bar-chart" id="bar-chart"><div class="no-data">No data yet — log your first post below.</div></div>
+  </div>
+  <div id="tracker-feed"></div>
+</div>
+
+<!-- ═══ TAB: REPLY BANK ════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-replies">
+  <div class="sub-hdr">
+    <div class="sub-banner"><div class="sub-icon">💬</div></div>
+    <div class="sub-info">
+      <div class="sub-name">Comment Reply Bank</div>
+      <div class="sub-handle">Pre-written replies to common questions. Click to expand · Copy · Paste into comments.</div>
+      <span class="sub-join">17 replies</span>
     </div>
+  </div>
+  <div class="reply-filter">
+    <span class="filter-lbl">FILTER:</span>
+    <button class="filter-btn active" onclick="filterReplies('all')">All (17)</button>
+    <button class="filter-btn" onclick="filterReplies('Game Mechanics')">🎮 Game Mechanics</button>
+    <button class="filter-btn" onclick="filterReplies('Tech Questions')">⚙️ Tech Questions</button>
+    <button class="filter-btn" onclick="filterReplies('Composting Skeptics')">🌱 Composting Skeptics</button>
+    <button class="filter-btn" onclick="filterReplies('Curious Gamers')">🎮 Curious Gamers</button>
+  </div>
+  <div id="reply-feed"></div>
+</div>
 
-    <!-- Posts will be injected here -->
-    <div id="feed"></div>
+</main>
 
-  </main>
-
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-widget">
-      <div class="widget-header">📊 Progress</div>
-      <div class="widget-body">
-        <div class="widget-stat">
-          <span class="stat-label">Posted</span>
-          <span class="stat-val" id="stat-posted">0 / 30</span>
-        </div>
-        <div class="widget-stat">
-          <span class="stat-label">Phase 1 Warmup</span>
-          <span class="stat-val" id="stat-p1">0 / 10</span>
-        </div>
-        <div class="widget-stat">
-          <span class="stat-label">Phase 2 Hype</span>
-          <span class="stat-val" id="stat-p2">0 / 10</span>
-        </div>
-        <div class="widget-stat">
-          <span class="stat-label">Phase 3 Launch</span>
-          <span class="stat-val" id="stat-p3">0 / 10</span>
-        </div>
-        <div class="progress-bar-wrap">
-          <div class="progress-track">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sidebar-widget">
-      <div class="widget-header">📋 Rules</div>
-      <div class="widget-body">
-        <ul class="rules-list">
-          <li><span class="rule-num">1</span>Read before pasting — change anything that doesn't sound like you</li>
-          <li><span class="rule-num">2</span>Reply to every comment within 2 hours. The thread is the product.</li>
-          <li><span class="rule-num">3</span>Never cross-post identical content to two subs</li>
-          <li><span class="rule-num">4</span>No game links until Day 21</li>
-          <li><span class="rule-num">5</span>&lt;5 upvotes in 2 hours? Move on. Don't delete it.</li>
-          <li><span class="rule-num">6</span>If a post pops off — stay in the comments</li>
-          <li><span class="rule-num">7</span>Phase 3 timing is flexible. Don't launch until the game is stable.</li>
-          <li><span class="rule-num">8</span>Never mention this is a marketing plan</li>
-          <li><span class="rule-num">9</span>Composting communities are skeptical. Earn trust first.</li>
-          <li><span class="rule-num">10</span>Dev communities want failure stories, not success stories</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="sidebar-widget">
-      <div class="widget-header">🪱 About</div>
-      <div class="widget-body" style="font-size:0.8rem; color:var(--reddit-meta); line-height:1.5;">
-        <p>30 days of pre-written Reddit posts for the Wigglers Room launch campaign.</p>
-        <br>
-        <p>All copy is sourced from real development history. No placeholders except <code>[LINK]</code> on launch day posts.</p>
-        <br>
-        <p style="color:var(--reddit-text); font-weight:600;">Click any post to expand → Copy → Paste into Reddit.</p>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="widget">
+    <div class="wgt-hdr">📊 Progress</div>
+    <div class="wgt-body">
+      <div class="w-stat"><span class="w-lbl">Posted</span><span class="w-val" id="s-posted">0 / 30</span></div>
+      <div class="w-stat"><span class="w-lbl">Phase 1 Warmup</span><span class="w-val" id="s-p1">0 / 10</span></div>
+      <div class="w-stat"><span class="w-lbl">Phase 2 Hype</span><span class="w-val" id="s-p2">0 / 10</span></div>
+      <div class="w-stat"><span class="w-lbl">Phase 3 Launch</span><span class="w-val" id="s-p3">0 / 10</span></div>
+      <div class="prog-wrap">
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
       </div>
     </div>
-  </aside>
+  </div>
+  <div class="widget">
+    <div class="wgt-hdr">📋 Rules</div>
+    <div class="wgt-body">
+      <ul class="w-list">
+        <li><span class="w-num">1</span>Read before pasting — make it sound like you</li>
+        <li><span class="w-num">2</span>Reply to comments within 2 hours. Thread is the product.</li>
+        <li><span class="w-num">3</span>Never cross-post identical content</li>
+        <li><span class="w-num">4</span>No game links until Day 21</li>
+        <li><span class="w-num">5</span>&lt;5 upvotes in 2 hours? Move on, don't delete</li>
+        <li><span class="w-num">6</span>Post pops off? Stay in the comments</li>
+        <li><span class="w-num">7</span>Phase 3 only when game is stable</li>
+        <li><span class="w-num">8</span>Never mention this is a plan</li>
+        <li><span class="w-num">9</span>Composting subs: earn trust first</li>
+        <li><span class="w-num">10</span>Dev subs: failure &gt; success stories</li>
+      </ul>
+    </div>
+  </div>
+</aside>
 </div>
 
 <script>
-const POSTS = [
-{
-  num: 1,
-  date: `June 22`,
-  subreddit: `r/indiegaming`,
-  title: `I've been building a multiplayer worm game that lives inside a Reddit post. Here's what that actually means.`,
-  body: `I'm a solo dev. For the past few months I've been building something I couldn't find anywhere else — a persistent multiplayer composting sim that runs inside a Reddit post. No app. No download. No login beyond your Reddit account. You just open the post and your worm is there.
+const POSTS=[{num:1,date:`June 22`,subreddit:`r/indiegaming`,title:`I've been building a multiplayer worm game that lives inside a Reddit post. Here's what that actually means.`,body:`I'm a solo dev. For the past few months I've been building something I couldn't find anywhere else — a persistent multiplayer composting sim that runs inside a Reddit post. No app. No download. No login beyond your Reddit account. You just open the post and your worm is there.
 
 The game is called Wigglers Room. Each player controls an earthworm living in a shared compost bin. The bin has four layers — scraps at the top, active soil, deep compost, and a worm tea sump at the bottom. Your worm eats, digs tunnels, poops (which enriches the soil), and eventually dies. Then you come back as your own offspring.
 
 The world is genuinely shared — the tea level fills all week from everyone's contributions and drains every 7 days. When it overflows, everyone's worm takes damage. When someone drains it in time, everyone benefits. You can see other worms moving around in real time.
 
-The whole thing is vanilla JS + HTML5 Canvas running inside Reddit's Devvit platform. The game.js file is sitting at about 9,000 lines right now. Launch is a few weeks out. Happy to answer anything about how it works.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 2,
-  date: `June 23`,
-  subreddit: `r/devvit`,
-  title: `Building a persistent multiplayer game on Devvit — lessons from 25 sessions and ~9,000 lines of game.js`,
-  body: `Things I wish someone had told me before I started:
+The whole thing is vanilla JS + HTML5 Canvas running inside Reddit's Devvit platform. The game.js file is sitting at about 9,000 lines right now. Launch is a few weeks out. Happy to answer anything about how it works.`,phase:`Phase 1 — Warmup`},{num:2,date:`June 23`,subreddit:`r/devvit`,title:`Building a persistent multiplayer game on Devvit — lessons from 25 sessions and ~9,000 lines of game.js`,body:`Things I wish someone had told me before I started:
 
 \`webView.mount()\` only works inside \`onPress\`. Call it in the render body and it fires on every render and crashes silently. Took me an embarrassingly long time to figure that out.
 
@@ -596,15 +319,7 @@ Old posts go read-only after you re-upload. Always create a new post to test a n
 
 Always hard-refresh after deploy. Reddit's cache will serve the old version on first load every time.
 
-The game is a multiplayer worm composting sim. Happy to share more if anyone else is building on Devvit.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 3,
-  date: `June 24`,
-  subreddit: `r/gamedev`,
-  title: `I accidentally built my entire game dev workflow around AI — here's what that actually looks like`,
-  body: `I didn't plan to build a game using Claude as my primary dev partner. It just kind of happened.
+The game is a multiplayer worm composting sim. Happy to share more if anyone else is building on Devvit.`,phase:`Phase 1 — Warmup`},{num:3,date:`June 24`,subreddit:`r/gamedev`,title:`I accidentally built my entire game dev workflow around AI — here's what that actually looks like`,body:`I didn't plan to build a game using Claude as my primary dev partner. It just kind of happened.
 
 Here's the actual workflow: I open a new conversation, paste my GitHub token, and Claude bootstraps itself — pulls the architecture doc and audit log fresh from the repo, reads the current state of the codebase, and picks up exactly where the last session left off. Every session starts from a verified snapshot of reality, not from memory.
 
@@ -614,97 +329,41 @@ The thing that made this work was treating the docs as the source of truth, not 
 
 The failures were instructive. We lost good code twice chasing bugs that turned out to be Reddit's cache serving old versions. We reverted working code because we thought it was broken. Those failures drove the "always hard-refresh after deploy" rule that's now permanent in the architecture doc.
 
-The game is a multiplayer worm composting sim that runs inside Reddit posts. But the workflow is the interesting part.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 4,
-  date: `June 25`,
-  subreddit: `r/composting`,
-  title: `I made a worm bin simulator — and the composting mechanics are more real than you'd expect`,
-  body: `I keep worms. I also make games. A few months ago I combined those interests in a way that made complete sense to me and probably sounds unhinged to everyone else.
+The game is a multiplayer worm composting sim that runs inside Reddit posts. But the workflow is the interesting part.`,phase:`Phase 1 — Warmup`},{num:4,date:`June 25`,subreddit:`r/composting`,title:`I made a worm bin simulator — and the composting mechanics are more real than you'd expect`,body:`I keep worms. I also make games. A few months ago I combined those interests in a way that made complete sense to me and probably sounds unhinged to everyone else.
 
 The mechanics I tried to get right: coffee grounds and citrus damage your worm because they're acidic. Eggshells act as an antidote. Wet dense compost slows movement. If moisture gets too high the bin floods. Worm castings deposited deep in the bin enrich the soil and increase food fragment rates. Tunnels persist and decay. Tea collects in the sump all week and drains on a real 7-day cycle.
 
 I did not make the acid mechanic up. I learned it from my actual worm bin.
 
-The game runs inside Reddit posts via the Devvit platform. No download, no app. Launch in a few weeks. Happy to answer questions about how the real mechanics translated into gameplay.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 5,
-  date: `June 26`,
-  subreddit: `r/vermiculture`,
-  title: `Built a worm bin game — the red wiggler people here will either love or roast the mechanics`,
-  body: `I maintain a red wiggler bin and I've been building a composting game. I genuinely want to know if the mechanics hold up to people who actually know worms.
+The game runs inside Reddit posts via the Devvit platform. No download, no app. Launch in a few weeks. Happy to answer questions about how the real mechanics translated into gameplay.`,phase:`Phase 1 — Warmup`},{num:5,date:`June 26`,subreddit:`r/vermiculture`,title:`Built a worm bin game — the red wiggler people here will either love or roast the mechanics`,body:`I maintain a red wiggler bin and I've been building a composting game. I genuinely want to know if the mechanics hold up to people who actually know worms.
 
 What I tried to get right: acid foods damage the worm, eggshells neutralize it. Moisture levels affect everything. Castings deposited deep in the bin enrich the soil. Cocoons take 7 real-world days to hatch. Tea collects in a weekly cycle.
 
 What I simplified or invented: the worm has a "gut" bar. Tunnels glow. There's a farmer named Snoo who tips in new scraps.
 
-It's a multiplayer game inside Reddit posts, launching in a few weeks. But honestly I posted here because I want to know what I got wrong.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 6,
-  date: `June 27`,
-  subreddit: `r/incremental_games`,
-  title: `I built a persistent idle game where your worm keeps living (and dying) when you close the tab`,
-  body: `The idle mechanics: your gut drains while you're away — come back after 8 hours and you'll be hungry but alive (drain caps at 85%). Come back after too long and you might be in trouble. Tunnels decay. Tea accumulates from everyone's activity, not just yours. Cocoons mature on real-world time — 7 days regardless of whether you're playing.
+It's a multiplayer game inside Reddit posts, launching in a few weeks. But honestly I posted here because I want to know what I got wrong.`,phase:`Phase 1 — Warmup`},{num:6,date:`June 27`,subreddit:`r/incremental_games`,title:`I built a persistent idle game where your worm keeps living (and dying) when you close the tab`,body:`The idle mechanics: your gut drains while you're away — come back after 8 hours and you'll be hungry but alive (drain caps at 85%). Come back after too long and you might be in trouble. Tunnels decay. Tea accumulates from everyone's activity, not just yours. Cocoons mature on real-world time — 7 days regardless of whether you're playing.
 
 The active mechanics: dig tunnel networks for drainage, eat scraps, poop in the deep zone to contribute castings, drain the tea sump to avoid floods, watch other players' worms moving in real time.
 
-No install, no download — runs inside a Reddit post. The whole shared bin persists on Reddit's servers. Tea level is the same for everyone. Launching in a few weeks.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 7,
-  date: `June 28`,
-  subreddit: `r/InternetIsBeautiful`,
-  title: `Someone built a persistent multiplayer game that lives inside a Reddit post and the worm tea drains every 7 days`,
-  body: `Wigglers Room — a multiplayer worm composting sim inside Reddit posts.
+No install, no download — runs inside a Reddit post. The whole shared bin persists on Reddit's servers. Tea level is the same for everyone. Launching in a few weeks.`,phase:`Phase 1 — Warmup`},{num:7,date:`June 28`,subreddit:`r/InternetIsBeautiful`,title:`Someone built a persistent multiplayer game that lives inside a Reddit post and the worm tea drains every 7 days`,body:`Wigglers Room — a multiplayer worm composting sim inside Reddit posts.
 
 Your earthworm lives in a shared bin. The bin has a tea reservoir that fills all week from everyone's activity. Every 7 days it drains and top contributors get a karma bonus. If it overflows before the drain, the bin floods and everyone's worm takes damage.
 
 No download. No app. Just open the post. Your worm is still there when you come back.
 
-Launching in a few weeks. Will post the link here when it goes live.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 8,
-  date: `June 29`,
-  subreddit: `r/WebGames`,
-  title: `I'm building a multiplayer game that runs inside Reddit posts — here's the weird tech behind it`,
-  body: `Wigglers Room runs via Reddit's Devvit platform — custom posts that run actual web apps inside the feed. Vanilla JS + HTML5 Canvas talking to a TypeScript host layer via postMessage.
+Launching in a few weeks. Will post the link here when it goes live.`,phase:`Phase 1 — Warmup`},{num:8,date:`June 29`,subreddit:`r/WebGames`,title:`I'm building a multiplayer game that runs inside Reddit posts — here's the weird tech behind it`,body:`Wigglers Room runs via Reddit's Devvit platform — custom posts that run actual web apps inside the feed. Vanilla JS + HTML5 Canvas talking to a TypeScript host layer via postMessage.
 
 Persistence: Reddit's KV store — worm state, world state, tea level all server-side. Multiplayer: Devvit Realtime — players broadcast position and health once per second, visible as real worm segments (not just dots).
 
 Weirdest constraint: external fetch() calls are silently blocked by the Devvit sandbox. No error, no timeout. Killed my plan to pull real weather data early on.
 
-The game: earthworm in a shared compost bin. Eat, dig tunnels, poop, die. Tea fills weekly, drains on a 7-day cycle. Launch in a few weeks.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 9,
-  date: `June 30`,
-  subreddit: `r/mildlyinteresting`,
-  title: `I've been building a worm composting game and the most realistic mechanic is that you have to poop strategically`,
-  body: `Wigglers Room is a composting sim. You control an earthworm. The mechanic I'm most proud of is the poop system.
+The game: earthworm in a shared compost bin. Eat, dig tunnels, poop, die. Tea fills weekly, drains on a 7-day cycle. Launch in a few weeks.`,phase:`Phase 1 — Warmup`},{num:9,date:`June 30`,subreddit:`r/mildlyinteresting`,title:`I've been building a worm composting game and the most realistic mechanic is that you have to poop strategically`,body:`Wigglers Room is a composting sim. You control an earthworm. The mechanic I'm most proud of is the poop system.
 
 You poop by tapping with two fingers. Where you poop matters — deep in the compost zone your castings enrich the soil and increase food spawn rates. Poop near the surface and you're making a mess. Poop into existing tunnels and the deposits clog your drainage network.
 
 The game is real in the expected ways: acid food damages your worm, moisture affects movement, cocoons take 7 real days to hatch. But strategic pooping is the one I spent the most time on.
 
-Multiplayer composting game inside Reddit posts. Launching in a few weeks.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 10,
-  date: `July 1`,
-  subreddit: `r/gamedev`,
-  title: `The localStorage race condition that broke our multiplayer — and how we finally fixed it (today)`,
-  body: `We've been chasing a bug for weeks. Players would load the game and see stale world state — other players' positions from a previous session, tea levels that didn't match reality.
+Multiplayer composting game inside Reddit posts. Launching in a few weeks.`,phase:`Phase 1 — Warmup`},{num:10,date:`July 1`,subreddit:`r/gamedev`,title:`The localStorage race condition that broke our multiplayer — and how we finally fixed it (today)`,body:`We've been chasing a bug for weeks. Players would load the game and see stale world state — other players' positions from a previous session, tea levels that didn't match reality.
 
 Root cause: a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race and populating the world with stale cached data before the fresh KV values arrived.
 
@@ -712,151 +371,63 @@ The fix: remove localStorage entirely as an initialization source for world stat
 
 We didn't find this for weeks because it only showed in production. The Devvit message timing is different in playtest mode. We were testing in an environment that never triggered the bug.
 
-Today is the day we ship the fix. Felt like the right day to write it up.`,
-  phase: `Phase 1 — Warmup`
-},
-{
-  num: 11,
-  date: `July 2`,
-  subreddit: `r/ClaudeAI`,
-  title: `I've been using Claude as my primary game dev partner for 3 months — here's what that workflow actually looks like`,
-  body: `The setup: every session, I paste a GitHub token. Claude bootstraps scripts from the repo, pulls the architecture doc and audit log fresh, and picks up exactly where the last session ended. It knows what's broken, what must never be touched, what's been fixed. Every session starts from a verified snapshot of reality.
+Today is the day we ship the fix. Felt like the right day to write it up.`,phase:`Phase 1 — Warmup`},{num:11,date:`July 2`,subreddit:`r/ClaudeAI`,title:`I've been using Claude as my primary game dev partner for 3 months — here's what that workflow actually looks like`,body:`The setup: every session, I paste a GitHub token. Claude bootstraps scripts from the repo, pulls the architecture doc and audit log fresh, and picks up exactly where the last session ended. It knows what's broken, what must never be touched, what's been fixed. Every session starts from a verified snapshot of reality.
 
 The rule that made it work: Claude never pushes to GitHub without my explicit approval. It proposes the change, shows the diff, waits. If I say no, nothing happens.
 
 The thing I built on top of that: a "skills" system. 12 reusable workflow files stored in a separate repo — each one tells Claude how to do a specific job. Session startup, deploy pipeline, code audit, architecture drift detection. Claude loads the relevant skills at the start of each session. Scores averaged 68/100 when I started, 84/100 now after 5 phases of refinement.
 
-The game I built this way is a multiplayer worm composting sim that runs inside Reddit posts. It's launching in a few weeks.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 12,
-  date: `July 3`,
-  subreddit: `r/devvit`,
-  title: `How we automated Devvit deploys — Claude pushes, GitHub Actions checks, a Codespace bridge handles the upload`,
-  body: `The problem: Claude pushes code to GitHub via the API directly, bypassing local git. The Codespace clone never sees those commits until you pull. So \`devvit upload\` would warn "Couldn't find README.md" because the file existed in the repo but not on disk.
+The game I built this way is a multiplayer worm composting sim that runs inside Reddit posts. It's launching in a few weeks.`,phase:`Phase 2 — Build Hype`},{num:12,date:`July 3`,subreddit:`r/devvit`,title:`How we automated Devvit deploys — Claude pushes, GitHub Actions checks, a Codespace bridge handles the upload`,body:`The problem: Claude pushes code to GitHub via the API directly, bypassing local git. The Codespace clone never sees those commits until you pull. So \`devvit upload\` would warn "Couldn't find README.md" because the file existed in the repo but not on disk.
 
 The solution: a relay script (bridge3.js) running in the Codespace. It polls a GitHub file (inbox.json) every 3 seconds. When Claude pushes a new commit, it writes a command to inbox.json. The bridge picks it up, runs \`git pull && devvit upload --just-do-it && devvit install wigglers_room_dev\`, writes the result to outbox.json. Claude reads the result and reports back.
 
-Zero manual steps from code change to live on Reddit. Works from iPhone too — whole sessions from mobile.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 13,
-  date: `July 4`,
-  subreddit: `r/gamedev`,
-  title: `The bug that only appeared in production: how Reddit's cache nearly ended our multiplayer`,
-  body: `We reverted good code twice. The game was fine both times. Reddit was just serving the cached old version on first load.
+Zero manual steps from code change to live on Reddit. Works from iPhone too — whole sessions from mobile.`,phase:`Phase 2 — Build Hype`},{num:13,date:`July 4`,subreddit:`r/gamedev`,title:`The bug that only appeared in production: how Reddit's cache nearly ended our multiplayer`,body:`We reverted good code twice. The game was fine both times. Reddit was just serving the cached old version on first load.
 
 The symptom: we'd deploy a fix, test, see the old broken behavior, assume the fix didn't work, and revert. Then wonder why the reverted code also showed the same problem. Then spend a session debugging something that was already fixed.
 
 The fix: always hard-refresh after deploy. Close the post completely and reopen it. Never trust the first load after an upload. This is now rule #1 in the architecture doc. It's also how we lost about 4 sessions of good work.
 
-The game is a multiplayer worm composting sim on Reddit. Nearly ready.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 14,
-  date: `July 5`,
-  subreddit: `r/artificial`,
-  title: `What building a real shipped product with Claude as co-dev taught me about working with AI`,
-  body: `Three months, 25 development sessions, ~9,000 lines of game code. Here's what I actually learned:
+The game is a multiplayer worm composting sim on Reddit. Nearly ready.`,phase:`Phase 2 — Build Hype`},{num:14,date:`July 5`,subreddit:`r/artificial`,title:`What building a real shipped product with Claude as co-dev taught me about working with AI`,body:`Three months, 25 development sessions, ~9,000 lines of game code. Here's what I actually learned:
 
 The biggest unlock was treating Claude's context as perishable. Every session starts fresh — so we built a system where Claude bootstraps itself from live repo docs rather than relying on memory. It reads the architecture doc, the audit log, the session history, then tells me where we are. No "what were we working on?" — it just knows.
 
 The failure mode I didn't expect: Claude is very good at proposing confident solutions to the wrong problem. The approve-before-push rule wasn't just about safety — it forced me to understand every change before it shipped. That friction turned out to be valuable.
 
-The thing that surprised me most: the meta-work compounds. The 12 reusable "skills" I built to manage the workflow are now faster to load than to explain. The system got better every session not just because the code improved, but because the process did.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 15,
-  date: `July 6`,
-  subreddit: `r/composting`,
-  title: `Following up on the worm bin game — and what the composting community got right`,
-  body: `A few weeks ago I posted about building a composting sim. The feedback shaped some things. Wanted to share the update.
+The thing that surprised me most: the meta-work compounds. The 12 reusable "skills" I built to manage the workflow are now faster to load than to explain. The system got better every session not just because the code improved, but because the process did.`,phase:`Phase 2 — Build Hype`},{num:15,date:`July 6`,subreddit:`r/composting`,title:`Following up on the worm bin game — and what the composting community got right`,body:`A few weeks ago I posted about building a composting sim. The feedback shaped some things. Wanted to share the update.
 
 The vermiculture community's biggest note: don't oversimplify the relationship between castings and soil quality. Fair. We now have a \`castingEnrichment\` value (0–1) that builds as worm poop reaches the sump floor. It drives tunnel regen rate, clog decay speed, and food fragment spawn rate. It decays slowly over time if the worm stops contributing. It's invisible to players right now but the system is there.
 
-The game is nearly ready. The bin is real. The worm is real. The composting is as real as a game mechanic can reasonably be.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 16,
-  date: `July 7`,
-  subreddit: `r/indiegaming`,
-  title: `3 months from first prototype to working multiplayer Reddit game — the honest retrospective`,
-  body: `What went right: the core concept. Playing as an earthworm in a real composting system is weird enough to be memorable.
+The game is nearly ready. The bin is real. The worm is real. The composting is as real as a game mechanic can reasonably be.`,phase:`Phase 2 — Build Hype`},{num:16,date:`July 7`,subreddit:`r/indiegaming`,title:`3 months from first prototype to working multiplayer Reddit game — the honest retrospective`,body:`What went right: the core concept. Playing as an earthworm in a real composting system is weird enough to be memorable.
 
 What went wrong: not having a source-of-truth document from day one. Sessions 1–5 were chaotic because there was no single place that said "here's what's broken, here's what must not be touched, here's the deploy process." We built that document (GAME_ARCHITECTURE.md) around session 6 and everything got better immediately.
 
 The thing I'd tell myself at the start: the architecture doc is more important than the code. The code changes constantly. The doc is what lets you pick up where you left off without losing your mind.
 
-Nearly ready to launch. Will post the link when it goes live.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 17,
-  date: `July 8`,
-  subreddit: `r/incremental_games`,
-  title: `How we designed a 7-day real-time event for a game that runs inside a Reddit post`,
-  body: `The weekly drain cycle: the sump fills all week from every player's activity. On a 7-day real-time timer, the Snoo (farmer) character appears, the tea drains, and contribution-weighted karma bonuses are distributed. If the sump hits 90% before the drain fires, the bin floods — all active worms take damage.
+Nearly ready to launch. Will post the link when it goes live.`,phase:`Phase 2 — Build Hype`},{num:17,date:`July 8`,subreddit:`r/incremental_games`,title:`How we designed a 7-day real-time event for a game that runs inside a Reddit post`,body:`The weekly drain cycle: the sump fills all week from every player's activity. On a 7-day real-time timer, the Snoo (farmer) character appears, the tea drains, and contribution-weighted karma bonuses are distributed. If the sump hits 90% before the drain fires, the bin floods — all active worms take damage.
 
 The design challenges: how do you communicate a 7-day deadline to players without it feeling punishing? How do you make everyone's contribution feel meaningful when the bin is shared? How do you handle the player who drains the sump solo at 3am on day 6 — do they get all the credit?
 
 We landed on: contribution tracking from the start of each cycle, weighted bonus at drain time, a flood warning UI at 75% capacity, and a "drain hero" karma bonus for whoever triggers the valve manually in a flood emergency.
 
-Game launching in about a week.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 18,
-  date: `July 9`,
-  subreddit: `r/iOSProgramming`,
-  title: `My entire game dev workflow runs on an iPhone — here's how`,
-  body: `The setup: Claude mobile app for the AI sessions. GitHub API for all repo operations (reads, writes, pushes — all via curl-equivalent API calls Claude makes in its environment). A relay bridge in a GitHub Codespace for Devvit deploys.
+Game launching in about a week.`,phase:`Phase 2 — Build Hype`},{num:18,date:`July 9`,subreddit:`r/iOSProgramming`,title:`My entire game dev workflow runs on an iPhone — here's how`,body:`The setup: Claude mobile app for the AI sessions. GitHub API for all repo operations (reads, writes, pushes — all via curl-equivalent API calls Claude makes in its environment). A relay bridge in a GitHub Codespace for Devvit deploys.
 
 What I do from the phone: start sessions, review diffs, approve pushes, check CI status, trigger deploys, read audit logs. Everything except actually writing code — Claude handles that.
 
 What I can't do from the phone: run local dev servers, use the Codespace terminal directly for anything interactive. But for a Devvit project where all the testing happens on Reddit anyway, that constraint is basically irrelevant.
 
-The thing that made this work: treating the architecture doc as the UI. Every session, Claude reads the doc and tells me where we are. I don't need a local IDE to understand the state of the codebase — I just need the doc to be accurate.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 19,
-  date: `July 10`,
-  subreddit: `r/gamedev`,
-  title: `Designing death as content — how Wigglers Room turns your worm's death into a Reddit comment`,
-  body: `When your worm dies in Wigglers Room, the game posts a comment to the Reddit thread. The comment includes: your username, cause of death (acid poisoning, starvation, flood, constipation, etc.), how long you lived, your generation number, total karma earned, and the real date.
+The thing that made this work: treating the architecture doc as the UI. Every session, Claude reads the doc and tells me where we are. I don't need a local IDE to understand the state of the codebase — I just need the doc to be accurate.`,phase:`Phase 2 — Build Hype`},{num:19,date:`July 10`,subreddit:`r/gamedev`,title:`Designing death as content — how Wigglers Room turns your worm's death into a Reddit comment`,body:`When your worm dies in Wigglers Room, the game posts a comment to the Reddit thread. The comment includes: your username, cause of death (acid poisoning, starvation, flood, constipation, etc.), how long you lived, your generation number, total karma earned, and the real date.
 
 The design intent: your worm's life is part of the shared history of the bin. Other players can scroll through the comment thread and see every worm that ever lived there. It's a graveyard that builds over time as a natural byproduct of gameplay.
 
 The technical challenge: the death comment has to post from a Devvit context, which means it goes through Reddit's API with the app's credentials — not the player's. So it reads as posted by the app, not the player. We added the username to the comment body to make attribution clear.
 
-Game launching very soon.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 20,
-  date: `July 11`,
-  subreddit: `r/WebGames`,
-  title: `How multiplayer presence works in a game inside a Reddit post`,
-  body: `Every active player broadcasts their worm's position, size, generation color, HP, and sleep state once per second via Devvit Realtime. Other players receive these broadcasts and render them as real worms — same segment chain, same color, same HP-based rendering — not as simple dots or ghost indicators.
+Game launching very soon.`,phase:`Phase 2 — Build Hype`},{num:20,date:`July 11`,subreddit:`r/WebGames`,title:`How multiplayer presence works in a game inside a Reddit post`,body:`Every active player broadcasts their worm's position, size, generation color, HP, and sleep state once per second via Devvit Realtime. Other players receive these broadcasts and render them as real worms — same segment chain, same color, same HP-based rendering — not as simple dots or ghost indicators.
 
 Players are pruned from the local render after 90 seconds without an update. The queue (players waiting for a worm slot) is filtered out before rendering — you don't see ghost worms at position (0,0) from players who haven't spawned yet.
 
 The main technical challenge was the presence relay shape. Early builds broadcast \`player: {}\` (singular object). The fix to \`players: [{}]\` (array) was what made other worms actually show up for the first time. That bug was live for multiple sessions before we caught it.
 
-Game is launching in the next day or two.`,
-  phase: `Phase 2 — Build Hype`
-},
-{
-  num: 21,
-  date: `Launch Day`,
-  subreddit: `r/devvit + r/indiegaming + r/InternetIsBeautiful`,
-  title: `LAUNCH DAY — Three posts`,
-  body: `━━━ r/devvit ━━━
+Game is launching in the next day or two.`,phase:`Phase 2 — Build Hype`},{num:21,date:`Launch Day`,subreddit:`r/devvit + r/indiegaming + r/InternetIsBeautiful`,title:`LAUNCH DAY — Three posts`,body:`━━━ r/devvit ━━━
 
 Title: Wigglers Room is live — here's what 25 sessions of building on Devvit actually produced
 
@@ -890,39 +461,25 @@ The bin is shared — every player's worm lives in the same space. The tea reser
 
 When your worm dies, the game posts a comment to the thread: your username, cause of death, how long you lived, your generation.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`,
-  is_multipost: true,
-  subposts: [
-    { sub: `r/devvit`, title: `Wigglers Room is live — here's what 25 sessions of building on Devvit actually produced`, body: `25 sessions. ~9,000 lines of game.js. A TypeScript host layer that handles Redis persistence, Realtime presence, and a postMessage bridge with 18+ message types. A CI pipeline with typecheck, lint, test, and build running on every push. A relay script in a GitHub Codespace that handles deploys automatically.
+[LINK]`,phase:`Phase 3 — Launch`,is_multipost:true,subposts:[{sub:`r/devvit`,title:`Wigglers Room is live — here's what 25 sessions of building on Devvit actually produced`,body:`25 sessions. ~9,000 lines of game.js. A TypeScript host layer that handles Redis persistence, Realtime presence, and a postMessage bridge with 18+ message types. A CI pipeline with typecheck, lint, test, and build running on every push. A relay script in a GitHub Codespace that handles deploys automatically.
 
 What Devvit made possible: a persistent multiplayer game that lives inside a Reddit post with no app, no download, no separate login. Players are authenticated by their Reddit account. Their worm state persists in Reddit's KV store. Multiplayer presence runs over Reddit's Realtime channels.
 
 Here's the link: [LINK]
 
-Hard-won lessons from the build are in earlier posts in this thread. Happy to answer anything about the platform.` },
-    { sub: `r/indiegaming`, title: `The multiplayer worm game I've been posting about for the past month is live on Reddit right now`, body: `It's real. Here's the link: [LINK]
+Hard-won lessons from the build are in earlier posts in this thread. Happy to answer anything about the platform.`},{sub:`r/indiegaming`,title:`The multiplayer worm game I've been posting about for the past month is live on Reddit right now`,body:`It's real. Here's the link: [LINK]
 
 Your earthworm lives in a shared compost bin. It eats, digs tunnels, poops (strategically — it matters), and eventually dies. The bin has been running for weeks in dev. The tea reservoir fills from everyone's activity and drains on a real 7-day cycle. The death system posts a comment to the Reddit thread every time a worm dies — username, cause of death, how long they lived, generation number.
 
 No app. No download. Open the post and your worm is there.
 
-I've been posting dev updates here for a month. This is what it was all building toward.` },
-    { sub: `r/InternetIsBeautiful`, title: `This multiplayer worm game lives inside a Reddit post. Your worm keeps living when you close the tab. When it dies it posts a comment.`, body: `Wigglers Room. No install. No download. Open the post, your worm is there.
+I've been posting dev updates here for a month. This is what it was all building toward.`},{sub:`r/InternetIsBeautiful`,title:`This multiplayer worm game lives inside a Reddit post. Your worm keeps living when you close the tab. When it dies it posts a comment.`,body:`Wigglers Room. No install. No download. Open the post, your worm is there.
 
 The bin is shared — every player's worm lives in the same space. The tea reservoir fills all week from everyone's activity. When it overflows, every worm takes damage at once.
 
 When your worm dies, the game posts a comment to the thread: your username, cause of death, how long you lived, your generation.
 
-[LINK]` }
-  ]
-},
-{
-  num: 22,
-  date: `+1`,
-  subreddit: `r/gaming`,
-  title: `I made a multiplayer worm game that lives inside a Reddit post. No download, no app. Your worm dies and leaves a comment.`,
-  body: `I've been building this for about three months. It's called Wigglers Room. You're an earthworm in a shared composting bin that lives inside a Reddit post.
+[LINK]`}]},{num:22,date:`+1`,subreddit:`r/gaming`,title:`I made a multiplayer worm game that lives inside a Reddit post. No download, no app. Your worm dies and leaves a comment.`,body:`I've been building this for about three months. It's called Wigglers Room. You're an earthworm in a shared composting bin that lives inside a Reddit post.
 
 The basics: you eat, dig tunnels, poop (which enriches the soil — where you do it matters), and eventually die. Your worm state is persistent — come back the next day and it's still there, but it got hungrier while you were away. The bin is shared with other players. You can see their worms moving around in real time.
 
@@ -932,15 +489,7 @@ The bin runs on a real 7-day cycle. The tea reservoir at the bottom fills from e
 
 No install. Built on Reddit's Devvit platform — it runs as a custom post type inside the feed.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 23,
-  date: `+2`,
-  subreddit: `r/incremental_games`,
-  title: `Wigglers Room launched — the idle worm composting game that runs inside Reddit posts`,
-  body: `The persistence model for anyone curious how it works:
+[LINK]`,phase:`Phase 3 — Launch`},{num:23,date:`+2`,subreddit:`r/incremental_games`,title:`Wigglers Room launched — the idle worm composting game that runs inside Reddit posts`,body:`The persistence model for anyone curious how it works:
 
 Your worm's gut drains at a fixed rate while you're offline. It's capped — maximum 85% drain while you're away, so you can't come back to a dead worm from pure inactivity. But come back after too long without eating and you're in trouble.
 
@@ -950,15 +499,7 @@ The weekly drain cycle runs on real-world time regardless of whether anyone is p
 
 No dedicated game server. All persistence through Reddit's KV store. Realtime presence via Reddit's channel system.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 24,
-  date: `+3`,
-  subreddit: `r/gamedev`,
-  title: `What shipping Wigglers Room actually looked like — the honest version`,
-  body: `The P1 blocker going into launch was a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race every time, populating the world with stale cached data from the previous session before fresh KV values arrived. It only showed in production — our playtest environment had different message timing and never triggered it.
+[LINK]`,phase:`Phase 3 — Launch`},{num:24,date:`+3`,subreddit:`r/gamedev`,title:`What shipping Wigglers Room actually looked like — the honest version`,body:`The P1 blocker going into launch was a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race every time, populating the world with stale cached data from the previous session before fresh KV values arrived. It only showed in production — our playtest environment had different message timing and never triggered it.
 
 The fix was removing localStorage entirely as an initialization source for world state. Server is authoritative. If the data hasn't arrived yet, the client waits. localStorage is only for UI preferences now, never game state.
 
@@ -968,15 +509,7 @@ The dev workflow: every session started with Claude pulling the architecture doc
 
 25 sessions. 9,000 lines. No desktop.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 25,
-  date: `+4`,
-  subreddit: `r/composting + r/vermiculture`,
-  title: `The worm composting game is live — here's how real the mechanics ended up being`,
-  body: `The mechanics that held up to scrutiny from actual worm keepers:
+[LINK]`,phase:`Phase 3 — Launch`},{num:25,date:`+4`,subreddit:`r/composting + r/vermiculture`,title:`The worm composting game is live — here's how real the mechanics ended up being`,body:`The mechanics that held up to scrutiny from actual worm keepers:
 
 Acid foods (coffee grounds, citrus) damage your worm. Eggshells neutralize acid — eating one when your worm is acid-damaged triggers a visible recovery effect. Worm castings deposited deep in the compost build up a soil enrichment value that affects how fast food fragments spawn and how quickly clogs decay. The tea reservoir at the bottom fills from castings activity across the week and drains on a real 7-day cycle.
 
@@ -986,15 +519,7 @@ The things I simplified or invented: the worm has a gut bar instead of a realist
 
 The vermiculture community's feedback before launch pushed me to make the castingEnrichment system actually visible in gameplay rather than just running silently in the background.
 
-[LINK to the game post]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 26,
-  date: `+5`,
-  subreddit: `r/ClaudeAI`,
-  title: `The game I built with Claude just launched. Here's what the workflow looked like from session 1 to session 25.`,
-  body: `Session 1: one Claude chat, one HTML file, no structure. Claude had no memory of the previous session. Everything had to be re-explained every time. The code was already getting crossed by session 3.
+[LINK to the game post]`,phase:`Phase 3 — Launch`},{num:26,date:`+5`,subreddit:`r/ClaudeAI`,title:`The game I built with Claude just launched. Here's what the workflow looked like from session 1 to session 25.`,body:`Session 1: one Claude chat, one HTML file, no structure. Claude had no memory of the previous session. Everything had to be re-explained every time. The code was already getting crossed by session 3.
 
 The problem was context loss. Every session started from scratch. Claude would propose confident changes based on assumptions that were wrong because nothing persisted between sessions.
 
@@ -1004,15 +529,7 @@ The skills started with an average score of 68/100. By session 25 they averaged 
 
 The game shipped. 9,000 lines of JavaScript. 25 sessions. Built and deployed from an iPhone.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 27,
-  date: `+6`,
-  subreddit: `r/indiegaming`,
-  title: `I've been posting about building this game for a month. Here's everything that actually went wrong.`,
-  body: `The cache ghost: we reverted good code twice because Reddit was serving the old cached version after deploys. The game was fine. We thought it was broken. We lost about four sessions of valid work that way. Fix: always hard-refresh after deploy, always open a brand new test post after re-upload.
+[LINK]`,phase:`Phase 3 — Launch`},{num:27,date:`+6`,subreddit:`r/indiegaming`,title:`I've been posting about building this game for a month. Here's everything that actually went wrong.`,body:`The cache ghost: we reverted good code twice because Reddit was serving the old cached version after deploys. The game was fine. We thought it was broken. We lost about four sessions of valid work that way. Fix: always hard-refresh after deploy, always open a brand new test post after re-upload.
 
 The localStorage race: the P1 bug that held us back three weeks before launch. World state loading from cache before the authoritative server data arrived. Only showed in production, never in playtest. The fix was removing localStorage from the initialization path entirely.
 
@@ -1024,15 +541,7 @@ The invented CLI command: Claude confidently told me to run \`devvit tokens\` to
 
 The skill drift: the architecture skill that gave Claude context about the game was built at session 8 and never updated. By session 19 it had drifted 12 sessions out of date. Score dropped from 72 to 51 on re-audit. It was describing systems that had been removed, missing 14 open issues, and had no knowledge of a major function split that was tried and reverted.
 
-This is what AI-assisted dev actually looks like from the inside. [LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 28,
-  date: `+7`,
-  subreddit: `r/devvit`,
-  title: `Wigglers Room has been live for a week. Here's what the Devvit platform actually did and didn't do.`,
-  body: `What worked: KV store persistence is solid. Realtime presence channels handled concurrent players without issues. The postMessage bridge between TypeScript host and JavaScript webview is reliable once you understand the envelope format. Reddit auth as the identity layer is seamless — no separate login, no account creation, players are just themselves.
+This is what AI-assisted dev actually looks like from the inside. [LINK]`,phase:`Phase 3 — Launch`},{num:28,date:`+7`,subreddit:`r/devvit`,title:`Wigglers Room has been live for a week. Here's what the Devvit platform actually did and didn't do.`,body:`What worked: KV store persistence is solid. Realtime presence channels handled concurrent players without issues. The postMessage bridge between TypeScript host and JavaScript webview is reliable once you understand the envelope format. Reddit auth as the identity layer is seamless — no separate login, no account creation, players are just themselves.
 
 What bit us: external fetch() to non-Reddit domains silently fails. No error, no timeout, nothing. Killed an early plan to pull real weather data for the bin environment. webView.mount() only works inside onPress — call it in the render body and it fires on every render and crashes without an error message. Channel names must be alphanumeric only — a colon in a channel name crashes the render silently. Old posts go read-only after re-upload, which means every version gets its own test post.
 
@@ -1040,15 +549,7 @@ The caching behavior: Reddit's CDN serves the previous version of your webview o
 
 The CI pipeline we run on every push: typecheck, lint, test, build. It catches the obvious things. The subtle Devvit-specific bugs — message timing, KV read ordering, cache behavior — only show in production.
 
-[LINK to the game]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 29,
-  date: `+8`,
-  subreddit: `r/gamedev`,
-  title: `Three months building a game. Here's what I actually learned about shipping something.`,
-  body: `The architecture document mattered more than the code. GAME_ARCHITECTURE.md — updated every session, read by Claude at the start of every session — was the thing that kept 25 sessions of work coherent. Without it, sessions 1–5 were chaotic. With it, the project had a memory.
+[LINK to the game]`,phase:`Phase 3 — Launch`},{num:29,date:`+8`,subreddit:`r/gamedev`,title:`Three months building a game. Here's what I actually learned about shipping something.`,body:`The architecture document mattered more than the code. GAME_ARCHITECTURE.md — updated every session, read by Claude at the start of every session — was the thing that kept 25 sessions of work coherent. Without it, sessions 1–5 were chaotic. With it, the project had a memory.
 
 The approve-before-push rule was more valuable than I expected. Every change went through: Claude proposes, shows diff, waits. I say go or I don't. That friction forced me to understand every change before it shipped. The two times I was tempted to skip the gate were the two times the change would have been wrong.
 
@@ -1058,15 +559,7 @@ Building from a phone is viable. Not comfortable — copying diffs on a small sc
 
 The hardest part wasn't any of the technical stuff. It was the three weeks between finishing the code and shipping it while a known bug sat there unfixed.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-},
-{
-  num: 30,
-  date: `+9`,
-  subreddit: `r/InternetIsBeautiful`,
-  title: `I spent three months building a worm game that lives inside a Reddit post. Here's what it became.`,
-  body: `The game is called Wigglers Room. Your earthworm lives in a shared compost bin inside a Reddit post. No app. No install. Open the post and your worm is there.
+[LINK]`,phase:`Phase 3 — Launch`},{num:30,date:`+9`,subreddit:`r/InternetIsBeautiful`,title:`I spent three months building a worm game that lives inside a Reddit post. Here's what it became.`,body:`The game is called Wigglers Room. Your earthworm lives in a shared compost bin inside a Reddit post. No app. No install. Open the post and your worm is there.
 
 The bin has been running continuously since the first deploy. The tea reservoir has filled and drained on its weekly cycle. Worms have eaten, dug tunnels, pooped strategically, and died. Every death posted a comment to the thread — username, cause of death, how long they lived, their generation.
 
@@ -1074,224 +567,393 @@ The composting mechanics are real: acid foods damage your worm, eggshells neutra
 
 The whole thing runs on vanilla JavaScript and HTML5 Canvas inside Reddit's Devvit platform. 9,000 lines. 25 development sessions. Built and shipped entirely from an iPhone using Claude as the primary development partner.
 
-[LINK]`,
-  phase: `Phase 3 — Launch`
-}
-];
+[LINK]`,phase:`Phase 3 — Launch`}];
+const REPLIES=[{cat:`Game Mechanics`,q:`How does the tea drain work?`,tags:[`r/vermiculture`,`r/composting`,`r/incremental_games`],a:`The tea reservoir at the bottom of the bin fills passively all week from everyone's worm castings. It runs on a real 7-day clock — not game time, actual calendar days.
+
+When it hits 90% capacity before the weekly drain fires, the bin floods and every active worm takes damage simultaneously. If someone manually taps the valve in time, they get a "drain hero" karma bonus.
+
+At the weekly drain, karma bonuses go out to everyone weighted by how much they contributed during that cycle. So even if you're not online when it drains, your week's work counts.`},{cat:`Game Mechanics`,q:`What happens when my worm dies?`,tags:[`r/indiegaming`,`r/incremental_games`,`r/gaming`],a:`When your worm dies, a couple things happen.
+
+First, the game posts a comment to the Reddit thread — your username, cause of death (acid poisoning, starvation, flood, constipation), how long you lived, your generation number, and total karma earned. That comment becomes part of the bin's permanent history.
+
+Then a cocoon appears at the spot where you were. After 7 real-world days it hatches and you respawn as your own offspring — same Reddit account, new worm, some karma carried forward. The death isn't the end, it's a chapter break.`},{cat:`Game Mechanics`,q:`Is this an idle game or do I have to actively play?`,tags:[`r/incremental_games`],a:`Both, kind of. Your worm survives while you're away — gut drain is capped at 85% offline so you can't come back to a dead worm from inactivity alone. Your previously deposited castings keep contributing to soil enrichment while you're gone.
+
+But the active loop is where the interesting stuff happens: digging tunnel networks, eating strategically (acid food is risky but sometimes worth it), timing your poop for depth bonuses, and being around when the weekly drain fires.
+
+Think of it like a plant you water — it doesn't die if you miss a day, but you get more out of it when you show up.`},{cat:`Game Mechanics`,q:`How does the poop mechanic work / why is that a mechanic`,tags:[`r/mildlyinteresting`,`r/gaming`,`r/indiegaming`],a:`Two-finger tap to deposit. Where you do it matters more than when.
+
+Deep in the compost zone: castings fall to the sump floor and build up castingEnrichment — the value that drives food spawn rates, tunnel regen speed, and clog decay. Basically the fertility of the whole bin.
+
+Near the surface: you're just making a mess.
+
+Into an existing tunnel: the deposit creates a clog that blocks your drainage network. Clogs decay over time (faster in rich compost) but a strong one at a drain exit blocks flow entirely.
+
+It's the mechanic I'm most proud of and also the one that gets the most raised eyebrows when I describe it.`},{cat:`Game Mechanics`,q:`Can other players mess with my worm / is it PvP`,tags:[`r/indiegaming`,`r/gaming`],a:`Not directly — there's no combat. But the world is genuinely shared so your actions affect everyone.
+
+If the sump overflows because nobody drained it, every worm takes flood damage simultaneously. If someone's poop clogs the main drain tunnel, everyone's tea flow slows. The upcoming cross-player clog feature will make this more explicit — your poop in a tunnel that another player is using becomes their problem too.
+
+It's less PvP and more co-op with natural tension. The bin either thrives or floods based on collective behavior.`},{cat:`Game Mechanics`,q:`What are tunnels actually for`,tags:[`r/incremental_games`,`r/WebGames`,`r/devvit`],a:`Tunnels are how tea drops get from the compost layers down to the sump. Your worm digs them by moving — the path you travel becomes a channel.
+
+When you place a drain (hold still over compost), you stamp a sump exit point. Tea drops then follow your tunnel network down to it and add to your contribution total for the weekly cycle.
+
+Tunnels decay over time — old ones collapse. Junctions (holding still over an existing tunnel) connect separate channels and are worth karma. The longer and more connected your network, the more efficient your drainage.
+
+A well-designed tunnel network is basically the skill ceiling of the game.`},{cat:`Tech Questions`,q:`What platform / how does a game run inside a Reddit post`,tags:[`r/WebGames`,`r/webdev`,`r/gamedev`],a:`Reddit has a developer platform called Devvit that lets you build custom post types — basically mini web apps that run inside the Reddit feed. No iframe, no redirect, the game just lives in the post.
+
+The game itself is vanilla JavaScript and HTML5 Canvas. It talks to a TypeScript host layer via postMessage. Persistence is through Reddit's built-in KV store (your worm state is tied to your Reddit account). Multiplayer presence runs over Reddit's Realtime channels.
+
+The constraint that surprised me most: external fetch() to non-Reddit domains silently fails. No error, no timeout, just nothing. Killed my plan to pull real weather data early on.`},{cat:`Tech Questions`,q:`Is this open source / can I see the code`,tags:[`r/gamedev`,`r/devvit`,`r/ClaudeAI`],a:`The repo is at github.com/Cal-Starfur/Wigglers_Room — currently private during active development but planning to open it after launch stabilizes.
+
+The dev workflow is probably as interesting as the code: every session I work with Claude as my primary dev partner. It bootstraps from architecture docs in the repo, proposes changes, shows diffs, waits for approval before pushing anything. The whole thing runs from my phone. Happy to go into more detail if that's useful.`},{cat:`Tech Questions`,q:`How is player data / worm state saved`,tags:[`r/WebGames`,`r/devvit`,`r/privacy`],a:`Everything is stored in Reddit's KV store tied to your Reddit username. No separate account, no email, no external database.
+
+Your worm's health, gut fullness, tunnel path, karma, generation number, birth timestamp, and weekly contribution total all live there. The shared world state (tea level, casting enrichment, flood status) is in a separate world KV key that all clients read from.
+
+When you close the post your session state is saved. When you reopen it — even on a different device — your worm is exactly where you left it.`},{cat:`Tech Questions`,q:`Did you actually build this alone / with AI`,tags:[`r/ClaudeAI`,`r/gamedev`,`r/artificial`],a:`Both, kind of. I'm the solo dev and I used Claude as my primary development partner across 25 sessions.
+
+The honest version: I'm not a developer in the traditional sense. I can read code in context and understand what systems should do, but I don't write it fluently. Claude proposes every change, I review the diff, I approve or push back. Nothing goes to the repo without my explicit go-ahead.
+
+What made it work was building infrastructure around the workflow — a living architecture doc that Claude reads every session, a skills system of reusable workflows, a bridge that automates deploys. The game shipped. 9,000 lines of JavaScript. Built from an iPhone.`},{cat:`Composting Skeptics`,q:`Is the composting actually accurate or just gamified nonsense`,tags:[`r/vermiculture`,`r/composting`],a:`Fair question to ask. Here's what's real vs what I simplified:
+
+Real: acid foods (coffee grounds, citrus) damage the worm — pH is a genuine worm health issue. Eggshells neutralize acid — calcium carbonate is the actual antidote. Worm castings deposited deep in the compost improve soil fertility and affect decomposition rates. Cocoons take approximately 7 real days to hatch. Tea accumulates at the bottom and needs drainage.
+
+Simplified: the worm has a gut bar instead of realistic transit time. Moisture affects everything but I'm not modeling thermal zones. Tunnels glow (they don't do that).
+
+I keep a red wiggler bin. The mechanics came from that experience first and game design second. Happy to hear where I got it wrong — that feedback already improved the castingEnrichment system before launch.`},{cat:`Composting Skeptics`,q:`Coffee grounds are fine for worms actually`,tags:[`r/vermiculture`,`r/composting`],a:`In moderation, yes — and you're right that pure coffee grounds aren't immediately lethal. The mechanic in the game is more about accumulation: repeated exposure to acidic inputs without neutralization builds an acid stat that slowly drains health.
+
+The model is more "chronic pH imbalance" than "instant death from espresso." A single coffee ground is fine. A bin that's been dumped with coffee grounds for a week without eggshells is a problem.
+
+If there are other mechanics you think are off I genuinely want to know — the vermiculture community's feedback before launch improved at least one system already.`},{cat:`Composting Skeptics`,q:`This seems like it trivializes composting`,tags:[`r/vermiculture`,`r/composting`,`r/sustainability`],a:`I thought about this a lot during development. The goal wasn't to simulate vermiculture — it was to make the systems that actual worm keepers care about feel meaningful in a game context.
+
+If someone plays Wigglers Room and then looks up what castingEnrichment actually is, or why coffee grounds are a concern, or how worm tea works — that feels like a win. The game is a door, not a destination.
+
+That said, I'd rather have people who actually keep worms tell me where I've gotten it wrong than just assume I've been respectful about it. What would you change?`},{cat:`Curious Gamers`,q:`How many people are playing / is the bin active`,tags:[`r/indiegaming`,`r/gaming`,`r/incremental_games`],a:`Just launched so early days — the bin is real and running, worms are in there, the tea is filling.
+
+I'll post actual numbers once there's something worth reporting. The mechanic that'll make this obvious when it's working: death comments showing up in the thread from different usernames. When you start seeing those stack up, the bin is alive.`},{cat:`Curious Gamers`,q:`Is it free`,tags:[`r/gaming`,`r/indiegaming`,`r/WebGames`],a:`Completely free. No download, no account beyond your existing Reddit login, no purchases, no ads inside the game.
+
+It runs inside a Reddit post. Open the post, your worm is there.`},{cat:`Curious Gamers`,q:`What if I go on vacation / don't play for two weeks`,tags:[`r/incremental_games`,`r/indiegaming`],a:`Your worm will be very hungry when you get back but it won't die from offline time alone — gut drain is capped at 85% while you're away.
+
+Two weeks is long enough that your tunnels will have decayed significantly and your worm might be starving the moment you open the post. But it'll still be there.
+
+If it does die while you're away (from a flood event, for example), your cocoon will be waiting. It hatches 7 real days after death, so there's a good chance it's already ready by the time you're back.`},{cat:`Curious Gamers`,q:`How do I find the game / where is the post`,tags:[`r/gaming`,`r/indiegaming`,`r/WebGames`,`r/InternetIsBeautiful`],a:`[LINK]
+
+It lives in r/wigglers_room_dev for now. Open the post and your worm spawns automatically — no setup, no tutorial, just in.`}];
 </script>
 
 <script>
-const STORAGE_KEY = 'wr_posted_v1';
+const CAL_KEY='wr_posted_v2';
+const TRK_KEY='wr_tracker_v1';
+const PHASE_COLORS={'Phase 1 — Warmup':'#0dd3bb','Phase 2 — Build Hype':'#ff585b','Phase 3 — Launch':'#ffd635'};
+const PHASE_TEXT={'Phase 1 — Warmup':'#fff','Phase 2 — Build Hype':'#fff','Phase 3 — Launch':'#1c1c1c'};
+const FAKE_VOTES=[847,312,1204,533,98,2341,445,178,667,1891,234,88,445,1102,367,529,841,293,712,1456,3201,891,445,678,1234,567,389,712,445,2891];
+const CAT_CLASS={'Game Mechanics':'cat-game','Tech Questions':'cat-tech','Composting Skeptics':'cat-comp','Curious Gamers':'cat-gamer'};
+const CAT_ICON={'Game Mechanics':'🎮','Tech Questions':'⚙️','Composting Skeptics':'🌱','Curious Gamers':'👾'};
 
-function getPosted() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-  catch { return {}; }
-}
-function savePosted(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+function getPosted(){try{return JSON.parse(localStorage.getItem(CAL_KEY)||'{}')};catch{return{}}}
+function savePosted(d){localStorage.setItem(CAL_KEY,JSON.stringify(d))}
+function getTracker(){try{return JSON.parse(localStorage.getItem(TRK_KEY)||'{}')};catch{return{}}}
+function saveTracker(d){localStorage.setItem(TRK_KEY,JSON.stringify(d))}
 
-const PHASE_COLORS = {
-  'Phase 1 — Warmup':     '#0dd3bb',
-  'Phase 2 — Build Hype': '#ff585b',
-  'Phase 3 — Launch':     '#ffd635',
-};
-const PHASE_TEXT = {
-  'Phase 1 — Warmup':     '#fff',
-  'Phase 2 — Build Hype': '#fff',
-  'Phase 3 — Launch':     '#1c1c1c',
-};
-
-// Fake upvotes for vibe
-function fakeVotes(n) {
-  const bases = [847,312,1204,533,98,2341,445,178,667,1891,
-                 234,88,445,1102,367,529,841,293,712,1456,
-                 3201,891,445,678,1234,567,389,712,445,2891];
-  return bases[n-1] || 500;
+// ── TAB SWITCHING ──────────────────────────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(name==='tracker')buildChart();
 }
 
-function escH(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function escJ(s) {
-  return s.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
-}
-
-function buildFeed() {
-  const feed = document.getElementById('feed');
-  const posted = getPosted();
-
-  // Group by phase
-  const phases = ['Phase 1 — Warmup','Phase 2 — Build Hype','Phase 3 — Launch'];
-  const phaseLabels = {
-    'Phase 1 — Warmup':     {label:'Phase 1 · Warmup', sub:'Days 1–10 · June 22 – July 1 · No game links, pure community value'},
-    'Phase 2 — Build Hype': {label:'Phase 2 · Build Hype', sub:'Days 11–20 · July 2–11 · Start hinting the game is almost ready'},
-    'Phase 3 — Launch':     {label:'Phase 3 · Launch', sub:'Days 21–30 · July 12+ · Only start when ISS-19 is shipped and game is stable'},
+// ── CALENDAR ───────────────────────────────────────────────────────────────
+function buildCalendar(){
+  const feed=document.getElementById('calendar-feed');
+  const posted=getPosted();
+  const phases=['Phase 1 — Warmup','Phase 2 — Build Hype','Phase 3 — Launch'];
+  const phaseInfo={
+    'Phase 1 — Warmup':{label:'Phase 1 · Warmup',sub:'Days 1–10 · June 22 – July 1 · No game links'},
+    'Phase 2 — Build Hype':{label:'Phase 2 · Build Hype',sub:'Days 11–20 · July 2–11 · Start hinting launch'},
+    'Phase 3 — Launch':{label:'Phase 3 · Launch',sub:'Days 21–30 · July 12+ · Game must be stable first'},
   };
-
-  let html = '';
-
-  phases.forEach(phase => {
-    const pPosts = POSTS.filter(p => p.phase === phase);
-    const color = PHASE_COLORS[phase];
-    const txt   = PHASE_TEXT[phase];
-    const meta  = phaseLabels[phase];
-
-    html += `
-      <div class="phase-divider">
-        <span class="phase-pill" style="background:${color};color:${txt}">${meta.label}</span>
-        <div class="phase-line"></div>
-        <span class="phase-desc">${meta.sub}</span>
-      </div>`;
-
-    pPosts.forEach(p => {
-      const id      = 'd' + p.num;
-      const isDone  = !!posted[id];
-      const votes   = fakeVotes(p.num);
-      const color   = PHASE_COLORS[p.phase];
-      const txt     = PHASE_TEXT[p.phase];
-
-      if (p.is_multipost) {
-        // Day 21 — multi-post card
-        let subHtml = '';
-        p.subposts.forEach((sp, i) => {
-          const spid = `d21-${i}`;
-          subHtml += `
-            <div class="sub-post-section" id="sec-${spid}">
-              <div class="sub-post-label">${escH(sp.sub)}</div>
-              <div class="sub-post-title">${escH(sp.title)}</div>
-              <div class="sub-post-body">${escH(sp.body).replace(/\n/g,'<br>')}</div>
-              <div class="post-actions" style="padding-bottom:8px;">
-                <button class="action-btn copy-action" id="btn-${spid}" onclick="event.stopPropagation();copyPost('${spid}')">📋 Copy</button>
-              </div>
-              <textarea class="copy-src" id="src-${spid}">${escJ(sp.title)}\n\n${escJ(sp.body)}</textarea>
-            </div>`;
+  let h='';
+  phases.forEach(phase=>{
+    const pp=POSTS.filter(p=>p.phase===phase);
+    const pc=PHASE_COLORS[phase],pt=PHASE_TEXT[phase],pi=phaseInfo[phase];
+    h+=`<div class="phase-div"><span class="phase-pill" style="background:${pc};color:${pt}">${pi.label}</span><div class="phase-line"></div><span class="phase-desc">${pi.sub}</span></div>`;
+    pp.forEach(p=>{
+      const id='d'+p.num;
+      const done=!!posted[id];
+      const v=FAKE_VOTES[p.num-1];
+      const vc=v>=1000?(v/1000).toFixed(1)+'k':v;
+      const sub=p.subreddit.split(' ')[0];
+      if(p.is_multipost){
+        let sph='';
+        p.subposts.forEach((sp,i)=>{
+          const spid=`d21-${i}`;
+          sph+=`<div class="sub-post" id="sec-${spid}">
+            <div class="sp-label">${sp.sub}</div>
+            <div class="sp-title">${sp.title}</div>
+            <div class="sp-body">${sp.body.replace(/\n/g,'<br>')}</div>
+            <div class="actions" style="padding-bottom:8px">
+              <button class="act-btn copy" id="btn-${spid}" onclick="event.stopPropagation();copyPost('${spid}','${sp.title}\n\n${sp.body}')">📋 Copy</button>
+            </div></div>`;
         });
-
-        html += `
-          <div class="post-card ${isDone?'done':''}" id="card-${id}" onclick="toggleCard('${id}')">
-            <div class="vote-col">
-              <span class="vote-arrow">▲</span>
-              <span class="vote-count">${(votes/1000).toFixed(1)}k</span>
-              <span class="vote-arrow" style="opacity:.4">▼</span>
+        h+=`<div class="post-card${done?' done':''}" id="card-${id}" onclick="toggleCard('${id}',true)">
+          <div class="vote-col"><span class="v-arr">▲</span><span class="v-num">${vc}</span><span class="v-arr" style="opacity:.3">▼</span></div>
+          <div class="post-col">
+            <div class="flair-row"><span class="day-flair" style="background:${pc};color:${pt}">Day ${p.num}</span><span class="date-flair">${p.date}</span></div>
+            <div class="post-title">LAUNCH DAY — 3 posts, same day</div>
+            <div class="launch-banner">🚀 Click to expand each post</div>
+            ${sph}
+            <div class="actions" style="padding-top:4px">
+              <button class="act-btn" onclick="event.stopPropagation()">💬 0 Comments</button>
+              <button class="act-btn${done?' marked':''} " id="mark-${id}" onclick="event.stopPropagation();markPosted('${id}')">
+                ${done?'✓ Posted':'○ Mark posted'}</button>
             </div>
-            <div class="post-col" style="padding-right:8px;">
-              <div class="post-flair-row">
-                <span class="day-flair" style="background:${color};color:${txt}">Day ${p.num}</span>
-                <span class="date-flair">${escH(p.date)}</span>
-              </div>
-              <div class="post-title-line">${escH(p.title)}</div>
-              <div class="launch-banner">🚀 LAUNCH DAY — 3 posts, same day. Click to expand each one.</div>
-              ${subHtml}
-              <div class="post-actions" style="padding-top:4px;">
-                <button class="action-btn" onclick="event.stopPropagation()">💬 Comments</button>
-                <button class="action-btn" onclick="event.stopPropagation()">🔗 Share</button>
-                <button class="action-btn mark-action ${isDone?'is-done':''}" id="mark-${id}" onclick="event.stopPropagation();markPosted('${id}')">
-                  ${isDone ? '✓ Posted' : '○ Mark posted'}
-                </button>
-              </div>
+          </div></div>`;
+      }else{
+        h+=`<div class="post-card${done?' done':''}" id="card-${id}" onclick="toggleCard('${id}',false)">
+          <div class="vote-col"><span class="v-arr">▲</span><span class="v-num">${vc}</span><span class="v-arr" style="opacity:.3">▼</span></div>
+          <div class="post-col">
+            <div class="flair-row">
+              <span class="day-flair" style="background:${pc};color:${pt}">Day ${p.num}</span>
+              <span class="sub-flair"><a href="https://reddit.com/${sub}" target="_blank" onclick="event.stopPropagation()">${p.subreddit}</a></span>
+              <span class="date-flair">· ${p.date}</span>
             </div>
-          </div>`;
-      } else {
-        // Normal single post card
-        const sub = p.subreddit.split(' ')[0]; // first sub if multiple
-        const subLink = `https://reddit.com/${sub}`;
-
-        html += `
-          <div class="post-card ${isDone?'done':''}" id="card-${id}" onclick="toggleCard('${id}')">
-            <div class="vote-col">
-              <span class="vote-arrow" style="color:var(--reddit-meta)">▲</span>
-              <span class="vote-count">${votes >= 1000 ? (votes/1000).toFixed(1)+'k' : votes}</span>
-              <span class="vote-arrow" style="color:var(--reddit-meta);opacity:.4">▼</span>
+            <div class="post-title">${p.title}</div>
+            <div class="post-body">${p.body.replace(/\n/g,'<br>')}</div>
+            <div class="actions">
+              <button class="act-btn" onclick="event.stopPropagation()">💬 0</button>
+              <button class="act-btn copy" id="btn-${id}" onclick="event.stopPropagation();copyPost('${id}','${p.title}\n\n${p.body}')">📋 Copy</button>
+              <button class="act-btn" onclick="event.stopPropagation()">🔗 Share</button>
+              <button class="act-btn${done?' marked':''} " id="mark-${id}" onclick="event.stopPropagation();markPosted('${id}')">
+                ${done?'✓ Posted':'○ Mark posted'}</button>
             </div>
-            <div class="post-col">
-              <div class="post-flair-row">
-                <span class="day-flair" style="background:${color};color:${txt}">Day ${p.num}</span>
-                <span class="sub-flair"><a href="${subLink}" target="_blank" onclick="event.stopPropagation()">${escH(p.subreddit)}</a></span>
-                <span class="date-flair">· ${escH(p.date)}</span>
-              </div>
-              <div class="post-title-line">${escH(p.title)}</div>
-              <div class="post-body-text">${escH(p.body).replace(/\n/g,'<br>')}</div>
-              <div class="post-actions">
-                <button class="action-btn" onclick="event.stopPropagation()">💬 0 Comments</button>
-                <button class="action-btn copy-action ${isDone?'':'copy-action'}" id="btn-${id}" onclick="event.stopPropagation();copyPost('${id}')">📋 Copy</button>
-                <button class="action-btn" onclick="event.stopPropagation()">🔗 Share</button>
-                <button class="action-btn mark-action ${isDone?'is-done':''}" id="mark-${id}" onclick="event.stopPropagation();markPosted('${id}')">
-                  ${isDone ? '✓ Posted' : '○ Mark posted'}
-                </button>
-              </div>
-              <textarea class="copy-src" id="src-${id}">${escJ(p.title)}\n\n${escJ(p.body)}</textarea>
-            </div>
-          </div>`;
+          </div></div>`;
       }
     });
   });
-
-  feed.innerHTML = html;
-  updateProgress();
+  feed.innerHTML=h;
 }
 
-function toggleCard(id) {
-  const card = document.getElementById('card-' + id);
+function toggleCard(id,isMulti){
+  const card=document.getElementById('card-'+id);
   card.classList.toggle('expanded');
-  // For Day 21 sub-sections, toggle all
-  if (id === 'd21') {
-    document.querySelectorAll('.sub-post-section').forEach(s => s.classList.toggle('expanded'));
-  }
+  if(isMulti)document.querySelectorAll('.sub-post').forEach(s=>s.classList.toggle('expanded'));
 }
 
-function copyPost(id) {
-  const src = document.getElementById('src-' + id);
-  const btn = document.getElementById('btn-' + id);
-  if (!src || !btn) return;
-  navigator.clipboard.writeText(src.value).then(() => {
-    const orig = btn.innerHTML;
-    btn.innerHTML = '✓ Copied!';
-    btn.classList.add('copied-action');
-    btn.classList.remove('copy-action');
-    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied-action'); btn.classList.add('copy-action'); }, 2000);
-  }).catch(() => {
-    src.select(); document.execCommand('copy');
+function copyPost(id,text){
+  const btn=document.getElementById('btn-'+id);
+  navigator.clipboard.writeText(text).then(()=>{
+    if(!btn)return;
+    const orig=btn.innerHTML;
+    btn.innerHTML='✓ Copied!';btn.classList.add('copied');btn.classList.remove('copy');
+    setTimeout(()=>{btn.innerHTML=orig;btn.classList.remove('copied');btn.classList.add('copy')},2000);
+  }).catch(()=>{});
+}
+
+function markPosted(id){
+  const posted=getPosted();
+  const card=document.getElementById('card-'+id);
+  const btn=document.getElementById('mark-'+id);
+  if(posted[id]){
+    delete posted[id];
+    card.classList.remove('done');
+    if(btn){btn.innerHTML='○ Mark posted';btn.classList.remove('marked');}
+  }else{
+    posted[id]=true;
+    card.classList.add('done');
+    if(btn){btn.innerHTML='✓ Posted';btn.classList.add('marked');}
+  }
+  savePosted(posted);updateProgress();
+}
+
+// ── TRACKER ────────────────────────────────────────────────────────────────
+function buildTracker(){
+  const feed=document.getElementById('tracker-feed');
+  const tracker=getTracker();
+  let h='';
+  POSTS.forEach(p=>{
+    const id='t'+p.num;
+    const d=tracker[id]||{};
+    const hasData=d.upvotes||d.comments;
+    const pc=PHASE_COLORS[p.phase],pt=PHASE_TEXT[p.phase];
+    const sub=p.is_multipost?'3 subs (launch day)':p.subreddit;
+    h+=`<div class="tracker-card${hasData?' has-data':''}" id="tc-${id}">
+      <div class="tracker-row" onclick="toggleTracker('${id}')">
+        <span class="t-day" style="background:${pc};color:${pt}">Day ${p.num}</span>
+        <span class="t-sub">${sub}</span>
+        <div class="t-stats">
+          <div class="t-stat${d.upvotes?'':' empty'}"><div class="val">${d.upvotes||'—'}</div><div class="lbl">upvotes</div></div>
+          <div class="t-stat${d.comments?'':' empty'}"><div class="val">${d.comments||'—'}</div><div class="lbl">comments</div></div>
+          <div class="t-stat${d.top_comment?'':' empty'}"><div class="val">${d.top_comment?'📝':'—'}</div><div class="lbl">notes</div></div>
+        </div>
+        <span class="t-arrow">›</span>
+      </div>
+      <div class="tracker-detail">
+        <div style="font-size:.8rem;font-weight:600;margin-bottom:10px;color:var(--meta)">${p.is_multipost?'Launch day — log combined stats':p.title.substring(0,60)+'...'}</div>
+        <div class="detail-grid">
+          <div class="detail-field">
+            <label>Upvotes</label>
+            <input type="number" id="up-${id}" placeholder="0" value="${d.upvotes||''}" min="0">
+          </div>
+          <div class="detail-field">
+            <label>Comments</label>
+            <input type="number" id="cm-${id}" placeholder="0" value="${d.comments||''}" min="0">
+          </div>
+          <div class="detail-field">
+            <label>Posted date</label>
+            <input type="date" id="dt-${id}" value="${d.date||''}">
+          </div>
+          <div class="detail-field full">
+            <label>Top comment / best reaction</label>
+            <textarea id="tc-note-${id}" placeholder="Paste the best comment you got, or note what worked / what flopped...">${d.top_comment||''}</textarea>
+          </div>
+          <div class="detail-field full">
+            <label>What would you do differently</label>
+            <textarea id="wd-${id}" placeholder="Title tweak, different sub, better timing...">${d.notes||''}</textarea>
+          </div>
+        </div>
+        <button class="save-btn" onclick="saveTrack('${id}')">Save</button>
+        <span class="save-confirm" id="sc-${id}">✓ Saved</span>
+      </div>
+    </div>`;
+  });
+  feed.innerHTML=h;
+}
+
+function toggleTracker(id){
+  document.querySelectorAll('.tracker-card').forEach(c=>{
+    if(c.id!=='tc-'+id)c.classList.remove('open');
+  });
+  document.getElementById('tc-'+id).classList.toggle('open');
+}
+
+function saveTrack(id){
+  const tracker=getTracker();
+  tracker[id]={
+    upvotes:document.getElementById('up-'+id).value,
+    comments:document.getElementById('cm-'+id).value,
+    date:document.getElementById('dt-'+id).value,
+    top_comment:document.getElementById('tc-note-'+id).value,
+    notes:document.getElementById('wd-'+id).value,
+  };
+  saveTracker(tracker);
+  const card=document.getElementById('tc-'+id);
+  if(tracker[id].upvotes||tracker[id].comments)card.classList.add('has-data');
+  const sc=document.getElementById('sc-'+id);
+  sc.style.display='inline';
+  setTimeout(()=>sc.style.display='none',2000);
+  buildChart();
+  // rebuild stats row
+  const statsEl=card.querySelector('.t-stats');
+  const d=tracker[id];
+  statsEl.innerHTML=`
+    <div class="t-stat${d.upvotes?'':' empty'}"><div class="val">${d.upvotes||'—'}</div><div class="lbl">upvotes</div></div>
+    <div class="t-stat${d.comments?'':' empty'}"><div class="val">${d.comments||'—'}</div><div class="lbl">comments</div></div>
+    <div class="t-stat${d.top_comment?'':' empty'}"><div class="val">${d.top_comment?'📝':'—'}</div><div class="lbl">notes</div></div>`;
+}
+
+function buildChart(){
+  const tracker=getTracker();
+  const chart=document.getElementById('bar-chart');
+  const entries=POSTS.map(p=>{
+    const d=tracker['t'+p.num]||{};
+    return{num:p.num,sub:p.subreddit.split(' ')[0],upvotes:parseInt(d.upvotes)||0};
+  }).filter(e=>e.upvotes>0);
+  if(!entries.length){
+    chart.innerHTML='<div class="no-data">No data yet — log your first post below.</div>';
+    return;
+  }
+  const max=Math.max(...entries.map(e=>e.upvotes),1);
+  chart.innerHTML=entries.map(e=>{
+    const pct=Math.round((e.upvotes/max)*100);
+    return`<div class="bar-row">
+      <span class="bar-label">Day ${e.num}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span class="bar-val">${e.upvotes}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── REPLY BANK ─────────────────────────────────────────────────────────────
+let activeFilter='all';
+function filterReplies(cat){
+  activeFilter=cat;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  buildReplies();
+}
+
+function buildReplies(){
+  const feed=document.getElementById('reply-feed');
+  const filtered=activeFilter==='all'?REPLIES:REPLIES.filter(r=>r.cat===activeFilter);
+  feed.innerHTML=filtered.map((r,i)=>{
+    const catClass=CAT_CLASS[r.cat]||'';
+    const icon=CAT_ICON[r.cat]||'💬';
+    const tags=r.tags.map(t=>`<span class="reply-tag">${t}</span>`).join('');
+    return`<div class="reply-card" id="rc-${i}">
+      <div class="reply-q" onclick="toggleReply('${i}')">
+        <span class="q-icon">${icon}</span>
+        <span class="q-text">${r.q}</span>
+        <span class="q-cat ${catClass}">${r.cat}</span>
+        <span class="q-arr">›</span>
+      </div>
+      <div class="reply-body">
+        <div class="reply-tags">${tags}</div>
+        <div class="reply-text">${r.a.replace(/\n/g,'<br>')}</div>
+        <div class="reply-actions">
+          <button class="r-copy-btn" id="rb-${i}" onclick="copyReply(${i})">📋 Copy reply</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleReply(i){
+  const card=document.getElementById('rc-'+i);
+  card.classList.toggle('open');
+}
+
+function copyReply(i){
+  const filtered=activeFilter==='all'?REPLIES:REPLIES.filter(r=>r.cat===activeFilter);
+  const r=filtered[i];
+  navigator.clipboard.writeText(r.a).then(()=>{
+    const btn=document.getElementById('rb-'+i);
+    btn.innerHTML='✓ Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.innerHTML='📋 Copy reply';btn.classList.remove('copied')},2000);
   });
 }
 
-function markPosted(id) {
-  const posted = getPosted();
-  const card   = document.getElementById('card-' + id);
-  const btn    = document.getElementById('mark-' + id);
-  if (posted[id]) {
-    delete posted[id];
-    card.classList.remove('done');
-    btn.innerHTML = '○ Mark posted';
-    btn.classList.remove('is-done');
-  } else {
-    posted[id] = true;
-    card.classList.add('done');
-    btn.innerHTML = '✓ Posted';
-    btn.classList.add('is-done');
-  }
-  savePosted(posted);
-  updateProgress();
+// ── PROGRESS ───────────────────────────────────────────────────────────────
+function updateProgress(){
+  const posted=getPosted();
+  const count=Object.keys(posted).length;
+  const pct=Math.round(count/30*100);
+  document.getElementById('nav-posted').textContent=count;
+  document.getElementById('s-posted').textContent=count+' / 30';
+  document.getElementById('prog-fill').style.width=pct+'%';
+  const p1=POSTS.filter(p=>p.phase==='Phase 1 — Warmup'&&posted['d'+p.num]).length;
+  const p2=POSTS.filter(p=>p.phase==='Phase 2 — Build Hype'&&posted['d'+p.num]).length;
+  const p3=POSTS.filter(p=>p.phase==='Phase 3 — Launch'&&posted['d'+p.num]).length;
+  document.getElementById('s-p1').textContent=p1+' / 10';
+  document.getElementById('s-p2').textContent=p2+' / 10';
+  document.getElementById('s-p3').textContent=p3+' / 10';
 }
 
-function updateProgress() {
-  const posted = getPosted();
-  const total  = 30;
-  const count  = Object.keys(posted).length;
-  const pct    = Math.round((count / total) * 100);
+// ── INIT ───────────────────────────────────────────────────────────────────
+buildCalendar();
+buildTracker();
+buildReplies();
+updateProgress();
 
-  document.getElementById('nav-posted').textContent = count;
-  document.getElementById('stat-posted').textContent = count + ' / ' + total;
-  document.getElementById('progress-fill').style.width = pct + '%';
-
-  // Per-phase counts
-  const p1 = POSTS.filter(p => p.phase === 'Phase 1 — Warmup' && posted['d'+p.num]).length;
-  const p2 = POSTS.filter(p => p.phase === 'Phase 2 — Build Hype' && posted['d'+p.num]).length;
-  const p3 = POSTS.filter(p => p.phase === 'Phase 3 — Launch' && posted['d'+p.num]).length;
-  document.getElementById('stat-p1').textContent = p1 + ' / 10';
-  document.getElementById('stat-p2').textContent = p2 + ' / 10';
-  document.getElementById('stat-p3').textContent = p3 + ' / 10';
-}
-
-buildFeed();
+// Restore posted state on calendar
+(function(){
+  const posted=getPosted();
+  Object.keys(posted).forEach(id=>{
+    const card=document.getElementById('card-'+id);
+    const btn=document.getElementById('mark-'+id);
+    if(card)card.classList.add('done');
+    if(btn){btn.innerHTML='✓ Posted';btn.classList.add('marked');}
+  });
+})();
 </script>
 </body>
 </html>
