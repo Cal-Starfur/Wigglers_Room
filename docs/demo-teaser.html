@@ -78,12 +78,6 @@ body{background:#0a1020;}
 #demo-hud img{width:28px;height:28px;object-fit:contain}
 #demo-hud .title{font-size:0.85rem;font-weight:700;color:var(--text);flex:1}
 #demo-hud .title span{color:var(--amber-glow)}
-#demo-hud .npc-count{
-  font-size:0.72rem;color:var(--text-dim);
-  background:rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.1);
-  border-radius:20px;padding:3px 10px;
-}
 
 /* Progress dots — right side */
 #progress-dots {
@@ -200,7 +194,6 @@ body{background:#0a1020;}
 <div id="demo-hud">
   <img id="hud-bg" src="" data-bg-img="1" alt="worm">
   <div class="title">wiggler<span>s</span>room <span style="font-weight:400;color:var(--text-dim);font-size:.75rem">· demo</span></div>
-  <div class="npc-count">🪱 25 worms in the bin</div>
 </div>
 
 <!-- Layer toast -->
@@ -249,8 +242,6 @@ body{background:#0a1020;}
   <!-- Layer: compost -->
   <div class="step-ca  <div class="step-card" id="card-compost">
     <h2>Compost layer</h2>
-    <p>This is where worms sleep. Long press on mobile, or press S on keyboard.</p>
-    <div class="step-hint">Long press · or press S</div>
   </div>
   </div>
 
@@ -283,7 +274,7 @@ body{background:#0a1020;}
            padding:13px 28px;min-height:48px;border-radius:40px;border:none;cursor:pointer;
            background:var(--amber);color:var(--soil-dark);
            transition:background 0.18s,transform 0.12s;display:inline-block;">
-    🪱 Play the demo
+    Play the demo
   </button>
   <p style="font-size:0.72rem;color:var(--text-dim);margin-top:4px;opacity:0.7;">
     Move mouse or drag to steer
@@ -293,8 +284,7 @@ body{background:#0a1020;}
 <!-- End screen -->
 <div id="end-screen" role="dialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-desc">
   <img id="end-bg" src="" data-bg-img="1" alt="Wigglers Room">
-  <h2 id="end-title">You're in the <span>bin</span> 🪱</h2>
-  <p id="end-desc" class="sub">Your worm is sleeping in a shared world with 25 others. In the real game your worm persists 24/7, earns karma, and leaves a headstone when it dies.</p>
+  <h2 id="end-title">You're in the <span>bin</span></h2>
   <div class="end-btns">
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;">
       <a class="btn-s" href="demo.html">Full controls guide</a>
