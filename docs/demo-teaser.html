@@ -397,13 +397,13 @@ function _demoTick() {
   // Tier transitions
   if (tier !== _demoLastTier) {
     _demoLastTier = tier;
-    if (tier === 0 && _demoState === 'steering' && headY > H * 0.15) _enterScraps();
+    // tier 0 trigger removed — eat card shows on _startSteering instead
     if (tier === 1 && (_demoState === 'scraps' || _demoState === 'steering')) _enterActive();
     if (tier >= 2 && (_demoState === 'active' || _demoState === 'scraps' || _demoState === 'steering')) _enterCompost();
   }
 
   // Eat detection — dismiss eat card when pGut increases
-  if (_demoState === 'scraps' && typeof pGut !== 'undefined') {
+  if ((_demoState === 'steering' || _demoState === 'scraps') && typeof pGut !== 'undefined') {
     if (_demoStartGut < 0) _demoStartGut = pGut;
     if (pGut > _demoStartGut + 0.05) _enterActive();
   }
@@ -515,7 +515,9 @@ function _startSteering() {
   if (!_introDismissed) return;
   if (_demoState !== 'welcome') return;
   _demoState = 'steering';
-  // Do NOT dismiss card-welcome here — it stays until player reaches the active zone
+  _fadeOut('card-welcome');
+  _showCard('card-eat');      // show eat card immediately — dismissed when pGut increases
+  _demoStartGut = -1;
   document.getElementById('kb-hint').classList.add('show');
   setTimeout(function(){ document.getElementById('kb-hint').classList.remove('show'); }, 4000);
 }
