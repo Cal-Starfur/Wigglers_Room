@@ -243,8 +243,8 @@ body{background:#0a1020;}
   <!-- Dot 4→5: Sleep -->
   <div class="step-card" id="card-sleep">
     <h2>Time to sleep</h2>
-    <p>Drains connected — the bin is alive. Hold still and Wiggler will drift off.</p>
-    <div class="step-hint">Hold still…</div>
+    <p>Drains connected — the bin is alive. Press S or long press to put Wiggler to sleep.</p>
+    <div class="step-hint">S key · or long press to sleep</div>
   </div>
 
 </div>
@@ -465,17 +465,13 @@ function _demoTick() {
     return;
   }
 
-  // ── Dot 4→5: draining/sleeping ──────────────────────────────────────────────
+  // ── Dot 4→5: sleep — player presses S or long press ──────────────────────
   if (_demoState === 'draining') {
     if (typeof pSleeping !== 'undefined' && pSleeping) {
-      _demoState = 'done'; _fadeOut('card-sleep'); _setProgress(5); _triggerEnd();
-      return;
-    }
-    var moved2 = Math.abs(headY - _demoLastHeadY);
-    if (moved2 < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
-    if (_demoHeldFrames >= _DEMO_SLEEP_FRAMES) {
-      _demoState = 'done'; _fadeOut('card-sleep'); _setProgress(5); _triggerEnd();
-      return;
+      _demoState = 'done';
+      _fadeOut('card-sleep');
+      _setProgress(5);
+      _triggerEnd();
     }
   }
   _demoLastHeadY = headY;
