@@ -305,6 +305,7 @@ var _demoHeldFrames = 0;
 var _demoLastHeadY = -1;
 var _DEMO_SLEEP_FRAMES = 90;
 var _demoPooped = false;        // true after first poop
+var _demoGutWasFull = false;    // true once gut reached 0.75 (latched)
 var _demoDownDrainDone = false; // true after window._sumpHadDown fires
 var _demoUpDrainDone = false;   // true after window._upDrainBonusFired fires
 
@@ -395,7 +396,9 @@ function _demoTick() {
 
   // ── Dot 1→2: eating — fill gut then poop ───────────────────────────────────
   if (_demoState === 'eating') {
-    if (gut >= gutMax * 0.75 && typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
+    // Latch once gut is full enough — poop drains it so we can't check both at once
+    if (gut >= gutMax * 0.75) _demoGutWasFull = true;
+    if (_demoGutWasFull && typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
       _demoPooped = true;
       _demoState = 'refilling';
       _fadeOut('card-poop');
