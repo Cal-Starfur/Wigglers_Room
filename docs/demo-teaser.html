@@ -307,7 +307,7 @@ var _demoLastHeadY = -1;
 var _DEMO_SLEEP_FRAMES = 90;
 var _demoStartGut = -1;      // gut baseline when eat card shows
 var _demoFullGut = -1;       // gut level when gut fills (triggers poop step)
-var _demoPoopCount = -1;     // cast count baseline (to detect a poop)
+var _demoPooped = false;     // set true once pPooping fires
 
 // 4. Inject NPCs as presence after game boots
 function _injectNPCs() {
@@ -407,8 +407,7 @@ function _demoTick() {
         _fadeOut('card-full');
         _showCard('card-poop');
         _setProgress(2);
-        // Capture current cast count so we can detect a new poop
-        _demoPoopCount = (typeof pCasts !== 'undefined') ? pCasts : 0;
+
       }
     }
     return;
@@ -416,8 +415,8 @@ function _demoTick() {
 
   // ── Step 3: full → pooped (player presses Space/long-press) ──────────────
   if (_demoState === 'full') {
-    var curCasts = (typeof pCasts !== 'undefined') ? pCasts : 0;
-    if (_demoPoopCount >= 0 && curCasts > _demoPoopCount) {
+    if (typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
+      _demoPooped = true;
       _demoState = 'pooped';
       _fadeOut('card-poop');
       _showCard('card-compost');
