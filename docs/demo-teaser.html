@@ -306,6 +306,7 @@ var _demoLastHeadY = -1;
 var _DEMO_SLEEP_FRAMES = 90;
 var _demoPooped = false;        // true after first poop
 var _demoGutWasFull = false;    // true once gut reached 0.75 (latched)
+var _demoRefillBaseline = -1;   // gut level when refill card shows — advance once we've eaten more
 var _demoDownDrainDone = false; // true after window._sumpHadDown fires
 var _demoUpDrainDone = false;   // true after window._upDrainBonusFired fires
 
@@ -408,10 +409,14 @@ function _demoTick() {
     return;
   }
 
-  // ── Dot 2→3: refilling — go back up to scraps and eat again ────────────────
+  // ── Dot 2→3: refilling — eat more (gut rises from post-poop baseline) ───────
   if (_demoState === 'refilling') {
-    var inScraps = (typeof H !== 'undefined') && headY < H;
-    if (inScraps && gut >= gutMax * 0.70) {
+    // Capture gut level right after poop (first tick in this state)
+    if (_demoRefillBaseline < 0) _demoRefillBaseline = gut;
+    // Advance once gut rises at least 25% of gutMax from the post-poop level
+    // Cap target at 85% so we never force constipation (game forces poop at 98%)
+    var refillTarget = Math.min(_demoRefillBaseline + gutMax * 0.25, gutMax * 0.85);
+    if (gut >= refillTarget) {
       _demoState = 'diving';
       _fadeOut('card-refill');
       _showCard('card-sump');
