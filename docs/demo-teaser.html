@@ -220,7 +220,7 @@ body{background:#0a1020;}
     <span class="icon">🪱</span>
     <h2>Welcome to the bin</h2>
     <p>You're a worm. 25 others are already living here. Steer down through the compost layers, then sleep.</p>
-    <div class="step-hint">👆 Drag / mouse to steer · <span class="kb" style="background:rgba(212,136,10,.15);border-color:rgba(212,136,10,.4);color:var(--amber-glow)">S</span> to sleep</div>
+    <div class="step-hint" style="cursor:pointer" onclick="_startSteering()">👆 Tap here or move mouse to start</div>
   </div>
 
   <!-- Layer: active zone -->
@@ -436,7 +436,10 @@ function _setProgress(n) {
   });
 }
 
-// 7. Dismiss welcome card on first touch or mouse move
+// 7. Dismiss welcome card on intentional input only
+// mousemove fires synthetically on load — require actual delta from first position
+var _firstMouseX = -1, _firstMouseY = -1, _mouseReady = false;
+
 function _startSteering() {
   if (_demoState !== 'welcome') return;
   _demoState = 'steering';
@@ -444,12 +447,34 @@ function _startSteering() {
   document.getElementById('kb-hint').classList.add('show');
   setTimeout(function(){ document.getElementById('kb-hint').classList.remove('show'); }, 4000);
 }
-document.addEventListener('mousemove', _startSteering, {once:true});
-document.addEventListener('touchstart', _startSteering, {once:true, passive:true});
+
+// Mouse: record initial position on first move, only trigger after real movement (>20px)
+document.addEventListener('mousemove', function(e) {
+  if (_demoState !== 'welcome') return;
+  if (_firstMouseX < 0) { _firstMouseX = e.clientX; _firstMouseY = e.clientY; return; }
+  var dx = e.clientX - _firstMouseX;
+  var dy = e.clientY - _firstMouseY;
+  if (Math.sqrt(dx*dx + dy*dy) > 20) _startSteering();
+});
+
+// Touch: any real finger touch is intentional
+document.addEventListener('touchstart', function() {
+  _startSteering();
+}, {passive: true});
+
+// Click anywhere dismisses it
+document.addEventListener('click', function() {
+  _startSteering();
+});
+
+// Keydown: any key dismisses
 document.addEventListener('keydown', function(e) {
-  if (e.code === 'Space' || e.code === 'KeyS' || e.code === 'KeyW' || e.code === 'ArrowDown') {
-    _startSteering();
-  }
+  _startSteering();
+});
+
+// Also make the card itself a big tap target
+document.getElementById('card-welcome').addEventListener('click', function() {
+  _startSteering();
 });
 
 // 8. Adjust root div padding for HUD
