@@ -29,34 +29,46 @@ body{background:#0a1020;}
 
 .step-card {
   position:absolute;
-  bottom:20px;
-  left:16px;
-  background:rgba(14,8,3,0.90);
-  border:1px solid rgba(212,136,10,0.4);
-  border-radius:10px;
-  padding:14px 18px;
-  max-width:260px;
-  text-align:left;
+  background:rgba(14,8,3,0.92);
+  border:1px solid rgba(212,136,10,0.45);
+  border-radius:14px;padding:20px 24px;
+  max-width:300px;width:88%;
+  text-align:center;
   backdrop-filter:blur(10px);
-  opacity:0;
-  transition:opacity 0.3s;
+  transform:translateY(16px);opacity:0;
+  transition:opacity 0.35s,transform 0.35s;
   pointer-events:none;
 }
-.step-card.show { opacity:1; pointer-events:all; }
-.step-card h2 {
-  font-size:0.92rem;font-weight:700;
-  color:var(--text);margin-bottom:6px;line-height:1.3;
-}
-.step-card p {
-  font-size:0.76rem;color:var(--text-dim);
-  line-height:1.55;margin-bottom:10px;
-}
-.step-hint {
+.step-card.show{opacity:1;transform:translateY(0);pointer-events:all}
+.step-card .icon{font-size:2rem;display:block;margin-bottom:8px}
+.step-card h2{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:8px;line-height:1.25}
+.step-card p{font-size:0.82rem;color:var(--text-dim);line-height:1.6;margin-bottom:12px}
+.step-hint{
   display:inline-flex;align-items:center;gap:6px;
   background:rgba(212,136,10,0.15);
   border:1px solid rgba(212,136,10,0.35);
-  border-radius:20px;padding:5px 12px;
-  font-size:0.73rem;font-weight:700;color:var(--amber-glow);
+  border-radius:30px;padding:6px 14px;
+  font-size:0.78rem;font-weight:700;color:var(--amber-glow);
+}
+
+/* Positioned: bottom-centre for welcome, left for step 2 */
+#card-welcome {
+  bottom:28px;left:50%;transform:translateX(-50%) translateY(16px);
+}
+#card-welcome.show {
+  transform:translateX(-50%) translateY(0);opacity:1;
+}
+#card-active {
+  top:50%;left:50%;transform:translate(-50%,-50%) translateY(16px);
+}
+#card-active.show {
+  transform:translate(-50%,-50%) translateY(0);opacity:1;
+}
+#card-compost {
+  top:50%;left:50%;transform:translate(-50%,-50%) translateY(16px);
+}
+#card-compost.show {
+  transform:translate(-50%,-50%) translateY(0);opacity:1;
 }
 
 /* HUD bar — top of screen */
@@ -219,22 +231,22 @@ body{background:#0a1020;}
 
   <!-- Welcome card — shown after intro dismissed -->
   <div class="step-card" id="card-welcome">
-    <h2>Steer down into the bin</h2>
-    <p>25 worms are already living here. Move your mouse or drag to steer down through the compost layers.</p>
-    <div class="step-hint">Move mouse or drag to steer</div>
+    <h2>You're in the bin</h2>
+    <p>25 worms are already here. Steer down through the compost layers, then sleep.</p>
+    <div class="step-hint">Drag / mouse · <span class="kb" style="background:rgba(212,136,10,.15);border-color:rgba(212,136,10,.4);color:var(--amber-glow)">S</span> sleep</div>
   </div>
 
   <!-- Layer: active zone -->
   <div class="step-card" id="card-active">
     <h2>Active worm zone</h2>
-    <p>Most worms live here. Keep steering down — the compost layer is where you can sleep.</p>
-    <div class="step-hint">Keep going deeper</div>
+    <p>This is where most worms live. Keep going deeper — the compost layer is where you can sleep.</p>
+    <div class="step-hint">️ Go deeper</div>
   </div>
 
   <!-- Layer: compost -->
   <div class="step-card" id="card-compost">
     <h2>Compost layer</h2>
-    <p>This is where worms sleep between sessions. Hold completely still for a moment, or press S.</p>
+    <p>Rich with worm castings. This is where you sleep. Hold still for 1.5s or press <kbd style="background:rgba(212,136,10,.15);border:1px solid rgba(212,136,10,.4);border-radius:3px;padding:1px 5px;color:var(--amber-glow)">S</kbd>.</p>
     <div class="step-hint">Hold still · or press S</div>
   </div>
 
@@ -413,26 +425,23 @@ function _demoTick() {
 function _enterActive() {
   if (_demoState === 'done') return;
   _demoState = 'active';
-  _fadeOut('card-welcome');
-  _showCard('card-active');
+  _fadeOut('card-welcome');    // welcome card goes away when player reaches active zone
+  _showCard('card-active');   // active card appears — stays until player reaches compost
   _setProgress(1);
   _showToast('Active worm zone');
-  // card-active dismissed when player enters compost
 }
 
 function _enterCompost() {
   if (_demoState === 'done') return;
   _demoState = 'compost';
-  _fadeOut('card-active');
-  _showCard('card-compost');
+  _fadeOut('card-active');    // active card goes when player reaches compost
+  _showCard('card-compost'); // compost card stays until player sleeps
   _setProgress(2);
-  _showToast('Compost layer — poop deep, then sleep 💤');
-  // card-compost dismissed when player sleeps
+  _showToast('Compost layer');
 }
 
 function _triggerEnd() {
   _demoState = 'done';
-  _fadeOut('card-compost');
   _setProgress(3);
   _showToast('Sleeping — the bin is alive');
   setTimeout(function() {
@@ -487,10 +496,10 @@ document.addEventListener('keydown', function() {
 var _firstMouseX = -1, _firstMouseY = -1, _mouseReady = false;
 
 function _startSteering() {
-  if (!_introDismissed) return;  // wait until intro is dismissed
+  if (!_introDismissed) return;
   if (_demoState !== 'welcome') return;
   _demoState = 'steering';
-  _fadeOut('card-welcome');
+  // Do NOT dismiss card-welcome here — it stays until player reaches the active zone
   document.getElementById('kb-hint').classList.add('show');
   setTimeout(function(){ document.getElementById('kb-hint').classList.remove('show'); }, 4000);
 }
