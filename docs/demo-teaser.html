@@ -212,38 +212,38 @@ body{background:#0a1020;}
 <!-- Demo overlay -->
 <div id="demo-overlay">
 
-  <!-- Step 1: Steer to a scrap and eat -->
+  <!-- Dot 1: First eat -->
   <div class="step-card" id="card-eat">
     <h2>Find a scrap to eat</h2>
-    <p>Steer Wiggler towards the food chunks — touch one to start eating.</p>
+    <p>Steer Wiggler into the food chunks at the top of the bin to start eating.</p>
     <div class="step-hint">Drag or mouse to steer</div>
   </div>
 
-  <!-- Step 2: Fill the stomach -->
-  <div class="step-card" id="card-full">
-    <h2>Keep eating</h2>
-    <p>Your gut fills as you feed. Keep going until it's full.</p>
-    <div class="step-hint">Stay in the scraps</div>
-  </div>
-
-  <!-- Step 3: Poop -->
+  <!-- Dot 1→2: Fill gut then poop -->
   <div class="step-card" id="card-poop">
-    <h2>Time to poop</h2>
-    <p>A full gut means it's time to cast. Press Space or long-press to poop.</p>
-    <div class="step-hint">Space · or long press</div>
+    <h2>Fill up, then poop</h2>
+    <p>Keep eating until your gut is full — then Space or long-press to poop.</p>
+    <div class="step-hint">Space · or long press to poop</div>
   </div>
 
-  <!-- Step 4: Steer to compost layer -->
-  <div class="step-card" id="card-compost">
-    <h2>Go deeper</h2>
-    <p>Steer down into the compost layer — that's where worms sleep.</p>
-    <div class="step-hint">Keep going down</div>
+  <!-- Dot 2→3: Go back up and refill -->
+  <div class="step-card" id="card-refill">
+    <h2>Back up and refill</h2>
+    <p>Steer back up to the scraps and fill your gut again before heading deep.</p>
+    <div class="step-hint">Back up to the food</div>
   </div>
 
-  <!-- Step 5: Sleep -->
+  <!-- Dot 3→4: Dive to sump and connect drains -->
+  <div class="step-card" id="card-sump">
+    <h2>Dive to the sump</h2>
+    <p>Steer all the way down to the bottom. Hold still to connect a down-drain, then an up-drain.</p>
+    <div class="step-hint">Go deep · hold still</div>
+  </div>
+
+  <!-- Dot 4→5: Sleep -->
   <div class="step-card" id="card-sleep">
     <h2>Time to sleep</h2>
-    <p>You're in the compost layer. Hold still and Wiggler will drift off.</p>
+    <p>Drains connected — the bin is alive. Hold still and Wiggler will drift off.</p>
     <div class="step-hint">Hold still…</div>
   </div>
 
@@ -299,15 +299,14 @@ var _demoNpcTimers = {};  // username -> frame of next waypoint move
 var _demoNpcIdx = {};     // username -> current waypoint index
 
 // 3. Demo state
-// States: idle -> eating -> full -> pooped -> compost -> done
+// States: idle -> eating -> refilling -> diving -> draining -> done
 var _demoState = 'idle';
-var _demoLastTier = 0;
 var _demoHeldFrames = 0;
 var _demoLastHeadY = -1;
 var _DEMO_SLEEP_FRAMES = 90;
-var _demoStartGut = -1;      // gut baseline when eat card shows
-var _demoFullGut = -1;       // gut level when gut fills (triggers poop step)
-var _demoPooped = false;     // set true once pPooping fires
+var _demoPooped = false;        // true after first poop
+var _demoDownDrainDone = false; // true after window._sumpHadDown fires
+var _demoUpDrainDone = false;   // true after window._upDrainBonusFired fires
 
 // 4. Inject NPCs as presence after game boots
 function _injectNPCs() {
@@ -375,96 +374,100 @@ function _wrapRAF() {
 var _demoFrame = 0;
 function _demoTick() {
   _demoFrame++;
-
-  // Move NPCs every 2 seconds (120 frames)
   if (_demoFrame % 120 === 0) _updateNPCPositions();
-
   if (_demoState === 'done') return;
-
-  // Need game globals to be ready
   if (typeof pSegs === 'undefined' || !pSegs.length) return;
-  var headY = pSegs[0].y;
 
-  // ── Step 1: idle → eating (first time gut rises above zero) ──────────────
+  var headY  = pSegs[0].y;
+  var gut    = (typeof pGut !== 'undefined') ? pGut : 0;
+  var gutMax = (typeof pGutMax !== 'undefined' && pGutMax > 0) ? pGutMax : 8;
+
+  // ── Dot 1: idle → eating (first bite) ──────────────────────────────────────
   if (_demoState === 'idle') {
-    if (typeof pGut !== 'undefined' && pGut > 0.01) {
+    if (gut > 0.1) {
       _demoState = 'eating';
-      _demoStartGut = pGut;
       _fadeOut('card-eat');
-      _showCard('card-full');
+      _showCard('card-poop');
       _setProgress(1);
     }
     return;
   }
 
-  // ── Step 2: eating → full (gut reaches ~0.8 full) ────────────────────────
+  // ── Dot 1→2: eating — fill gut then poop ───────────────────────────────────
   if (_demoState === 'eating') {
-    if (typeof pGut !== 'undefined') {
-      if (_demoStartGut < 0) _demoStartGut = pGut;
-      if (pGut >= 0.8) {
-        _demoFullGut = pGut;
-        _demoState = 'full';
-        _fadeOut('card-full');
-        _showCard('card-poop');
-        _setProgress(2);
-
-      }
-    }
-    return;
-  }
-
-  // ── Step 3: full → pooped (player presses Space/long-press) ──────────────
-  if (_demoState === 'full') {
-    if (typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
+    if (gut >= gutMax * 0.75 && typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
       _demoPooped = true;
-      _demoState = 'pooped';
+      _demoState = 'refilling';
       _fadeOut('card-poop');
-      _showCard('card-compost');
-      _setProgress(3);
+      _showCard('card-refill');
+      _setProgress(2);
     }
     return;
   }
 
-  // ── Step 4: pooped → compost (player reaches tier ≥ 2) ───────────────────
-  if (_demoState === 'pooped') {
-    var tier = 0;
-    if (typeof H !== 'undefined' && H > 0) {
-      if (headY < H)         tier = 0;
-      else if (headY < 2*H)  tier = 1;
-      else                   tier = 2;
+  // ── Dot 2→3: refilling — go back up to scraps and eat again ────────────────
+  if (_demoState === 'refilling') {
+    var inScraps = (typeof H !== 'undefined') && headY < H;
+    if (inScraps && gut >= gutMax * 0.70) {
+      _demoState = 'diving';
+      _fadeOut('card-refill');
+      _showCard('card-sump');
+      _setProgress(3);
+      _showToast('Now dive all the way to the sump!');
     }
-    if (tier >= 2) {
-      _demoState = 'compost';
-      _fadeOut('card-compost');
+    return;
+  }
+
+  // ── Dot 3→4: diving — reach sump, connect down then up drain ───────────────
+  if (_demoState === 'diving') {
+    var inSump = (typeof H !== 'undefined') && headY >= 3 * H - 20;
+
+    if (!_demoDownDrainDone && window._sumpHadDown) {
+      _demoDownDrainDone = true;
+      _showToast('Down-drain connected! Hold still for the up-drain…');
+    }
+
+    if (_demoDownDrainDone && !_demoUpDrainDone && window._upDrainBonusFired) {
+      _demoUpDrainDone = true;
+      _demoState = 'draining';
+      _fadeOut('card-sump');
       _showCard('card-sleep');
       _setProgress(4);
-      _showToast('Compost layer — hold still to sleep');
-    }
-    return;
-  }
-
-  // ── Step 5: compost → done (player sleeps) ───────────────────────────────
-  if (_demoState === 'compost') {
-    if (typeof pSleeping !== 'undefined' && pSleeping) {
-      _demoState = 'done';
-      _fadeOut('card-sleep');
-      _setProgress(5);
-      _triggerEnd();
+      _showToast('Up-drain connected! The bin is alive 🌿');
+      _demoHeldFrames = 0;
       return;
     }
-    // Fallback: count still frames as proxy for sleeping
-    var moved = Math.abs(headY - _demoLastHeadY);
-    if (moved < 1.5) {
-      _demoHeldFrames++;
-      if (_demoHeldFrames >= _DEMO_SLEEP_FRAMES) {
-        _demoState = 'done';
-        _fadeOut('card-sleep');
-        _setProgress(5);
-        _triggerEnd();
-        return;
+
+    // Fallback: 5 s of stillness in sump advances past drain step
+    if (inSump) {
+      var moved = Math.abs(headY - _demoLastHeadY);
+      if (moved < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
+      if (_demoHeldFrames >= 300 && !_demoUpDrainDone) {
+        _demoUpDrainDone = true;
+        _demoState = 'draining';
+        _fadeOut('card-sump');
+        _showCard('card-sleep');
+        _setProgress(4);
+        _demoHeldFrames = 0;
       }
     } else {
       _demoHeldFrames = 0;
+    }
+    _demoLastHeadY = headY;
+    return;
+  }
+
+  // ── Dot 4→5: draining/sleeping ──────────────────────────────────────────────
+  if (_demoState === 'draining') {
+    if (typeof pSleeping !== 'undefined' && pSleeping) {
+      _demoState = 'done'; _fadeOut('card-sleep'); _setProgress(5); _triggerEnd();
+      return;
+    }
+    var moved2 = Math.abs(headY - _demoLastHeadY);
+    if (moved2 < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
+    if (_demoHeldFrames >= _DEMO_SLEEP_FRAMES) {
+      _demoState = 'done'; _fadeOut('card-sleep'); _setProgress(5); _triggerEnd();
+      return;
     }
   }
   _demoLastHeadY = headY;
