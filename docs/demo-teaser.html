@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Wigglers Room — Try the Bin</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --soil-dark:#1a0e06;--soil-mid:#2d1a0a;--compost:#5a3818;
+  --amber:#d4880a;--amber-glow:#f5a623;--worm-pink:#e8728a;
+  --leaf:#5a9e28;--text:#f0e8d8;--text-dim:#9a8868;
+  --scraps-bg:#3a4a6a;--active-bg:#8b6340;
+  --cast-top:#7a5535;--cast-bot:#4a2c10;
+  --sump-bg:#2a1408;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--soil-dark)}
+canvas{display:block;touch-action:none}
+
+/* ── Overlay system ── */
+.overlay{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  z-index:100;pointer-events:none;
+}
+.overlay.active{pointer-events:all}
+
+/* Step overlays */
+.step-card{
+  background:rgba(20,10,4,0.92);
+  border:1px solid rgba(212,136,10,0.4);
+  border-radius:16px;padding:28px 32px;
+  max-width:340px;width:90%;text-align:center;
+  backdrop-filter:blur(8px);
+  transform:translateY(20px);opacity:0;
+  transition:opacity 0.4s,transform 0.4s;
+}
+.step-card.show{opacity:1;transform:translateY(0)}
+.step-card .icon{font-size:2.5rem;margin-bottom:12px;display:block}
+.step-card h2{font:700 1.3rem/1.3 Georgia,serif;color:var(--text);margin-bottom:10px}
+.step-card p{font:0.88rem/1.6 Georgia,serif;color:var(--text-dim);margin-bottom:16px}
+.step-card .hint{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(212,136,10,0.15);border:1px solid rgba(212,136,10,0.3);
+  border-radius:40px;padding:7px 16px;
+  font:700 0.82rem Georgia,serif;color:var(--amber-glow);
+}
+
+/* Arrow guide */
+#arrow-guide{
+  position:fixed;pointer-events:none;z-index:90;
+  display:none;
+  flex-direction:column;align-items:center;gap:4px;
+}
+#arrow-guide.show{display:flex}
+.arrow-label{font:700 0.75rem Georgia,serif;color:var(--amber-glow);
+  background:rgba(20,10,4,0.8);padding:3px 10px;border-radius:20px;
+  border:1px solid rgba(212,136,10,0.3)}
+.arrow-anim{font-size:1.8rem;animation:bounce 0.8s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+/* Layer flash */
+#layer-toast{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  background:rgba(20,10,4,0.88);border:1px solid rgba(212,136,10,0.35);
+  border-radius:30px;padding:7px 18px;
+  font:700 0.8rem Georgia,serif;color:var(--amber-glow);
+  z-index:95;opacity:0;transition:opacity 0.3s;pointer-events:none;
+  white-space:nowrap;
+}
+#layer-toast.show{opacity:1}
+
+/* Sleep ring progress */
+#sleep-ring{
+  position:fixed;pointer-events:none;z-index:91;display:none;
+  flex-direction:column;align-items:center;
+}
+#sleep-ring.show{display:flex}
+#sleep-ring canvas{display:block}
+#sleep-ring-label{
+  margin-top:6px;font:700 0.75rem Georgia,serif;
+  color:var(--amber-glow);
+  background:rgba(20,10,4,0.8);padding:3px 10px;border-radius:20px;
+  border:1px solid rgba(212,136,10,0.3)
+}
+
+/* End screen */
+#end-screen{
+  position:fixed;inset:0;background:rgba(10,6,2,0.95);
+  z-index:200;display:none;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:24px;
+}
+#end-screen.show{display:flex}
+#end-screen img{width:90px;height:90px;margin-bottom:20px;
+  filter:drop-shadow(0 4px 20px rgba(212,136,10,0.5));
+  animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+#end-screen h2{font:700 2rem/1.2 Georgia,serif;color:var(--text);margin-bottom:12px}
+#end-screen h2 span{color:var(--amber-glow)}
+#end-screen p{font:0.95rem/1.7 Georgia,serif;color:var(--text-dim);
+  max-width:420px;margin-bottom:28px}
+.end-btns{display:flex;flex-direction:column;gap:12px;width:100%;max-width:280px}
+.btn-primary{
+  background:var(--amber);color:var(--soil-dark);
+  font:700 1rem Georgia,serif;padding:14px 24px;
+  border:none;border-radius:40px;cursor:pointer;
+  text-decoration:none;display:block;text-align:center;
+  transition:background 0.2s,transform 0.15s;
+}
+.btn-primary:hover{background:var(--amber-glow);transform:translateY(-2px)}
+.btn-secondary{
+  background:transparent;color:var(--text-dim);
+  font:0.85rem Georgia,serif;padding:10px;
+  border:1px solid rgba(255,255,255,0.12);border-radius:40px;cursor:pointer;
+  text-decoration:none;display:block;text-align:center;
+  transition:border-color 0.2s,color 0.2s;
+}
+.btn-secondary:hover{border-color:var(--amber);color:var(--text)}
+
+/* NPC tooltip */
+#npc-tip{
+  position:fixed;pointer-events:none;z-index:92;
+  background:rgba(20,10,4,0.9);border:1px solid rgba(212,136,10,0.3);
+  border-radius:8px;padding:6px 12px;font:0.72rem Georgia,serif;
+  color:var(--text-dim);display:none;
+}
+#npc-tip strong{color:var(--text);display:block;margin-bottom:1px}
+
+/* Progress dots */
+#progress-dots{
+  position:fixed;right:12px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:8px;z-index:95;pointer-events:none;
+}
+.pdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);
+  transition:background 0.3s,transform 0.3s}
+.pdot.active{background:var(--amber-glow);transform:scale(1.3)}
+.pdot.done{background:var(--leaf)}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- Progress dots -->
+<div id="progress-dots">
+  <div class="pdot active" id="pd0"></div>
+  <div class="pdot" id="pd1"></div>
+  <div class="pdot" id="pd2"></div>
+  <div class="pdot" id="pd3"></div>
+</div>
+
+<!-- Layer toast -->
+<div id="layer-toast"></div>
+
+<!-- Arrow guide -->
+<div id="arrow-guide">
+  <div class="arrow-label">Steer downward</div>
+  <div class="arrow-anim">⬇️</div>
+</div>
+
+<!-- Sleep ring guide -->
+<div id="sleep-ring">
+  <canvas id="sleep-ring-canvas" width="80" height="80"></canvas>
+  <div id="sleep-ring-label">Hold still to sleep...</div>
+</div>
+
+<!-- Step 0: Welcome -->
+<div class="overlay active" id="step-0">
+  <div class="step-card show" id="card-0">
+    <span class="icon">🪱</span>
+    <h2>Welcome to the bin</h2>
+    <p>You are a worm. 25 others are already in here.<br>Steer down through the compost layers.</p>
+    <div class="hint">👆 Drag to steer</div>
+  </div>
+</div>
+
+<!-- Step 1: In active zone -->
+<div class="overlay" id="step-1">
+  <div class="step-card" id="card-1">
+    <span class="icon">🌱</span>
+    <h2>Active worm zone</h2>
+    <p>This is where most worms live. Keep going deeper — the compost castings layer is where you can sleep.</p>
+    <div class="hint">⬇️ Keep going down</div>
+  </div>
+</div>
+
+<!-- Step 2: In compost -->
+<div class="overlay" id="step-2">
+  <div class="step-card" id="card-2">
+    <span class="icon">💤</span>
+    <h2>You found the compost</h2>
+    <p>This is where worms rest between sessions. Hold still for a moment to sleep.</p>
+    <div class="hint">⏱️ Hold still to sleep</div>
+  </div>
+</div>
+
+<!-- NPC tooltip -->
+<div id="npc-tip"><strong id="npc-tip-name"></strong><span id="npc-tip-info"></span></div>
+
+<!-- End screen -->
+<div id="end-screen">
+  <img src="data:image/png;base64,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" alt="Wigglers Room">
+  <h2>You're in the <span>bin</span> 🪱</h2>
+  <p>Your worm is sleeping in a shared world with 25 others. In the real game, the bin runs 24/7 — your worm persists, earns karma, and leaves a headstone when it dies.</p>
+  <div class="end-btns">
+    <a class="btn-primary" href="https://cal-starfur.github.io/Wigglers_Room/" target="_blank">Open the Real Bin →</a>
+    <a class="btn-secondary" href="demo.html" target="_blank">Read the full guide</a>
+  </div>
+</div>
+
+<script>
+// ── NPC data ──────────────────────────────────────────────────────────────
+var NPCS = [{"id": "npc1", "username": "u/SoilKing42", "gen": 3, "sr": 6.5, "seg": 16, "col": "#e06090", "x": 0.3, "y": 0.45, "sleeping": false, "speed": 0.4}, {"id": "npc2", "username": "u/WigglePro", "gen": 1, "sr": 4.2, "seg": 6, "col": "#d4784a", "x": 0.6, "y": 0.38, "sleeping": false, "speed": 0.3}, {"id": "npc3", "username": "u/CompostQueen", "gen": 5, "sr": 7.0, "seg": 20, "col": "#7ab8d4", "x": 0.45, "y": 0.62, "sleeping": true, "speed": 0}, {"id": "npc4", "username": "u/MudLover", "gen": 2, "sr": 5.1, "seg": 11, "col": "#c8a050", "x": 0.2, "y": 0.55, "sleeping": false, "speed": 0.35}, {"id": "npc5", "username": "u/TerraCycle", "gen": 4, "sr": 6.2, "seg": 15, "col": "#a078d0", "x": 0.75, "y": 0.5, "sleeping": true, "speed": 0}, {"id": "npc6", "username": "u/WormWhisperer", "gen": 2, "sr": 4.8, "seg": 9, "col": "#e88040", "x": 0.55, "y": 0.42, "sleeping": false, "speed": 0.45}, {"id": "npc7", "username": "u/BinDiver", "gen": 1, "sr": 4.0, "seg": 5, "col": "#60c878", "x": 0.35, "y": 0.7, "sleeping": false, "speed": 0.28}, {"id": "npc8", "username": "u/CastingKing", "gen": 3, "sr": 5.8, "seg": 13, "col": "#d870a0", "x": 0.8, "y": 0.65, "sleeping": true, "speed": 0}, {"id": "npc9", "username": "u/AcidHater", "gen": 1, "sr": 4.3, "seg": 7, "col": "#e0c040", "x": 0.15, "y": 0.4, "sleeping": false, "speed": 0.5}, {"id": "npc10", "username": "u/NightCrawler", "gen": 4, "sr": 6.8, "seg": 18, "col": "#c05070", "x": 0.65, "y": 0.75, "sleeping": false, "speed": 0.22}, {"id": "npc11", "username": "u/SumpMaster", "gen": 2, "sr": 5.0, "seg": 10, "col": "#50a8d0", "x": 0.5, "y": 0.85, "sleeping": false, "speed": 0.38}, {"id": "npc12", "username": "u/TeaBagger", "gen": 5, "sr": 6.5, "seg": 17, "col": "#b850c0", "x": 0.28, "y": 0.78, "sleeping": true, "speed": 0}, {"id": "npc13", "username": "u/LeafLover", "gen": 1, "sr": 4.1, "seg": 5, "col": "#78c050", "x": 0.72, "y": 0.42, "sleeping": false, "speed": 0.42}, {"id": "npc14", "username": "u/DirtNap", "gen": 3, "sr": 5.5, "seg": 12, "col": "#d09050", "x": 0.42, "y": 0.48, "sleeping": true, "speed": 0}, {"id": "npc15", "username": "u/MoldMuncher", "gen": 2, "sr": 4.9, "seg": 9, "col": "#90d870", "x": 0.58, "y": 0.58, "sleeping": false, "speed": 0.33}, {"id": "npc16", "username": "u/TunnelVision", "gen": 4, "sr": 6.0, "seg": 14, "col": "#e070c0", "x": 0.18, "y": 0.65, "sleeping": false, "speed": 0.27}, {"id": "npc17", "username": "u/Wrigglington", "gen": 1, "sr": 4.0, "seg": 4, "col": "#f0a060", "x": 0.85, "y": 0.78, "sleeping": false, "speed": 0.6}, {"id": "npc18", "username": "u/DeepDigger", "gen": 5, "sr": 7.0, "seg": 20, "col": "#6090e0", "x": 0.38, "y": 0.88, "sleeping": true, "speed": 0}, {"id": "npc19", "username": "u/CompostPile", "gen": 2, "sr": 5.2, "seg": 11, "col": "#d05880", "x": 0.62, "y": 0.35, "sleeping": false, "speed": 0.36}, {"id": "npc20", "username": "u/EggshellFan", "gen": 3, "sr": 5.7, "seg": 13, "col": "#c8d060", "x": 0.25, "y": 0.82, "sleeping": false, "speed": 0.31}, {"id": "npc21", "username": "u/PoopArtist", "gen": 1, "sr": 4.5, "seg": 8, "col": "#e0a030", "x": 0.78, "y": 0.55, "sleeping": true, "speed": 0}, {"id": "npc22", "username": "u/LiquidGold", "gen": 4, "sr": 6.3, "seg": 16, "col": "#50c0a0", "x": 0.48, "y": 0.72, "sleeping": false, "speed": 0.29}, {"id": "npc23", "username": "u/BlanketBurrow", "gen": 2, "sr": 4.7, "seg": 9, "col": "#d878e0", "x": 0.32, "y": 0.58, "sleeping": false, "speed": 0.44}, {"id": "npc24", "username": "u/FungalFred", "gen": 3, "sr": 5.9, "seg": 14, "col": "#70d0a8", "x": 0.68, "y": 0.88, "sleeping": true, "speed": 0}, {"id": "npc25", "username": "u/DrainHero", "gen": 5, "sr": 6.9, "seg": 19, "col": "#f0c040", "x": 0.52, "y": 0.92, "sleeping": false, "speed": 0.2}];
+
+// ── Canvas setup ──────────────────────────────────────────────────────────
+var canvas = document.getElementById('c');
+var ctx    = canvas.getContext('2d');
+var W, H;
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  // Reposition arrow guide
+  positionArrow();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Demo state machine ─────────────────────────────────────────────────────
+// States: 'welcome' → 'steering' → 'active' → 'compost' → 'sleeping' → 'done'
+var demoState = 'welcome';
+
+// ── Bin layout (matches game proportions) ─────────────────────────────────
+// Tier 0 (scraps):   y 0    – H*0.25
+// Tier 1 (active):   y H*0.25 – H*0.55
+// Tier 2 (compost):  y H*0.55 – H*0.85
+// Tier 3/sump:       y H*0.85 – H
+function getTier(y) {
+  if (y < H*0.25) return 0;
+  if (y < H*0.55) return 1;
+  if (y < H*0.85) return 2;
+  return 3;
+}
+
+// ── Player worm ────────────────────────────────────────────────────────────
+var P = {
+  x: 0, y: 0,          // head position
+  tx: 0, ty: 0,         // target (mouse/touch)
+  segs: [],             // [{x,y}]
+  sr: 5, seg: 12,
+  sleeping: false,
+  sleepTimer: 0,        // frames held still
+  SLEEP_FRAMES: 90,     // ~1.5s at 60fps
+  lastMoved: 0,         // frame of last significant movement
+  col: '#e8728a'
+};
+
+// Init player at top centre
+function initPlayer() {
+  P.x = W * 0.5;
+  P.y = H * 0.08;
+  P.tx = P.x; P.ty = P.y;
+  P.segs = [];
+  for (var i = 0; i < P.seg; i++) {
+    P.segs.push({x: P.x, y: P.y + i * P.sr * 1.4});
+  }
+}
+
+// ── NPC worm state ─────────────────────────────────────────────────────────
+var npcState = [];
+
+function initNPCs() {
+  npcState = NPCS.map(function(npc) {
+    var startX = W * npc.x;
+    var startY = H * npc.y;
+    var segs = [];
+    for (var i = 0; i < npc.seg; i++) {
+      segs.push({x: startX, y: startY + i * npc.sr * 1.3});
+    }
+    return {
+      id: npc.id, username: npc.username, gen: npc.gen,
+      sr: npc.sr, seg: npc.seg, col: npc.col,
+      sleeping: npc.sleeping, speed: npc.speed,
+      segs: segs,
+      tx: startX + (Math.random()-0.5)*80,
+      ty: startY + (Math.random()-0.5)*60,
+      wanderTimer: Math.floor(Math.random()*180),
+      alpha: npc.sleeping ? 0 : 1  // NPCs fade in after player sleeps
+    };
+  });
+}
+
+// ── Food scraps decoration ─────────────────────────────────────────────────
+var FOODS = [
+  {emoji:'🍊',x:0,y:0,sz:18},{emoji:'☕',x:0,y:0,sz:16},
+  {emoji:'🥚',x:0,y:0,sz:20},{emoji:'🍕',x:0,y:0,sz:22},
+  {emoji:'🥬',x:0,y:0,sz:18},{emoji:'🍌',x:0,y:0,sz:16},
+  {emoji:'🍎',x:0,y:0,sz:18},{emoji:'📰',x:0,y:0,sz:20},
+];
+function placeFoods() {
+  FOODS.forEach(function(f,i) {
+    f.x = W*(0.1 + (i%4)*0.22 + Math.random()*0.08);
+    f.y = H*(0.04 + Math.floor(i/4)*0.10 + Math.random()*0.05);
+  });
+}
+
+// ── Headstones (deceased worms) ────────────────────────────────────────────
+var HEADSTONES = [
+  {x:0.22,y:0.62,name:'u/OldWriggler',cause:'acid poisoning',gen:1},
+  {x:0.68,y:0.70,name:'u/FloodVictim',cause:'flood damage',  gen:2},
+  {x:0.40,y:0.80,name:'u/HungryOne',  cause:'starvation',    gen:1},
+];
+
+// ── Draw background layers ─────────────────────────────────────────────────
+function drawBin() {
+  // Sky/top
+  ctx.fillStyle = '#0a1020';
+  ctx.fillRect(0,0,W,H*0.02);
+
+  // Scraps layer
+  var sg = ctx.createLinearGradient(0,0,0,H*0.25);
+  sg.addColorStop(0,'#3a4a6a'); sg.addColorStop(1,'#4a5878');
+  ctx.fillStyle = sg; ctx.fillRect(0,0,W,H*0.25);
+
+  // Active layer
+  var ag = ctx.createLinearGradient(0,H*0.25,0,H*0.55);
+  ag.addColorStop(0,'#8b6340'); ag.addColorStop(1,'#7a5535');
+  ctx.fillStyle = ag; ctx.fillRect(0,H*0.25,W,H*0.30);
+
+  // Compost top
+  var c1 = ctx.createLinearGradient(0,H*0.55,0,H*0.70);
+  c1.addColorStop(0,'#7a5535'); c1.addColorStop(1,'#5a3818');
+  ctx.fillStyle = c1; ctx.fillRect(0,H*0.55,W,H*0.15);
+
+  // Compost bottom
+  var c2 = ctx.createLinearGradient(0,H*0.70,0,H*0.85);
+  c2.addColorStop(0,'#5a3818'); c2.addColorStop(1,'#4a2c10');
+  ctx.fillStyle = c2; ctx.fillRect(0,H*0.70,W,H*0.15);
+
+  // Sump
+  var s = ctx.createLinearGradient(0,H*0.85,0,H);
+  s.addColorStop(0,'#2a1408'); s.addColorStop(1,'#1a0a04');
+  ctx.fillStyle = s; ctx.fillRect(0,H*0.85,W,H*0.15);
+
+  // Ambient root textures
+  ctx.globalAlpha = 0.06;
+  ctx.strokeStyle = '#a07040';
+  ctx.lineWidth = 1;
+  for (var i = 0; i < 12; i++) {
+    var rx = W*(0.1+i*0.075);
+    ctx.beginPath();
+    ctx.moveTo(rx, H*0.3);
+    ctx.bezierCurveTo(rx+20, H*0.45, rx-15, H*0.6, rx+10, H*0.75);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Layer labels
+  ctx.font = 'bold 0.65rem sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.textAlign = 'right';
+  ctx.fillText('SCRAPS',   W-10, H*0.13);
+  ctx.fillText('ACTIVE',   W-10, H*0.40);
+  ctx.fillText('COMPOST',  W-10, H*0.65);
+  ctx.fillText('SUMP',     W-10, H*0.92);
+  ctx.textAlign = 'left';
+
+  // Tea level indicator
+  var teaH = H * 0.12;
+  var teaY = H - teaH;
+  ctx.fillStyle = 'rgba(196,168,50,0.15)';
+  ctx.fillRect(0, teaY, W, teaH);
+  ctx.fillStyle = 'rgba(196,168,50,0.08)';
+  for (var w = 0; w < 8; w++) {
+    var wy = teaY + w*(teaH/8);
+    ctx.fillRect(0, wy, W, 1);
+  }
+
+  // Tunnel glow traces (amber light trails)
+  ctx.globalAlpha = 0.07;
+  ctx.strokeStyle = '#d4880a';
+  ctx.lineWidth = 3;
+  var traces = [
+    [[0.3,0.4],[0.32,0.55],[0.28,0.7],[0.31,0.85]],
+    [[0.6,0.45],[0.65,0.6],[0.58,0.75],[0.62,0.88]],
+    [[0.5,0.5],[0.48,0.65],[0.52,0.78],[0.5,0.90]],
+  ];
+  traces.forEach(function(pts) {
+    ctx.beginPath();
+    ctx.moveTo(W*pts[0][0], H*pts[0][1]);
+    for (var t = 1; t < pts.length; t++) {
+      ctx.lineTo(W*pts[t][0], H*pts[t][1]);
+    }
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ── Draw headstones ────────────────────────────────────────────────────────
+function drawHeadstones() {
+  HEADSTONES.forEach(function(hs) {
+    var x = W*hs.x, y = H*hs.y;
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    // Stone
+    ctx.fillStyle = '#6a5840';
+    ctx.beginPath();
+    ctx.roundRect(x-14, y-22, 28, 22, 4);
+    ctx.fill();
+    ctx.fillStyle = '#8a7860';
+    ctx.beginPath();
+    ctx.arc(x, y-22, 14, Math.PI, 0);
+    ctx.fill();
+    // Text
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#f0e8d8';
+    ctx.font = 'bold 7px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('RIP', x, y-18);
+    ctx.font = '6px sans-serif';
+    ctx.fillText(hs.gen === 1 ? 'Gen 1' : 'Gen '+hs.gen, x, y-10);
+    ctx.restore();
+  });
+}
+
+// ── Draw food ──────────────────────────────────────────────────────────────
+function drawFoods() {
+  ctx.textAlign = 'center';
+  FOODS.forEach(function(f) {
+    ctx.font = f.sz+'px sans-serif';
+    ctx.fillText(f.emoji, f.x, f.y);
+  });
+}
+
+// ── Draw a worm ────────────────────────────────────────────────────────────
+function drawWorm(segs, sr, col, sleeping, username, gen, alpha) {
+  if (!segs.length) return;
+  ctx.save();
+  ctx.globalAlpha = alpha || 1;
+
+  // Body segments (back to front)
+  for (var i = segs.length-1; i >= 0; i--) {
+    var s = segs[i];
+    var fade = 0.4 + 0.6*(1 - i/segs.length);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, sr * (0.7 + 0.3*fade), 0, Math.PI*2);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = (alpha||1) * fade;
+    ctx.fill();
+    // Segment shine
+    ctx.beginPath();
+    ctx.arc(s.x - sr*0.2, s.y - sr*0.3, sr*0.3, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fill();
+  }
+
+  // Head
+  var head = segs[0];
+  ctx.globalAlpha = alpha || 1;
+  ctx.beginPath();
+  ctx.arc(head.x, head.y, sr, 0, Math.PI*2);
+  ctx.fillStyle = col;
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#1a0e06';
+  ctx.beginPath(); ctx.arc(head.x-sr*0.3, head.y-sr*0.2, sr*0.18, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(head.x+sr*0.3, head.y-sr*0.2, sr*0.18, 0, Math.PI*2); ctx.fill();
+  // Eye gleam
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(head.x-sr*0.25, head.y-sr*0.25, sr*0.07, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(head.x+sr*0.35, head.y-sr*0.25, sr*0.07, 0, Math.PI*2); ctx.fill();
+  // Smile
+  ctx.strokeStyle = '#1a0e06'; ctx.lineWidth = 1; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(head.x, head.y+sr*0.1, sr*0.3, 0.2, Math.PI-0.2);
+  ctx.stroke();
+
+  // Username label
+  if (username && (alpha||1) > 0.3) {
+    ctx.globalAlpha = Math.min(1, (alpha||1)) * 0.75;
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f0e8d8';
+    ctx.fillText(username, head.x, head.y - sr - 4);
+    if (gen > 1) {
+      ctx.font = '8px sans-serif';
+      ctx.fillStyle = '#d4880a';
+      ctx.fillText('Gen '+gen, head.x, head.y - sr - 14);
+    }
+  }
+
+  // Sleeping zzz
+  if (sleeping && (alpha||1) > 0.5) {
+    ctx.globalAlpha = (alpha||1) * 0.7;
+    ctx.font = '12px sans-serif';
+    ctx.fillText('💤', head.x + sr*1.2, head.y - sr*0.8);
+  }
+
+  ctx.restore();
+}
+
+// ── Move segment chain ─────────────────────────────────────────────────────
+function moveChain(segs, hx, hy, speed, sr) {
+  // Move head toward target
+  var dx = hx - segs[0].x;
+  var dy = hy - segs[0].y;
+  var dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist > speed) {
+    segs[0].x += (dx/dist)*speed;
+    segs[0].y += (dy/dist)*speed;
+  }
+  // Drag segments
+  for (var i = 1; i < segs.length; i++) {
+    var prev = segs[i-1];
+    var curr = segs[i];
+    var ddx = curr.x - prev.x;
+    var ddy = curr.y - prev.y;
+    var dd = Math.sqrt(ddx*ddx+ddy*ddy);
+    var target = sr * 1.3;
+    if (dd > target) {
+      var scale = (dd-target)/dd;
+      curr.x -= ddx*scale*0.5;
+      curr.y -= ddy*scale*0.5;
+    }
+  }
+}
+
+// ── Frame counter and state ────────────────────────────────────────────────
+var frame = 0;
+var npcVisible = false; // NPCs revealed after player sleeps
+var npcFadeStart = 0;
+var lastTier = -1;
+var layerToastTimer = 0;
+var heldStillTimer = 0;    // frames player hasn't moved significantly
+var lastPX = 0, lastPY = 0;
+var sleepRingStart = 0;
+var showingSleepHint = false;
+
+// ── Arrow guide position ───────────────────────────────────────────────────
+function positionArrow() {
+  var el = document.getElementById('arrow-guide');
+  if (!P.segs.length) return;
+  var headX = P.segs[0].x;
+  el.style.left = (headX - 40)+'px';
+  el.style.top  = (P.segs[0].y + 30)+'px';
+}
+
+// ── Layer toast ────────────────────────────────────────────────────────────
+function showLayerToast(msg) {
+  var el = document.getElementById('layer-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  layerToastTimer = 120;
+}
+
+// ── Sleep ring ─────────────────────────────────────────────────────────────
+function drawSleepRingUI(prog) {
+  var el = document.getElementById('sleep-ring');
+  var rc = document.getElementById('sleep-ring-canvas');
+  var rx = ctx; // use the ring canvas ctx
+  var rctx = rc.getContext('2d');
+  var cx = 40, cy = 40, r = 28;
+
+  rctx.clearRect(0,0,80,80);
+  // Track
+  rctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  rctx.lineWidth = 5;
+  rctx.beginPath(); rctx.arc(cx,cy,r,0,Math.PI*2); rctx.stroke();
+  // Fill
+  rctx.strokeStyle = '#d4880a';
+  rctx.lineWidth = 5; rctx.lineCap = 'round';
+  rctx.beginPath();
+  rctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*prog);
+  rctx.stroke();
+  // Emoji
+  rctx.font = '18px sans-serif';
+  rctx.textAlign = 'center'; rctx.textBaseline = 'middle';
+  rctx.fillText('😴', cx, cy);
+
+  // Position over worm head
+  if (P.segs.length) {
+    el.style.left = (P.segs[0].x - 40)+'px';
+    el.style.top  = (P.segs[0].y - 90)+'px';
+  }
+}
+
+// ── NPC tooltip on hover ───────────────────────────────────────────────────
+var hoveredNPC = null;
+canvas.addEventListener('mousemove', function(e) {
+  if (!npcVisible) return;
+  var mx = e.clientX, my = e.clientY;
+  hoveredNPC = null;
+  for (var i = 0; i < npcState.length; i++) {
+    var n = npcState[i];
+    if (!n.segs.length) continue;
+    var hd = n.segs[0];
+    var d = Math.sqrt((mx-hd.x)*(mx-hd.x)+(my-hd.y)*(my-hd.y));
+    if (d < n.sr*3) { hoveredNPC = n; break; }
+  }
+  var tip = document.getElementById('npc-tip');
+  if (hoveredNPC) {
+    document.getElementById('npc-tip-name').textContent = hoveredNPC.username;
+    document.getElementById('npc-tip-info').textContent =
+      ' · Gen '+hoveredNPC.gen+' · '+(hoveredNPC.sleeping?'sleeping':'active');
+    tip.style.left = (mx+12)+'px';
+    tip.style.top  = (my-10)+'px';
+    tip.style.display = 'block';
+  } else {
+    tip.style.display = 'none';
+  }
+});
+
+// ── Input (only steering — all other controls locked) ─────────────────────
+var inputX = -1, inputY = -1;
+
+canvas.addEventListener('mousemove', function(e) {
+  if (demoState === 'welcome' || demoState === 'done') return;
+  if (P.sleeping) return;
+  inputX = e.clientX; inputY = e.clientY;
+});
+
+canvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  if (demoState === 'welcome' || demoState === 'done') return;
+  if (P.sleeping) return;
+  inputX = e.touches[0].clientX;
+  inputY = e.touches[0].clientY;
+}, {passive:false});
+
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  // Dismiss welcome card on any tap
+  if (demoState === 'welcome') {
+    startSteering();
+    return;
+  }
+}, {passive:false});
+
+canvas.addEventListener('click', function(e) {
+  if (demoState === 'welcome') startSteering();
+});
+
+// Block all keyboard controls
+window.addEventListener('keydown', function(e) {
+  e.preventDefault(); e.stopPropagation();
+}, true);
+
+// ── State transitions ──────────────────────────────────────────────────────
+function startSteering() {
+  demoState = 'steering';
+  fadeOutCard('card-0');
+  document.getElementById('step-0').classList.remove('active');
+  // Show arrow guide
+  document.getElementById('arrow-guide').classList.add('show');
+  // Set initial input to player position so worm doesn't jump
+  inputX = P.x; inputY = P.y;
+}
+
+function enterActive() {
+  demoState = 'active';
+  document.getElementById('arrow-guide').classList.remove('show');
+  showLayerToast('Active worm zone 🌱');
+  showCard('step-1','card-1');
+  setProgress(1);
+  setTimeout(function(){
+    fadeOutCard('card-1');
+    document.getElementById('step-1').classList.remove('active');
+  }, 2500);
+}
+
+function enterCompost() {
+  demoState = 'compost';
+  showLayerToast('Compost layer — hold still to sleep 💤');
+  showCard('step-2','card-2');
+  setProgress(2);
+  showingSleepHint = true;
+  setTimeout(function(){
+    fadeOutCard('card-2');
+    document.getElementById('step-2').classList.remove('active');
+  }, 2800);
+}
+
+function triggerSleep() {
+  demoState = 'sleeping';
+  P.sleeping = true;
+  showingSleepHint = false;
+  document.getElementById('sleep-ring').classList.remove('show');
+  setProgress(3);
+  showLayerToast('Your worm is sleeping 😴');
+  // Reveal NPCs
+  npcVisible = true;
+  npcFadeStart = frame;
+  // End screen after 3s of bin coming alive
+  setTimeout(function(){
+    demoState = 'done';
+    document.getElementById('end-screen').classList.add('show');
+  }, 3500);
+}
+
+function showCard(stepId, cardId) {
+  document.getElementById(stepId).classList.add('active');
+  requestAnimationFrame(function(){
+    document.getElementById(cardId).classList.add('show');
+  });
+}
+
+function fadeOutCard(cardId) {
+  var el = document.getElementById(cardId);
+  el.classList.remove('show');
+}
+
+function setProgress(n) {
+  for (var i = 0; i < 4; i++) {
+    var dot = document.getElementById('pd'+i);
+    if (i < n) { dot.classList.remove('active'); dot.classList.add('done'); }
+    else if (i === n) { dot.classList.add('active'); dot.classList.remove('done'); }
+    else { dot.classList.remove('active','done'); }
+  }
+}
+
+// ── Main loop ──────────────────────────────────────────────────────────────
+function tick() {
+  requestAnimationFrame(tick);
+  frame++;
+
+  ctx.clearRect(0,0,W,H);
+  drawBin();
+  drawHeadstones();
+  drawFoods();
+
+  // ── Update player ──────────────────────────────────────────────────────
+  if (!P.sleeping && demoState !== 'welcome' && demoState !== 'done') {
+    if (inputX >= 0) {
+      P.tx = inputX; P.ty = inputY;
+    }
+    var pdx = P.tx - P.segs[0].x;
+    var pdy = P.ty - P.segs[0].y;
+    var moved = Math.sqrt(pdx*pdx+pdy*pdy);
+    moveChain(P.segs, P.tx, P.ty, 3.5, P.sr);
+
+    // Tier transitions
+    var tier = getTier(P.segs[0].y);
+    if (tier !== lastTier) {
+      lastTier = tier;
+      if (tier === 1 && demoState === 'steering') enterActive();
+      if (tier >= 2 && (demoState === 'active' || demoState === 'steering')) enterCompost();
+    }
+
+    // Sleep timer — only in compost zone
+    if (demoState === 'compost' && tier >= 2) {
+      var stillDist = Math.sqrt(
+        (P.segs[0].x-lastPX)*(P.segs[0].x-lastPX)+
+        (P.segs[0].y-lastPY)*(P.segs[0].y-lastPY)
+      );
+      if (stillDist < 1.5) {
+        heldStillTimer++;
+      } else {
+        heldStillTimer = 0;
+      }
+
+      // Show sleep ring when they start holding still
+      if (heldStillTimer > 10 && showingSleepHint) {
+        var ringEl = document.getElementById('sleep-ring');
+        ringEl.classList.add('show');
+        drawSleepRingUI(heldStillTimer / P.SLEEP_FRAMES);
+      }
+
+      if (heldStillTimer >= P.SLEEP_FRAMES) {
+        triggerSleep();
+        heldStillTimer = 0;
+      }
+    }
+
+    lastPX = P.segs[0].x; lastPY = P.segs[0].y;
+
+    // Update arrow guide position
+    if (demoState === 'steering') positionArrow();
+  }
+
+  // Layer toast countdown
+  if (layerToastTimer > 0) {
+    layerToastTimer--;
+    if (layerToastTimer === 0) document.getElementById('layer-toast').classList.remove('show');
+  }
+
+  // ── Update NPCs ────────────────────────────────────────────────────────
+  var npcAlpha = npcVisible ? Math.min(1, (frame - npcFadeStart) / 60) : 0;
+
+  npcState.forEach(function(n) {
+    n.alpha = npcAlpha;
+    if (!n.sleeping && npcAlpha > 0) {
+      n.wanderTimer--;
+      if (n.wanderTimer <= 0) {
+        // Pick new wander target within their home region
+        var baseX = W * NPCS.filter(function(p){return p.id===n.id})[0].x;
+        var baseY = H * NPCS.filter(function(p){return p.id===n.id})[0].y;
+        n.tx = baseX + (Math.random()-0.5)*120;
+        n.ty = baseY + (Math.random()-0.5)*80;
+        // Keep in bounds
+        n.tx = Math.max(n.sr*2, Math.min(W-n.sr*2, n.tx));
+        n.ty = Math.max(H*0.25, Math.min(H*0.93, n.ty));
+        n.wanderTimer = 90 + Math.floor(Math.random()*120);
+      }
+      moveChain(n.segs, n.tx, n.ty, n.speed * 2, n.sr);
+    }
+    if (n.alpha > 0) {
+      drawWorm(n.segs, n.sr, n.col, n.sleeping, n.username, n.gen, n.alpha);
+    }
+  });
+
+  // ── Draw player worm ───────────────────────────────────────────────────
+  if (demoState !== 'welcome') {
+    drawWorm(P.segs, P.sr, P.col, P.sleeping, 'u/You', 1, 1);
+    // Sleep ring while holding
+    if (demoState === 'compost' && heldStillTimer > 10 && !P.sleeping) {
+      drawSleepRingUI(heldStillTimer / P.SLEEP_FRAMES);
+    }
+  }
+
+  // ── HUD ────────────────────────────────────────────────────────────────
+  // Gut bar (decorative — slowly draining)
+  var gutFrac = Math.max(0.3, 0.85 - frame*0.0002);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(12,12,120,10,5); ctx.fill();
+  ctx.fillStyle = '#d4880a';
+  ctx.beginPath(); ctx.roundRect(12,12,120*gutFrac,10,5); ctx.fill();
+  ctx.fillStyle = '#f0e8d8';
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('GUT', 16, 22);
+
+  // Tea level
+  var teaFrac = 0.68;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(12,28,120,10,5); ctx.fill();
+  ctx.fillStyle = '#c8a832';
+  ctx.beginPath(); ctx.roundRect(12,28,120*teaFrac,10,5); ctx.fill();
+  ctx.fillStyle = '#f0e8d8';
+  ctx.fillText('TEA', 16, 38);
+  ctx.restore();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+initPlayer();
+initNPCs();
+placeFoods();
+tick();
+</script>
+</body>
+</html>
