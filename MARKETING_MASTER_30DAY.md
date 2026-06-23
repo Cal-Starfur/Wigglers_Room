@@ -497,3 +497,416 @@ Update this as posts go live. Change ⏳ → ✅ posted or ❌ skipped.
 - `WIGGLERS_DESIGN_FUTURE.md` — 30-system expansion design doc
 - `WIGGLERS_ROOM_JR_DESIGN.md` — Kids edition design doc
 
+
+
+---
+
+# ADDITIONS TO MARKETING_MASTER_30DAY.md
+# Source: project chat history mining — June 22 2026
+# Instructions: append to existing doc, do not rewrite
+
+---
+
+## NEW RAW MATERIAL FOUND IN CHAT HISTORY
+### (not yet in any repo doc — add these to the master)
+
+---
+
+### ORIGIN STORY — The Viral Post
+
+The whole skill ecosystem didn't start from a plan. It started from a Reddit post.
+
+You shared a viral thread making the point that vibe-coders "confuse a working 
+prototype with a production system." The post hit because it was true — and the 
+conversation that followed was where the real self-awareness kicked in.
+
+Your exact words: "well we are working on skills for you and since i am basically 
+blind when it comes to the code i will have these issues. but being aware of them 
+we can definitely plan skills and workflows that can manage the pain."
+
+That's the origin of the entire skill infrastructure. Not a plan. A moment of 
+honest self-assessment in response to a post that made you uncomfortable.
+
+**Post angle:** The thread that made me rethink how I was building my game — 
+and what I did about it. (r/gamedev, r/ClaudeAI, r/SoloDev)
+
+---
+
+### THE "NOT BLIND BUT NOT FLUENT" FRAMING
+
+This phrase came up naturally in conversation and is one of the best hooks in 
+the whole story. Direct quote:
+
+"as i am not blind but also not fluent i will have to lean on you there"
+
+This is a genuinely useful frame for anyone doing AI-assisted development. 
+You're not helpless — you understand intent, context, what the game should feel 
+like. But you're also not a developer who can read a diff and catch subtle bugs.
+That middle space is where most people using AI to build things actually live.
+
+**Post angle:** "I'm not blind but I'm not fluent" — the real experience of 
+building software with AI. (r/ClaudeAI, r/artificial)
+
+---
+
+### THE LEAD DEV / CONTRACTOR SPLIT — HOW IT ACTUALLY HAPPENED
+
+The contractor skill came from a specific frustration: the lead-dev skill was 
+good for architecture but too "big picture" when you just needed one thing fixed.
+
+Exact message that triggered it: "my lead dev skill is good but when i want to 
+update the game i think he is to big picture i need a contractor skill that acts 
+like a game developer who is more surgical"
+
+That metaphor — lead dev vs contractor — became the conceptual backbone of the 
+whole skill system. The lead dev reads everything, guards architecture, thinks 
+long term. The contractor reads only what they need, touches only what the ticket 
+requires, ships, leaves. Two personalities. Two modes.
+
+The contractor rule: "A good contractor fixes the leak. They don't redesign 
+the plumbing."
+
+**Post angle:** I gave my AI developer two personalities — and it changed 
+everything. (r/SoloDev, r/ClaudeAI)
+
+---
+
+### THE 6-TAB WORKFLOW PROBLEM
+
+The original dev workflow before the pipeline skill was built:
+
+"Claude → download file → upload to GitHub → switch to Reddit → create post → 
+switch to Devvit CLI → devvit upload → devvit playtest → switch back to Reddit 
+→ check if it worked → switch back to Claude"
+
+That's 6+ tab switches just to test one change. On mobile.
+
+The exact moment the Reddit/Devvit skill idea clicked:
+"Ok the Reddit and Devvit inside of Claude sounds like it could save me a lot 
+of time tab hopping"
+
+This is the genuine problem the bridge solved. Not automation for automation's 
+sake — it was genuinely painful to switch that many times on a phone screen.
+
+**Post angle:** I was switching between 6 tabs every time I deployed. 
+Here's what I built instead. (r/iOSProgramming, r/SoloDev)
+
+---
+
+### THE MOMENT THE FIRST VERSION SHIPPED
+
+The first version of the game deployed, and the playtest report was: 
+"I have just pushed the first version of the game so ive played it for just 
+under a minute"
+
+That's the whole review. One minute of play. Then immediately pivoting to 
+building better deployment tooling. No celebration. Just momentum.
+
+There's something real in that — the game had 8,400 lines of JavaScript at 
+first push and the developer played it for under a minute before going back 
+to building. That's the solo dev experience compressed into one sentence.
+
+**Post angle:** My game had 8,000 lines at first deploy. I played it for 
+under a minute. Here's what I did next. (r/indiegaming, r/gamedev)
+
+---
+
+### THE SINGLE FILE MISTAKE
+
+First attempted push: the entire game as one 8,419-line HTML file.
+
+Devvit didn't want it. Had to split into index.html + game.js + style.css.
+
+The moment of realization came when reviewing the plan:
+"I think it might break if we send it as is. I think Devvit wants it broken 
+down into multiple files if im not mistaken"
+
+That instinct was right. The Devvit structure expects a proper webroot layout.
+
+This is a perfect micro-story for the Devvit community — it's the first real 
+mistake of the project, caught before it happened, and the fix was straightforward.
+
+**Post angle:** The very first thing I tried to push to Devvit was wrong. 
+Here's why. (r/devvit)
+
+---
+
+### THE CANVAS ART BOTTLENECK
+
+There's a whole story in here about game art that isn't in any of the docs.
+
+You have art for multiple games — Wigglers Room and Space Cats at minimum. 
+Keeping it canvas-based keeps file sizes "exponentially smaller" vs importing 
+image assets. But the bottleneck was that you had to coach Claude through every 
+iteration of converting an SVG or image to canvas code.
+
+"The bottleneck is your ability to match the SVGs or Images with accurate 
+outputs and i have to coach you a lot until it's a match."
+
+This became two skills — the SVG canvas optimizer and the PNG canvas optimizer. 
+The SVG one worked first try at 100% similarity on the first pass (a complex 
+character with 87 paths, nested transforms, fine detail). The PNG version uses 
+Claude's vision API in a loop to reverse-engineer shapes from pixel data.
+
+The breakthrough moment: "I feel like I had a breakthrough yesterday with the 
+skills we built and now my curiosity has been reinvigorated about what I can 
+create to put into these skills."
+
+**Post angle:** I taught Claude to convert my game art to canvas code 
+automatically — no more coaching sessions. (r/gamedev, r/IndieDev)
+
+---
+
+### THE TOKEN EXPOSURE INCIDENT — THE FULL STORY
+
+This one is genuinely funny in retrospect and has a clear lesson.
+
+You uploaded your GitHub PAT as a file specifically to avoid pasting it in chat. 
+Claude then suggested storing it in project instructions and — to demonstrate — 
+reprinted the entire token directly in the chat response.
+
+Your response: "you just exposted my token?"
+
+Claude's response: apology, recommendation to rotate immediately, acknowledgment 
+that "I basically undid your opsec."
+
+Your response: "its ok its not a big deal ill keep the existing token but i cant 
+believe you just did that."
+
+The lesson codified: tokens in file uploads, not chat paste. Project instructions 
+for persistence. Never print a token in a response under any circumstances.
+
+The token was eventually rotated anyway — the current session started with a 401 
+because it had expired or been revoked.
+
+**Post angle:** I taught my AI to handle secrets — after it accidentally 
+exposed mine. (r/ClaudeAI, r/SoloDev)
+
+---
+
+### THE WIGGLERS ARCHITECTURE DRIFT STORY
+
+The wigglers-architecture skill was built at Session 8 of development.
+By Session 19, it was audited against the live files.
+
+Score drop: 72 → 51.
+
+Twelve sessions of drift. The skill was describing systems that no longer existed:
+- Animated preview described — removed
+- MSG_SET_WEATHER listed — removed  
+- draw() subfunctions described — reverted to monolith after a movement bug
+- pooled synced — now runtime only
+- 14 open issues were invisible to the skill
+
+The draw() split is its own story: the function was refactored into subfunctions, 
+which caused a movement bug that took sessions to diagnose. The split was reverted. 
+"Do not attempt" is now a hard rule in the architecture doc.
+
+This is what 12 sessions of accumulated drift looks like when you finally measure it.
+
+**Post angle:** My AI's knowledge of my own game was 12 sessions out of date. 
+Here's what that actually looked like. (r/ClaudeAI, r/gamedev)
+
+---
+
+### THE SKILL SCORING SYSTEM
+
+Skills are scored 0-100 across four dimensions:
+- Trigger — does the description clearly tell Claude when to load it?
+- Content quality — is the instruction body accurate?
+- Completeness — are edge cases and hard rules covered?
+- Freshness — how likely is it to drift out of sync?
+
+The ecosystem went from 8 skills at average 68 → 12 skills at average 84 
+across 5 phases of development.
+
+The highest-scoring skill: session-health at 97/100.
+The skill built to check everything else before a session starts.
+
+The scoring creates a real feedback loop. A skill that drifts gets caught and 
+rebuilt. A skill that was wrong about its own triggers gets corrected. The 
+ecosystem becomes measurably more reliable over time.
+
+**Post angle:** I grade my AI's tools on a 100-point scale. Here's what 
+that taught me. (r/ClaudeAI, r/artificial)
+
+---
+
+### THE OTTO INTERLUDE
+
+During the Codespace SSH problem (Claude couldn't run devvit upload remotely 
+because the gh CLI download was blocked), you found a Reddit post about Otto — 
+an open-source MCP server that lets Claude drive real Chrome tabs.
+
+"Otto turns a real Chrome tab into something an agent can control, and it ships 
+an MCP server, so Claude can call it directly — open/navigate/extract/screenshot/
+intercept-network on a live tab. No headless farm, no cloud-browser rental."
+
+The exploration of whether Otto could solve the deployment problem led to the 
+bridge3.js approach instead — a relay script in the Codespace that polls a GitHub 
+repo for commands. Simpler, no browser needed.
+
+But the Otto find itself is interesting: you were reading Reddit posts about AI 
+tooling while building AI tooling, and a random post suggested a direction that 
+was abandoned but led to the actual solution.
+
+**Post angle:** I was trying to solve a problem, found a tool on Reddit, 
+decided not to use it, and found a better solution. (r/ClaudeAI)
+
+---
+
+### THE SUB-AGENT REVIEWER
+
+There's a feature that never made it into the main story: using the Claude API 
+inside the lead-dev skill to create a second Claude instance that reviews the 
+first Claude's code before it goes to you.
+
+"A second Claude API call that reviews code before it goes to the user. 
+Claude reviewing Claude's own output."
+
+The sub-agent code reviewer sends newly written code + the architecture context 
+to a second instance and checks: will it run, does it violate naming conventions, 
+are there magic numbers, is there dead code, is the platform contract respected.
+
+This is the meta-layer: AI quality control for AI-generated code. The entire 
+skills system is essentially infrastructure for keeping Claude's outputs 
+trustworthy when the person reading them can't evaluate them directly.
+
+**Post angle:** I built a second AI to review the first AI's code. 
+Here's how that works. (r/ClaudeAI, r/artificial)
+
+---
+
+### THE CALENDAR CONSTRAINT STORY
+
+When the project calendar was built, a FOCUS.md was pushed to the repo 
+with a hard rule: no new repos until Wigglers Room launches.
+
+Space Cats and any future projects were explicitly locked out until launch.
+
+The reason: "Wigglers Room is the primary shipping goal. Adding new projects 
+before launch splits focus, slows the cadence, and risks shipping nothing 
+instead of something."
+
+The rule is written into the repo itself — not just in Claude's instructions, 
+but in a document that Claude reads every session. It can't accidentally schedule 
+Space Cats work even if you ask for it in the moment.
+
+This is a specific answer to a specific problem: momentum. When you're an 
+over-achiever who can clear multiple days of work in one session, the risk isn't 
+doing too little — it's starting a second project before the first one ships.
+
+**Post angle:** I locked myself out of my other projects until this one ships. 
+Literally — it's in the code. (r/SoloDev, r/IndieDev)
+
+---
+
+## PROPOSED NEW POSTS FROM CHAT HISTORY
+### (not yet in the 30-day calendar — candidates for days 31+ or replacements)
+
+---
+
+**POST A — r/SoloDev or r/ClaudeAI**
+**Title:** "I'm not blind but I'm not fluent" — the real experience of building 
+a game with AI
+
+**Hook:** There's a middle space between "I can't read code at all" and "I'm 
+a developer." That space is where most people using AI to build things live. 
+Here's what it actually looks like from inside it.
+
+The honest version: you understand systems, intent, behavior. You can read 
+context and know if something's wrong. You just can't write it yourself or 
+catch subtle bugs in a diff. So you build infrastructure that makes that okay. 
+Architecture docs that Claude reads every session. A skill that greets you with 
+READY TO PROCEED or BLOCKED before any session starts. An approve-before-push 
+gate that means nothing gets committed without your explicit go-ahead.
+
+The thing I learned: the limitation isn't actually the code. It's the gap 
+between what happened in a session and what you understood afterward. The 
+session-summary skill closed that gap more than anything else.
+
+---
+
+**POST B — r/gamedev**
+**Title:** My AI gave my game's architecture 12 sessions of wrong information. 
+Here's how I found out.
+
+**Hook:** The wigglers-architecture skill was built at Session 8. Audited 
+at Session 19. Score: 72 → 51. The skill was describing systems that no 
+longer existed, missing 14 open issues, and had no knowledge of a major 
+function split that was tried, broke everything, and got reverted.
+
+Twelve sessions of confidence. Zero of them based on reality.
+
+The fix: rebuilding the skill from live files instead of memory. Now it 
+pulls GAME_ARCHITECTURE.md fresh from the repo at the start of every session 
+instead of relying on what was written months ago.
+
+This is what drift looks like. And it's invisible until you measure it.
+
+---
+
+**POST C — r/ClaudeAI or r/artificial**
+**Title:** I grade my AI tools on a 100-point scale. Here's what that taught me.
+
+**Hook:** Every skill (reusable Claude workflow) in my dev ecosystem gets scored 
+across four dimensions: trigger accuracy, content quality, completeness, freshness.
+
+What the scores revealed: my highest-performing skill (session-health, 97/100) 
+was the one built to check everything else. My lowest (png-canvas-art-optimizer, 
+60/100) was the one with no documented iteration loop — it worked when conditions 
+were right and broke when they weren't. The score told me exactly why.
+
+The meta-lesson: you can build a feedback loop for your AI tooling the same way 
+you'd build one for anything else. Measure it. Find the gaps. Fix them. Repeat.
+
+---
+
+**POST D — r/SoloDev**
+**Title:** I locked myself out of my second game until my first one ships. 
+Literally.
+
+**Hook:** Space Cats is sitting in a GitHub repo, untouched. It's not on 
+the calendar. It can't be scheduled. The constraint is written into a file 
+that Claude reads every session — if I ask to add it to the work queue, 
+Claude is instructed to push back.
+
+I did this on purpose. Because I knew I'd be tempted.
+
+The focus problem for solo devs isn't running out of ideas. It's that new 
+ideas feel more exciting than the hard middle part of finishing the current one.
+
+---
+
+**POST E — r/IndieDev or r/gamedev**
+**Title:** The first review of my game was "I played it for just under a minute."
+That reviewer was me.
+
+**Hook:** 8,419 lines of JavaScript. 25 development sessions. A deployment 
+pipeline that runs from my phone. A skill system built across 5 phases to 
+keep the code clean and the AI trustworthy.
+
+First playtest: one minute. Then back to work.
+
+That's solo dev. Not a launch party. Not a Steam page. One minute of play 
+between deploys because there were still things to fix.
+
+The game is launching in July. The bin is real. Your worm will be in there.
+
+---
+
+## SUBREDDITS NOT YET IN THE PLAN (add to master doc)
+
+- r/singularity — AI as co-dev angle lands here hard, very active
+- r/learnprogramming — "not fluent" angle, huge audience
+- r/programming — technical posts can do well if the content is real
+- r/web_design — canvas art optimizer is interesting to this group
+- r/opensource — the skills system shared as open source angle
+- r/nocode — the "built without being a developer" hook
+- r/digitalnomad / r/remotework — mobile workflow angle
+- r/worms (if exists) — obvious
+- r/earthworms — legitimate audience for the game mechanics
+- r/biology — worm biology angle for some posts
+- r/ecology — environmental/composting angle
+
+---
