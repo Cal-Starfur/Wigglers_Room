@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wigglers Room — 30-Day Post Calendar</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f1912;
+    --surface: #162219;
+    --card:    #1c2d20;
+    --border:  #2a3d2e;
+    --text:    #d4e8d0;
+    --muted:   #7a9c80;
+    --accent:  #5db87a;
+    --dirt:    #8b6914;
+    --worm:    #e8884a;
+    --font-mono: 'JetBrains Mono', 'Fira Mono', 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .site-header {
+    background: linear-gradient(180deg, #0a1209 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 24px 24px;
+    text-align: center;
+  }
+  .worm-icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+  .site-title {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+  .site-sub {
+    color: var(--muted);
+    font-size: 0.875rem;
+    margin-top: 4px;
+  }
+  .progress-bar-wrap {
+    max-width: 400px;
+    margin: 20px auto 0;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .progress-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 760px; margin: 0 auto; padding: 0 16px 60px; }
+
+  /* ── Phase sections ── */
+  .phase-section { margin-top: 40px; }
+  .phase-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .phase-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+  }
+  .phase-sub { color: var(--muted); font-size: 0.8rem; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #3d5c42; }
+  .card.posted {
+    opacity: 0.55;
+    border-color: var(--border);
+    border-left: 3px solid var(--accent);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .day-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: #fff;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .card-date {
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex: 1;
+  }
+  .sub-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .sub-link:hover { text-decoration: underline; }
+  .card-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+
+  /* ── Post content ── */
+  .post-title {
+    padding: 14px 16px 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #e8f0e4;
+    line-height: 1.4;
+  }
+  .post-body {
+    padding: 0 16px 16px;
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Hidden textarea for copying */
+  .copy-source {
+    position: absolute;
+    left: -9999px;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+  }
+
+  /* ── Buttons ── */
+  .copy-btn {
+    background: var(--accent);
+    color: #0f1912;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { background: #6ecf8b; }
+  .copy-btn:active { transform: scale(0.96); }
+  .copy-btn.copied {
+    background: #2a5c3a;
+    color: var(--accent);
+  }
+
+  .mark-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .mark-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mark-btn.posted-mark { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Launch card ── */
+  .launch-card { border-color: #c44b2e44; }
+  .launch-label {
+    padding: 10px 16px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #c44b2e;
+    letter-spacing: 0.04em;
+    background: rgba(196,75,46,0.08);
+  }
+  .subpost {
+    border-top: 1px solid var(--border);
+    padding: 0;
+  }
+  .subpost-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(0,0,0,0.15);
+  }
+  .sub-tag {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .status-dot {
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: default;
+  }
+
+  /* ── Rules footer ── */
+  .rules-section {
+    margin-top: 48px;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .rules-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    font-family: var(--font-mono);
+  }
+  .rules-list {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+  .rules-list li {
+    font-size: 0.825rem;
+    color: var(--muted);
+    padding-left: 16px;
+    position: relative;
+  }
+  .rules-list li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  @media (max-width: 480px) {
+    .card-header { gap: 8px; }
+    .card-actions { width: 100%; justify-content: flex-end; margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <span class="worm-icon">🪱</span>
+  <div class="site-title">Wigglers Room — 30-Day Post Calendar</div>
+  <div class="site-sub">Copy · paste · post. One per day.</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-label">
+      <span id="posted-count">0 of 30 posted</span>
+      <span id="posted-pct">0%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+</header>
+
+<div class="container">
+
+  <section class="phase-section">
+    <div class="phase-header">
+      <span class="phase-label" style="color:#3d7a4e">Phase 1</span>
+      <span class="phase-sub">Warmup · Days 1–10 · June 22 – July 1</span>
+    </div>
+    
+    <div class="card" id="card-d1">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 1</span>
+        <span class="card-date">June 22 · <a class="sub-link" href="https://reddit.com/r/indiegaming" target="_blank">r/indiegaming</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d1')" id="btn-d1">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d1')" id="mark-d1" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I've been building a multiplayer worm game that lives inside a Reddit post. Here's what that actually means.</div>
+      <div class="post-body">I'm a solo dev. For the past few months I've been building something I couldn't find anywhere else — a persistent multiplayer composting sim that runs inside a Reddit post. No app. No download. No login beyond your Reddit account. You just open the post and your worm is there.<br><br>The game is called Wigglers Room. Each player controls an earthworm living in a shared compost bin. The bin has four layers — scraps at the top, active soil, deep compost, and a worm tea sump at the bottom. Your worm eats, digs tunnels, poops (which enriches the soil), and eventually dies. Then you come back as your own offspring.<br><br>The world is genuinely shared — the tea level fills all week from everyone's contributions and drains every 7 days. When it overflows, everyone's worm takes damage. When someone drains it in time, everyone benefits. You can see other worms moving around in real time.<br><br>The whole thing is vanilla JS + HTML5 Canvas running inside Reddit's Devvit platform. The game.js file is sitting at about 9,000 lines right now. Launch is a few weeks out. Happy to answer anything about how it works.</div>
+      <textarea class="copy-source" id="src-d1" readonly>I've been building a multiplayer worm game that lives inside a Reddit post. Here's what that actually means.
+
+I'm a solo dev. For the past few months I've been building something I couldn't find anywhere else — a persistent multiplayer composting sim that runs inside a Reddit post. No app. No download. No login beyond your Reddit account. You just open the post and your worm is there.
+
+The game is called Wigglers Room. Each player controls an earthworm living in a shared compost bin. The bin has four layers — scraps at the top, active soil, deep compost, and a worm tea sump at the bottom. Your worm eats, digs tunnels, poops (which enriches the soil), and eventually dies. Then you come back as your own offspring.
+
+The world is genuinely shared — the tea level fills all week from everyone's contributions and drains every 7 days. When it overflows, everyone's worm takes damage. When someone drains it in time, everyone benefits. You can see other worms moving around in real time.
+
+The whole thing is vanilla JS + HTML5 Canvas running inside Reddit's Devvit platform. The game.js file is sitting at about 9,000 lines right now. Launch is a few weeks out. Happy to answer anything about how it works.</textarea>
+    </div>
+
+    <div class="card" id="card-d2">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 2</span>
+        <span class="card-date">June 23 · <a class="sub-link" href="https://reddit.com/r/devvit" target="_blank">r/devvit</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d2')" id="btn-d2">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d2')" id="mark-d2" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Building a persistent multiplayer game on Devvit — lessons from 25 sessions and ~9,000 lines of game.js</div>
+      <div class="post-body">Things I wish someone had told me before I started:<br><br>`webView.mount()` only works inside `onPress`. Call it in the render body and it fires on every render and crashes silently. Took me an embarrassingly long time to figure that out.<br><br>Devvit wraps your `webView.postMessage()` in an envelope: `{ type: 'devvit-message', data: { message: ... } }`. The origin is NOT `https://www.reddit.com`. Strict origin checks break everything.<br><br>Channel names in `useChannel` must be `[a-zA-Z0-9_]` only. Colons crash the render. No error. Just a crash.<br><br>External `fetch()` to non-Reddit domains silently fails. No error, no timeout, nothing. This killed my plan to pull real weather data.<br><br>Old posts go read-only after you re-upload. Always create a new post to test a new version.<br><br>Always hard-refresh after deploy. Reddit's cache will serve the old version on first load every time.<br><br>The game is a multiplayer worm composting sim. Happy to share more if anyone else is building on Devvit.</div>
+      <textarea class="copy-source" id="src-d2" readonly>Building a persistent multiplayer game on Devvit — lessons from 25 sessions and ~9,000 lines of game.js
+
+Things I wish someone had told me before I started:
+
+\`webView.mount()\` only works inside \`onPress\`. Call it in the render body and it fires on every render and crashes silently. Took me an embarrassingly long time to figure that out.
+
+Devvit wraps your \`webView.postMessage()\` in an envelope: \`{ type: 'devvit-message', data: { message: ... } }\`. The origin is NOT \`https://www.reddit.com\`. Strict origin checks break everything.
+
+Channel names in \`useChannel\` must be \`[a-zA-Z0-9_]\` only. Colons crash the render. No error. Just a crash.
+
+External \`fetch()\` to non-Reddit domains silently fails. No error, no timeout, nothing. This killed my plan to pull real weather data.
+
+Old posts go read-only after you re-upload. Always create a new post to test a new version.
+
+Always hard-refresh after deploy. Reddit's cache will serve the old version on first load every time.
+
+The game is a multiplayer worm composting sim. Happy to share more if anyone else is building on Devvit.</textarea>
+    </div>
+
+    <div class="card" id="card-d3">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 3</span>
+        <span class="card-date">June 24 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d3')" id="btn-d3">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d3')" id="mark-d3" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I accidentally built my entire game dev workflow around AI — here's what that actually looks like</div>
+      <div class="post-body">I didn't plan to build a game using Claude as my primary dev partner. It just kind of happened.<br><br>Here's the actual workflow: I open a new conversation, paste my GitHub token, and Claude bootstraps itself — pulls the architecture doc and audit log fresh from the repo, reads the current state of the codebase, and picks up exactly where the last session left off. Every session starts from a verified snapshot of reality, not from memory.<br><br>When I want to make a change, Claude proposes it, shows me a diff, waits for my approval before pushing anything to GitHub. It never touches the repo without me saying go. After the push, a bridge script in my Codespace handles the deploy automatically.<br><br>The thing that made this work was treating the docs as the source of truth, not the code. We maintain a GAME_ARCHITECTURE.md updated every session — naming conventions, deploy rules, what's broken, what must never be touched again. Claude reads it cold every session.<br><br>The failures were instructive. We lost good code twice chasing bugs that turned out to be Reddit's cache serving old versions. We reverted working code because we thought it was broken. Those failures drove the &quot;always hard-refresh after deploy&quot; rule that's now permanent in the architecture doc.<br><br>The game is a multiplayer worm composting sim that runs inside Reddit posts. But the workflow is the interesting part.</div>
+      <textarea class="copy-source" id="src-d3" readonly>I accidentally built my entire game dev workflow around AI — here's what that actually looks like
+
+I didn't plan to build a game using Claude as my primary dev partner. It just kind of happened.
+
+Here's the actual workflow: I open a new conversation, paste my GitHub token, and Claude bootstraps itself — pulls the architecture doc and audit log fresh from the repo, reads the current state of the codebase, and picks up exactly where the last session left off. Every session starts from a verified snapshot of reality, not from memory.
+
+When I want to make a change, Claude proposes it, shows me a diff, waits for my approval before pushing anything to GitHub. It never touches the repo without me saying go. After the push, a bridge script in my Codespace handles the deploy automatically.
+
+The thing that made this work was treating the docs as the source of truth, not the code. We maintain a GAME_ARCHITECTURE.md updated every session — naming conventions, deploy rules, what's broken, what must never be touched again. Claude reads it cold every session.
+
+The failures were instructive. We lost good code twice chasing bugs that turned out to be Reddit's cache serving old versions. We reverted working code because we thought it was broken. Those failures drove the "always hard-refresh after deploy" rule that's now permanent in the architecture doc.
+
+The game is a multiplayer worm composting sim that runs inside Reddit posts. But the workflow is the interesting part.</textarea>
+    </div>
+
+    <div class="card" id="card-d4">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 4</span>
+        <span class="card-date">June 25 · <a class="sub-link" href="https://reddit.com/r/composting" target="_blank">r/composting</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d4')" id="btn-d4">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d4')" id="mark-d4" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I made a worm bin simulator — and the composting mechanics are more real than you'd expect</div>
+      <div class="post-body">I keep worms. I also make games. A few months ago I combined those interests in a way that made complete sense to me and probably sounds unhinged to everyone else.<br><br>The mechanics I tried to get right: coffee grounds and citrus damage your worm because they're acidic. Eggshells act as an antidote. Wet dense compost slows movement. If moisture gets too high the bin floods. Worm castings deposited deep in the bin enrich the soil and increase food fragment rates. Tunnels persist and decay. Tea collects in the sump all week and drains on a real 7-day cycle.<br><br>I did not make the acid mechanic up. I learned it from my actual worm bin.<br><br>The game runs inside Reddit posts via the Devvit platform. No download, no app. Launch in a few weeks. Happy to answer questions about how the real mechanics translated into gameplay.</div>
+      <textarea class="copy-source" id="src-d4" readonly>I made a worm bin simulator — and the composting mechanics are more real than you'd expect
+
+I keep worms. I also make games. A few months ago I combined those interests in a way that made complete sense to me and probably sounds unhinged to everyone else.
+
+The mechanics I tried to get right: coffee grounds and citrus damage your worm because they're acidic. Eggshells act as an antidote. Wet dense compost slows movement. If moisture gets too high the bin floods. Worm castings deposited deep in the bin enrich the soil and increase food fragment rates. Tunnels persist and decay. Tea collects in the sump all week and drains on a real 7-day cycle.
+
+I did not make the acid mechanic up. I learned it from my actual worm bin.
+
+The game runs inside Reddit posts via the Devvit platform. No download, no app. Launch in a few weeks. Happy to answer questions about how the real mechanics translated into gameplay.</textarea>
+    </div>
+
+    <div class="card" id="card-d5">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 5</span>
+        <span class="card-date">June 26 · <a class="sub-link" href="https://reddit.com/r/vermiculture" target="_blank">r/vermiculture</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d5')" id="btn-d5">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d5')" id="mark-d5" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Built a worm bin game — the red wiggler people here will either love or roast the mechanics</div>
+      <div class="post-body">I maintain a red wiggler bin and I've been building a composting game. I genuinely want to know if the mechanics hold up to people who actually know worms.<br><br>What I tried to get right: acid foods damage the worm, eggshells neutralize it. Moisture levels affect everything. Castings deposited deep in the bin enrich the soil. Cocoons take 7 real-world days to hatch. Tea collects in a weekly cycle.<br><br>What I simplified or invented: the worm has a &quot;gut&quot; bar. Tunnels glow. There's a farmer named Snoo who tips in new scraps.<br><br>It's a multiplayer game inside Reddit posts, launching in a few weeks. But honestly I posted here because I want to know what I got wrong.</div>
+      <textarea class="copy-source" id="src-d5" readonly>Built a worm bin game — the red wiggler people here will either love or roast the mechanics
+
+I maintain a red wiggler bin and I've been building a composting game. I genuinely want to know if the mechanics hold up to people who actually know worms.
+
+What I tried to get right: acid foods damage the worm, eggshells neutralize it. Moisture levels affect everything. Castings deposited deep in the bin enrich the soil. Cocoons take 7 real-world days to hatch. Tea collects in a weekly cycle.
+
+What I simplified or invented: the worm has a "gut" bar. Tunnels glow. There's a farmer named Snoo who tips in new scraps.
+
+It's a multiplayer game inside Reddit posts, launching in a few weeks. But honestly I posted here because I want to know what I got wrong.</textarea>
+    </div>
+
+    <div class="card" id="card-d6">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 6</span>
+        <span class="card-date">June 27 · <a class="sub-link" href="https://reddit.com/r/incremental_games" target="_blank">r/incremental_games</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d6')" id="btn-d6">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d6')" id="mark-d6" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I built a persistent idle game where your worm keeps living (and dying) when you close the tab</div>
+      <div class="post-body">The idle mechanics: your gut drains while you're away — come back after 8 hours and you'll be hungry but alive (drain caps at 85%). Come back after too long and you might be in trouble. Tunnels decay. Tea accumulates from everyone's activity, not just yours. Cocoons mature on real-world time — 7 days regardless of whether you're playing.<br><br>The active mechanics: dig tunnel networks for drainage, eat scraps, poop in the deep zone to contribute castings, drain the tea sump to avoid floods, watch other players' worms moving in real time.<br><br>No install, no download — runs inside a Reddit post. The whole shared bin persists on Reddit's servers. Tea level is the same for everyone. Launching in a few weeks.</div>
+      <textarea class="copy-source" id="src-d6" readonly>I built a persistent idle game where your worm keeps living (and dying) when you close the tab
+
+The idle mechanics: your gut drains while you're away — come back after 8 hours and you'll be hungry but alive (drain caps at 85%). Come back after too long and you might be in trouble. Tunnels decay. Tea accumulates from everyone's activity, not just yours. Cocoons mature on real-world time — 7 days regardless of whether you're playing.
+
+The active mechanics: dig tunnel networks for drainage, eat scraps, poop in the deep zone to contribute castings, drain the tea sump to avoid floods, watch other players' worms moving in real time.
+
+No install, no download — runs inside a Reddit post. The whole shared bin persists on Reddit's servers. Tea level is the same for everyone. Launching in a few weeks.</textarea>
+    </div>
+
+    <div class="card" id="card-d7">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 7</span>
+        <span class="card-date">June 28 · <a class="sub-link" href="https://reddit.com/r/InternetIsBeautiful" target="_blank">r/InternetIsBeautiful</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d7')" id="btn-d7">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d7')" id="mark-d7" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Someone built a persistent multiplayer game that lives inside a Reddit post and the worm tea drains every 7 days</div>
+      <div class="post-body">Wigglers Room — a multiplayer worm composting sim inside Reddit posts.<br><br>Your earthworm lives in a shared bin. The bin has a tea reservoir that fills all week from everyone's activity. Every 7 days it drains and top contributors get a karma bonus. If it overflows before the drain, the bin floods and everyone's worm takes damage.<br><br>No download. No app. Just open the post. Your worm is still there when you come back.<br><br>Launching in a few weeks. Will post the link here when it goes live.</div>
+      <textarea class="copy-source" id="src-d7" readonly>Someone built a persistent multiplayer game that lives inside a Reddit post and the worm tea drains every 7 days
+
+Wigglers Room — a multiplayer worm composting sim inside Reddit posts.
+
+Your earthworm lives in a shared bin. The bin has a tea reservoir that fills all week from everyone's activity. Every 7 days it drains and top contributors get a karma bonus. If it overflows before the drain, the bin floods and everyone's worm takes damage.
+
+No download. No app. Just open the post. Your worm is still there when you come back.
+
+Launching in a few weeks. Will post the link here when it goes live.</textarea>
+    </div>
+
+    <div class="card" id="card-d8">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 8</span>
+        <span class="card-date">June 29 · <a class="sub-link" href="https://reddit.com/r/WebGames" target="_blank">r/WebGames</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d8')" id="btn-d8">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d8')" id="mark-d8" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I'm building a multiplayer game that runs inside Reddit posts — here's the weird tech behind it</div>
+      <div class="post-body">Wigglers Room runs via Reddit's Devvit platform — custom posts that run actual web apps inside the feed. Vanilla JS + HTML5 Canvas talking to a TypeScript host layer via postMessage.<br><br>Persistence: Reddit's KV store — worm state, world state, tea level all server-side. Multiplayer: Devvit Realtime — players broadcast position and health once per second, visible as real worm segments (not just dots).<br><br>Weirdest constraint: external fetch() calls are silently blocked by the Devvit sandbox. No error, no timeout. Killed my plan to pull real weather data early on.<br><br>The game: earthworm in a shared compost bin. Eat, dig tunnels, poop, die. Tea fills weekly, drains on a 7-day cycle. Launch in a few weeks.</div>
+      <textarea class="copy-source" id="src-d8" readonly>I'm building a multiplayer game that runs inside Reddit posts — here's the weird tech behind it
+
+Wigglers Room runs via Reddit's Devvit platform — custom posts that run actual web apps inside the feed. Vanilla JS + HTML5 Canvas talking to a TypeScript host layer via postMessage.
+
+Persistence: Reddit's KV store — worm state, world state, tea level all server-side. Multiplayer: Devvit Realtime — players broadcast position and health once per second, visible as real worm segments (not just dots).
+
+Weirdest constraint: external fetch() calls are silently blocked by the Devvit sandbox. No error, no timeout. Killed my plan to pull real weather data early on.
+
+The game: earthworm in a shared compost bin. Eat, dig tunnels, poop, die. Tea fills weekly, drains on a 7-day cycle. Launch in a few weeks.</textarea>
+    </div>
+
+    <div class="card" id="card-d9">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 9</span>
+        <span class="card-date">June 30 · <a class="sub-link" href="https://reddit.com/r/mildlyinteresting" target="_blank">r/mildlyinteresting</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d9')" id="btn-d9">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d9')" id="mark-d9" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I've been building a worm composting game and the most realistic mechanic is that you have to poop strategically</div>
+      <div class="post-body">Wigglers Room is a composting sim. You control an earthworm. The mechanic I'm most proud of is the poop system.<br><br>You poop by tapping with two fingers. Where you poop matters — deep in the compost zone your castings enrich the soil and increase food spawn rates. Poop near the surface and you're making a mess. Poop into existing tunnels and the deposits clog your drainage network.<br><br>The game is real in the expected ways: acid food damages your worm, moisture affects movement, cocoons take 7 real days to hatch. But strategic pooping is the one I spent the most time on.<br><br>Multiplayer composting game inside Reddit posts. Launching in a few weeks.</div>
+      <textarea class="copy-source" id="src-d9" readonly>I've been building a worm composting game and the most realistic mechanic is that you have to poop strategically
+
+Wigglers Room is a composting sim. You control an earthworm. The mechanic I'm most proud of is the poop system.
+
+You poop by tapping with two fingers. Where you poop matters — deep in the compost zone your castings enrich the soil and increase food spawn rates. Poop near the surface and you're making a mess. Poop into existing tunnels and the deposits clog your drainage network.
+
+The game is real in the expected ways: acid food damages your worm, moisture affects movement, cocoons take 7 real days to hatch. But strategic pooping is the one I spent the most time on.
+
+Multiplayer composting game inside Reddit posts. Launching in a few weeks.</textarea>
+    </div>
+
+    <div class="card" id="card-d10">
+      <div class="card-header">
+        <span class="day-badge" style="background:#3d7a4e">Day 10</span>
+        <span class="card-date">July 1 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d10')" id="btn-d10">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d10')" id="mark-d10" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">The localStorage race condition that broke our multiplayer — and how we finally fixed it (today)</div>
+      <div class="post-body">We've been chasing a bug for weeks. Players would load the game and see stale world state — other players' positions from a previous session, tea levels that didn't match reality.<br><br>Root cause: a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race and populating the world with stale cached data before the fresh KV values arrived.<br><br>The fix: remove localStorage entirely as an initialization source for world state. Server is authoritative, full stop. If server data hasn't arrived yet, you wait. localStorage is only for UI preferences, never game state.<br><br>We didn't find this for weeks because it only showed in production. The Devvit message timing is different in playtest mode. We were testing in an environment that never triggered the bug.<br><br>Today is the day we ship the fix. Felt like the right day to write it up.</div>
+      <textarea class="copy-source" id="src-d10" readonly>The localStorage race condition that broke our multiplayer — and how we finally fixed it (today)
+
+We've been chasing a bug for weeks. Players would load the game and see stale world state — other players' positions from a previous session, tea levels that didn't match reality.
+
+Root cause: a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race and populating the world with stale cached data before the fresh KV values arrived.
+
+The fix: remove localStorage entirely as an initialization source for world state. Server is authoritative, full stop. If server data hasn't arrived yet, you wait. localStorage is only for UI preferences, never game state.
+
+We didn't find this for weeks because it only showed in production. The Devvit message timing is different in playtest mode. We were testing in an environment that never triggered the bug.
+
+Today is the day we ship the fix. Felt like the right day to write it up.</textarea>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-header">
+      <span class="phase-label" style="color:#5a3d7a">Phase 2</span>
+      <span class="phase-sub">Build Hype · Days 11–20 · July 2–11</span>
+    </div>
+    
+    <div class="card" id="card-d11">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 11</span>
+        <span class="card-date">July 2 · <a class="sub-link" href="https://reddit.com/r/ClaudeAI" target="_blank">r/ClaudeAI</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d11')" id="btn-d11">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d11')" id="mark-d11" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I've been using Claude as my primary game dev partner for 3 months — here's what that workflow actually looks like</div>
+      <div class="post-body">The setup: every session, I paste a GitHub token. Claude bootstraps scripts from the repo, pulls the architecture doc and audit log fresh, and picks up exactly where the last session ended. It knows what's broken, what must never be touched, what's been fixed. Every session starts from a verified snapshot of reality.<br><br>The rule that made it work: Claude never pushes to GitHub without my explicit approval. It proposes the change, shows the diff, waits. If I say no, nothing happens.<br><br>The thing I built on top of that: a &quot;skills&quot; system. 12 reusable workflow files stored in a separate repo — each one tells Claude how to do a specific job. Session startup, deploy pipeline, code audit, architecture drift detection. Claude loads the relevant skills at the start of each session. Scores averaged 68/100 when I started, 84/100 now after 5 phases of refinement.<br><br>The game I built this way is a multiplayer worm composting sim that runs inside Reddit posts. It's launching in a few weeks.</div>
+      <textarea class="copy-source" id="src-d11" readonly>I've been using Claude as my primary game dev partner for 3 months — here's what that workflow actually looks like
+
+The setup: every session, I paste a GitHub token. Claude bootstraps scripts from the repo, pulls the architecture doc and audit log fresh, and picks up exactly where the last session ended. It knows what's broken, what must never be touched, what's been fixed. Every session starts from a verified snapshot of reality.
+
+The rule that made it work: Claude never pushes to GitHub without my explicit approval. It proposes the change, shows the diff, waits. If I say no, nothing happens.
+
+The thing I built on top of that: a "skills" system. 12 reusable workflow files stored in a separate repo — each one tells Claude how to do a specific job. Session startup, deploy pipeline, code audit, architecture drift detection. Claude loads the relevant skills at the start of each session. Scores averaged 68/100 when I started, 84/100 now after 5 phases of refinement.
+
+The game I built this way is a multiplayer worm composting sim that runs inside Reddit posts. It's launching in a few weeks.</textarea>
+    </div>
+
+    <div class="card" id="card-d12">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 12</span>
+        <span class="card-date">July 3 · <a class="sub-link" href="https://reddit.com/r/devvit" target="_blank">r/devvit</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d12')" id="btn-d12">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d12')" id="mark-d12" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">How we automated Devvit deploys — Claude pushes, GitHub Actions checks, a Codespace bridge handles the upload</div>
+      <div class="post-body">The problem: Claude pushes code to GitHub via the API directly, bypassing local git. The Codespace clone never sees those commits until you pull. So `devvit upload` would warn &quot;Couldn't find README.md&quot; because the file existed in the repo but not on disk.<br><br>The solution: a relay script (bridge3.js) running in the Codespace. It polls a GitHub file (inbox.json) every 3 seconds. When Claude pushes a new commit, it writes a command to inbox.json. The bridge picks it up, runs `git pull &amp;&amp; devvit upload --just-do-it &amp;&amp; devvit install wigglers_room_dev`, writes the result to outbox.json. Claude reads the result and reports back.<br><br>Zero manual steps from code change to live on Reddit. Works from iPhone too — whole sessions from mobile.</div>
+      <textarea class="copy-source" id="src-d12" readonly>How we automated Devvit deploys — Claude pushes, GitHub Actions checks, a Codespace bridge handles the upload
+
+The problem: Claude pushes code to GitHub via the API directly, bypassing local git. The Codespace clone never sees those commits until you pull. So \`devvit upload\` would warn "Couldn't find README.md" because the file existed in the repo but not on disk.
+
+The solution: a relay script (bridge3.js) running in the Codespace. It polls a GitHub file (inbox.json) every 3 seconds. When Claude pushes a new commit, it writes a command to inbox.json. The bridge picks it up, runs \`git pull && devvit upload --just-do-it && devvit install wigglers_room_dev\`, writes the result to outbox.json. Claude reads the result and reports back.
+
+Zero manual steps from code change to live on Reddit. Works from iPhone too — whole sessions from mobile.</textarea>
+    </div>
+
+    <div class="card" id="card-d13">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 13</span>
+        <span class="card-date">July 4 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d13')" id="btn-d13">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d13')" id="mark-d13" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">The bug that only appeared in production: how Reddit's cache nearly ended our multiplayer</div>
+      <div class="post-body">We reverted good code twice. The game was fine both times. Reddit was just serving the cached old version on first load.<br><br>The symptom: we'd deploy a fix, test, see the old broken behavior, assume the fix didn't work, and revert. Then wonder why the reverted code also showed the same problem. Then spend a session debugging something that was already fixed.<br><br>The fix: always hard-refresh after deploy. Close the post completely and reopen it. Never trust the first load after an upload. This is now rule #1 in the architecture doc. It's also how we lost about 4 sessions of good work.<br><br>The game is a multiplayer worm composting sim on Reddit. Nearly ready.</div>
+      <textarea class="copy-source" id="src-d13" readonly>The bug that only appeared in production: how Reddit's cache nearly ended our multiplayer
+
+We reverted good code twice. The game was fine both times. Reddit was just serving the cached old version on first load.
+
+The symptom: we'd deploy a fix, test, see the old broken behavior, assume the fix didn't work, and revert. Then wonder why the reverted code also showed the same problem. Then spend a session debugging something that was already fixed.
+
+The fix: always hard-refresh after deploy. Close the post completely and reopen it. Never trust the first load after an upload. This is now rule #1 in the architecture doc. It's also how we lost about 4 sessions of good work.
+
+The game is a multiplayer worm composting sim on Reddit. Nearly ready.</textarea>
+    </div>
+
+    <div class="card" id="card-d14">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 14</span>
+        <span class="card-date">July 5 · <a class="sub-link" href="https://reddit.com/r/artificial" target="_blank">r/artificial</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d14')" id="btn-d14">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d14')" id="mark-d14" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">What building a real shipped product with Claude as co-dev taught me about working with AI</div>
+      <div class="post-body">Three months, 25 development sessions, ~9,000 lines of game code. Here's what I actually learned:<br><br>The biggest unlock was treating Claude's context as perishable. Every session starts fresh — so we built a system where Claude bootstraps itself from live repo docs rather than relying on memory. It reads the architecture doc, the audit log, the session history, then tells me where we are. No &quot;what were we working on?&quot; — it just knows.<br><br>The failure mode I didn't expect: Claude is very good at proposing confident solutions to the wrong problem. The approve-before-push rule wasn't just about safety — it forced me to understand every change before it shipped. That friction turned out to be valuable.<br><br>The thing that surprised me most: the meta-work compounds. The 12 reusable &quot;skills&quot; I built to manage the workflow are now faster to load than to explain. The system got better every session not just because the code improved, but because the process did.</div>
+      <textarea class="copy-source" id="src-d14" readonly>What building a real shipped product with Claude as co-dev taught me about working with AI
+
+Three months, 25 development sessions, ~9,000 lines of game code. Here's what I actually learned:
+
+The biggest unlock was treating Claude's context as perishable. Every session starts fresh — so we built a system where Claude bootstraps itself from live repo docs rather than relying on memory. It reads the architecture doc, the audit log, the session history, then tells me where we are. No "what were we working on?" — it just knows.
+
+The failure mode I didn't expect: Claude is very good at proposing confident solutions to the wrong problem. The approve-before-push rule wasn't just about safety — it forced me to understand every change before it shipped. That friction turned out to be valuable.
+
+The thing that surprised me most: the meta-work compounds. The 12 reusable "skills" I built to manage the workflow are now faster to load than to explain. The system got better every session not just because the code improved, but because the process did.</textarea>
+    </div>
+
+    <div class="card" id="card-d15">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 15</span>
+        <span class="card-date">July 6 · <a class="sub-link" href="https://reddit.com/r/composting" target="_blank">r/composting</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d15')" id="btn-d15">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d15')" id="mark-d15" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Following up on the worm bin game — and what the composting community got right</div>
+      <div class="post-body">A few weeks ago I posted about building a composting sim. The feedback shaped some things. Wanted to share the update.<br><br>The vermiculture community's biggest note: don't oversimplify the relationship between castings and soil quality. Fair. We now have a `castingEnrichment` value (0–1) that builds as worm poop reaches the sump floor. It drives tunnel regen rate, clog decay speed, and food fragment spawn rate. It decays slowly over time if the worm stops contributing. It's invisible to players right now but the system is there.<br><br>The game is nearly ready. The bin is real. The worm is real. The composting is as real as a game mechanic can reasonably be.</div>
+      <textarea class="copy-source" id="src-d15" readonly>Following up on the worm bin game — and what the composting community got right
+
+A few weeks ago I posted about building a composting sim. The feedback shaped some things. Wanted to share the update.
+
+The vermiculture community's biggest note: don't oversimplify the relationship between castings and soil quality. Fair. We now have a \`castingEnrichment\` value (0–1) that builds as worm poop reaches the sump floor. It drives tunnel regen rate, clog decay speed, and food fragment spawn rate. It decays slowly over time if the worm stops contributing. It's invisible to players right now but the system is there.
+
+The game is nearly ready. The bin is real. The worm is real. The composting is as real as a game mechanic can reasonably be.</textarea>
+    </div>
+
+    <div class="card" id="card-d16">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 16</span>
+        <span class="card-date">July 7 · <a class="sub-link" href="https://reddit.com/r/indiegaming" target="_blank">r/indiegaming</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d16')" id="btn-d16">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d16')" id="mark-d16" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">3 months from first prototype to working multiplayer Reddit game — the honest retrospective</div>
+      <div class="post-body">What went right: the core concept. Playing as an earthworm in a real composting system is weird enough to be memorable.<br><br>What went wrong: not having a source-of-truth document from day one. Sessions 1–5 were chaotic because there was no single place that said &quot;here's what's broken, here's what must not be touched, here's the deploy process.&quot; We built that document (GAME_ARCHITECTURE.md) around session 6 and everything got better immediately.<br><br>The thing I'd tell myself at the start: the architecture doc is more important than the code. The code changes constantly. The doc is what lets you pick up where you left off without losing your mind.<br><br>Nearly ready to launch. Will post the link when it goes live.</div>
+      <textarea class="copy-source" id="src-d16" readonly>3 months from first prototype to working multiplayer Reddit game — the honest retrospective
+
+What went right: the core concept. Playing as an earthworm in a real composting system is weird enough to be memorable.
+
+What went wrong: not having a source-of-truth document from day one. Sessions 1–5 were chaotic because there was no single place that said "here's what's broken, here's what must not be touched, here's the deploy process." We built that document (GAME_ARCHITECTURE.md) around session 6 and everything got better immediately.
+
+The thing I'd tell myself at the start: the architecture doc is more important than the code. The code changes constantly. The doc is what lets you pick up where you left off without losing your mind.
+
+Nearly ready to launch. Will post the link when it goes live.</textarea>
+    </div>
+
+    <div class="card" id="card-d17">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 17</span>
+        <span class="card-date">July 8 · <a class="sub-link" href="https://reddit.com/r/incremental_games" target="_blank">r/incremental_games</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d17')" id="btn-d17">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d17')" id="mark-d17" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">How we designed a 7-day real-time event for a game that runs inside a Reddit post</div>
+      <div class="post-body">The weekly drain cycle: the sump fills all week from every player's activity. On a 7-day real-time timer, the Snoo (farmer) character appears, the tea drains, and contribution-weighted karma bonuses are distributed. If the sump hits 90% before the drain fires, the bin floods — all active worms take damage.<br><br>The design challenges: how do you communicate a 7-day deadline to players without it feeling punishing? How do you make everyone's contribution feel meaningful when the bin is shared? How do you handle the player who drains the sump solo at 3am on day 6 — do they get all the credit?<br><br>We landed on: contribution tracking from the start of each cycle, weighted bonus at drain time, a flood warning UI at 75% capacity, and a &quot;drain hero&quot; karma bonus for whoever triggers the valve manually in a flood emergency.<br><br>Game launching in about a week.</div>
+      <textarea class="copy-source" id="src-d17" readonly>How we designed a 7-day real-time event for a game that runs inside a Reddit post
+
+The weekly drain cycle: the sump fills all week from every player's activity. On a 7-day real-time timer, the Snoo (farmer) character appears, the tea drains, and contribution-weighted karma bonuses are distributed. If the sump hits 90% before the drain fires, the bin floods — all active worms take damage.
+
+The design challenges: how do you communicate a 7-day deadline to players without it feeling punishing? How do you make everyone's contribution feel meaningful when the bin is shared? How do you handle the player who drains the sump solo at 3am on day 6 — do they get all the credit?
+
+We landed on: contribution tracking from the start of each cycle, weighted bonus at drain time, a flood warning UI at 75% capacity, and a "drain hero" karma bonus for whoever triggers the valve manually in a flood emergency.
+
+Game launching in about a week.</textarea>
+    </div>
+
+    <div class="card" id="card-d18">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 18</span>
+        <span class="card-date">July 9 · <a class="sub-link" href="https://reddit.com/r/iOSProgramming" target="_blank">r/iOSProgramming</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d18')" id="btn-d18">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d18')" id="mark-d18" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">My entire game dev workflow runs on an iPhone — here's how</div>
+      <div class="post-body">The setup: Claude mobile app for the AI sessions. GitHub API for all repo operations (reads, writes, pushes — all via curl-equivalent API calls Claude makes in its environment). A relay bridge in a GitHub Codespace for Devvit deploys.<br><br>What I do from the phone: start sessions, review diffs, approve pushes, check CI status, trigger deploys, read audit logs. Everything except actually writing code — Claude handles that.<br><br>What I can't do from the phone: run local dev servers, use the Codespace terminal directly for anything interactive. But for a Devvit project where all the testing happens on Reddit anyway, that constraint is basically irrelevant.<br><br>The thing that made this work: treating the architecture doc as the UI. Every session, Claude reads the doc and tells me where we are. I don't need a local IDE to understand the state of the codebase — I just need the doc to be accurate.</div>
+      <textarea class="copy-source" id="src-d18" readonly>My entire game dev workflow runs on an iPhone — here's how
+
+The setup: Claude mobile app for the AI sessions. GitHub API for all repo operations (reads, writes, pushes — all via curl-equivalent API calls Claude makes in its environment). A relay bridge in a GitHub Codespace for Devvit deploys.
+
+What I do from the phone: start sessions, review diffs, approve pushes, check CI status, trigger deploys, read audit logs. Everything except actually writing code — Claude handles that.
+
+What I can't do from the phone: run local dev servers, use the Codespace terminal directly for anything interactive. But for a Devvit project where all the testing happens on Reddit anyway, that constraint is basically irrelevant.
+
+The thing that made this work: treating the architecture doc as the UI. Every session, Claude reads the doc and tells me where we are. I don't need a local IDE to understand the state of the codebase — I just need the doc to be accurate.</textarea>
+    </div>
+
+    <div class="card" id="card-d19">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 19</span>
+        <span class="card-date">July 10 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d19')" id="btn-d19">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d19')" id="mark-d19" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Designing death as content — how Wigglers Room turns your worm's death into a Reddit comment</div>
+      <div class="post-body">When your worm dies in Wigglers Room, the game posts a comment to the Reddit thread. The comment includes: your username, cause of death (acid poisoning, starvation, flood, constipation, etc.), how long you lived, your generation number, total karma earned, and the real date.<br><br>The design intent: your worm's life is part of the shared history of the bin. Other players can scroll through the comment thread and see every worm that ever lived there. It's a graveyard that builds over time as a natural byproduct of gameplay.<br><br>The technical challenge: the death comment has to post from a Devvit context, which means it goes through Reddit's API with the app's credentials — not the player's. So it reads as posted by the app, not the player. We added the username to the comment body to make attribution clear.<br><br>Game launching very soon.</div>
+      <textarea class="copy-source" id="src-d19" readonly>Designing death as content — how Wigglers Room turns your worm's death into a Reddit comment
+
+When your worm dies in Wigglers Room, the game posts a comment to the Reddit thread. The comment includes: your username, cause of death (acid poisoning, starvation, flood, constipation, etc.), how long you lived, your generation number, total karma earned, and the real date.
+
+The design intent: your worm's life is part of the shared history of the bin. Other players can scroll through the comment thread and see every worm that ever lived there. It's a graveyard that builds over time as a natural byproduct of gameplay.
+
+The technical challenge: the death comment has to post from a Devvit context, which means it goes through Reddit's API with the app's credentials — not the player's. So it reads as posted by the app, not the player. We added the username to the comment body to make attribution clear.
+
+Game launching very soon.</textarea>
+    </div>
+
+    <div class="card" id="card-d20">
+      <div class="card-header">
+        <span class="day-badge" style="background:#5a3d7a">Day 20</span>
+        <span class="card-date">July 11 · <a class="sub-link" href="https://reddit.com/r/WebGames" target="_blank">r/WebGames</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d20')" id="btn-d20">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d20')" id="mark-d20" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">How multiplayer presence works in a game inside a Reddit post</div>
+      <div class="post-body">Every active player broadcasts their worm's position, size, generation color, HP, and sleep state once per second via Devvit Realtime. Other players receive these broadcasts and render them as real worms — same segment chain, same color, same HP-based rendering — not as simple dots or ghost indicators.<br><br>Players are pruned from the local render after 90 seconds without an update. The queue (players waiting for a worm slot) is filtered out before rendering — you don't see ghost worms at position (0,0) from players who haven't spawned yet.<br><br>The main technical challenge was the presence relay shape. Early builds broadcast `player: {}` (singular object). The fix to `players: [{}]` (array) was what made other worms actually show up for the first time. That bug was live for multiple sessions before we caught it.<br><br>Game is launching in the next day or two.</div>
+      <textarea class="copy-source" id="src-d20" readonly>How multiplayer presence works in a game inside a Reddit post
+
+Every active player broadcasts their worm's position, size, generation color, HP, and sleep state once per second via Devvit Realtime. Other players receive these broadcasts and render them as real worms — same segment chain, same color, same HP-based rendering — not as simple dots or ghost indicators.
+
+Players are pruned from the local render after 90 seconds without an update. The queue (players waiting for a worm slot) is filtered out before rendering — you don't see ghost worms at position (0,0) from players who haven't spawned yet.
+
+The main technical challenge was the presence relay shape. Early builds broadcast \`player: {}\` (singular object). The fix to \`players: [{}]\` (array) was what made other worms actually show up for the first time. That bug was live for multiple sessions before we caught it.
+
+Game is launching in the next day or two.</textarea>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-header">
+      <span class="phase-label" style="color:#c44b2e">Phase 3</span>
+      <span class="phase-sub">Launch · Days 21–30 · July 12+</span>
+    </div>
+    
+    <div class="card launch-card" id="card-21">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 21</span>
+        <span class="card-date">Launch Day · r/devvit + r/indiegaming + r/InternetIsBeautiful</span>
+        <span class="status-dot" id="status-21" title="Not posted">○</span>
+      </div>
+      <div class="launch-label">🚀 LAUNCH DAY — 3 posts, same day</div>
+      
+        <div class="subpost" id="card-d21-0">
+          <div class="subpost-header">
+            <span class="sub-tag">r/devvit</span>
+            <button class="copy-btn" onclick="copyPost('d21-0')" id="btn-d21-0">Copy title + body</button>
+          </div>
+          <div class="post-title">Wigglers Room is live — here's what 25 sessions of building on Devvit actually produced</div>
+          <div class="post-body">25 sessions. ~9,000 lines of game.js. A TypeScript host layer that handles Redis persistence, Realtime presence, and a postMessage bridge with 18+ message types. A CI pipeline with typecheck, lint, test, and build running on every push. A relay script in a GitHub Codespace that handles deploys automatically.<br><br>What Devvit made possible: a persistent multiplayer game that lives inside a Reddit post with no app, no download, no separate login. Players are authenticated by their Reddit account. Their worm state persists in Reddit's KV store. Multiplayer presence runs over Reddit's Realtime channels.<br><br>Here's the link: [LINK]<br><br>Hard-won lessons from the build are in earlier posts in this thread. Happy to answer anything about the platform.</div>
+          <textarea class="copy-source" id="src-d21-0" readonly>Wigglers Room is live — here's what 25 sessions of building on Devvit actually produced
+
+25 sessions. ~9,000 lines of game.js. A TypeScript host layer that handles Redis persistence, Realtime presence, and a postMessage bridge with 18+ message types. A CI pipeline with typecheck, lint, test, and build running on every push. A relay script in a GitHub Codespace that handles deploys automatically.
+
+What Devvit made possible: a persistent multiplayer game that lives inside a Reddit post with no app, no download, no separate login. Players are authenticated by their Reddit account. Their worm state persists in Reddit's KV store. Multiplayer presence runs over Reddit's Realtime channels.
+
+Here's the link: [LINK]
+
+Hard-won lessons from the build are in earlier posts in this thread. Happy to answer anything about the platform.</textarea>
+        </div>
+        <div class="subpost" id="card-d21-1">
+          <div class="subpost-header">
+            <span class="sub-tag">r/indiegaming</span>
+            <button class="copy-btn" onclick="copyPost('d21-1')" id="btn-d21-1">Copy title + body</button>
+          </div>
+          <div class="post-title">The multiplayer worm game I've been posting about for the past month is live on Reddit right now</div>
+          <div class="post-body">It's real. Here's the link: [LINK]<br><br>Your earthworm lives in a shared compost bin. It eats, digs tunnels, poops (strategically — it matters), and eventually dies. The bin has been running for weeks in dev. The tea reservoir fills from everyone's activity and drains on a real 7-day cycle. The death system posts a comment to the Reddit thread every time a worm dies — username, cause of death, how long they lived, generation number.<br><br>No app. No download. Open the post and your worm is there.<br><br>I've been posting dev updates here for a month. This is what it was all building toward.</div>
+          <textarea class="copy-source" id="src-d21-1" readonly>The multiplayer worm game I've been posting about for the past month is live on Reddit right now
+
+It's real. Here's the link: [LINK]
+
+Your earthworm lives in a shared compost bin. It eats, digs tunnels, poops (strategically — it matters), and eventually dies. The bin has been running for weeks in dev. The tea reservoir fills from everyone's activity and drains on a real 7-day cycle. The death system posts a comment to the Reddit thread every time a worm dies — username, cause of death, how long they lived, generation number.
+
+No app. No download. Open the post and your worm is there.
+
+I've been posting dev updates here for a month. This is what it was all building toward.</textarea>
+        </div>
+        <div class="subpost" id="card-d21-2">
+          <div class="subpost-header">
+            <span class="sub-tag">r/InternetIsBeautiful</span>
+            <button class="copy-btn" onclick="copyPost('d21-2')" id="btn-d21-2">Copy title + body</button>
+          </div>
+          <div class="post-title">This multiplayer worm game lives inside a Reddit post. Your worm keeps living when you close the tab. When it dies it posts a comment.</div>
+          <div class="post-body">Wigglers Room. No install. No download. Open the post, your worm is there.<br><br>The bin is shared — every player's worm lives in the same space. The tea reservoir fills all week from everyone's activity. When it overflows, every worm takes damage at once.<br><br>When your worm dies, the game posts a comment to the thread: your username, cause of death, how long you lived, your generation.<br><br>[LINK]</div>
+          <textarea class="copy-source" id="src-d21-2" readonly>This multiplayer worm game lives inside a Reddit post. Your worm keeps living when you close the tab. When it dies it posts a comment.
+
+Wigglers Room. No install. No download. Open the post, your worm is there.
+
+The bin is shared — every player's worm lives in the same space. The tea reservoir fills all week from everyone's activity. When it overflows, every worm takes damage at once.
+
+When your worm dies, the game posts a comment to the thread: your username, cause of death, how long you lived, your generation.
+
+[LINK]</textarea>
+        </div>
+    </div>
+
+    <div class="card" id="card-d22">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 22</span>
+        <span class="card-date">+1 · <a class="sub-link" href="https://reddit.com/r/gaming" target="_blank">r/gaming</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d22')" id="btn-d22">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d22')" id="mark-d22" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I made a multiplayer worm game that lives inside a Reddit post. No download, no app. Your worm dies and leaves a comment.</div>
+      <div class="post-body">I've been building this for about three months. It's called Wigglers Room. You're an earthworm in a shared composting bin that lives inside a Reddit post.<br><br>The basics: you eat, dig tunnels, poop (which enriches the soil — where you do it matters), and eventually die. Your worm state is persistent — come back the next day and it's still there, but it got hungrier while you were away. The bin is shared with other players. You can see their worms moving around in real time.<br><br>The part that surprised people in testing: when your worm dies, the game automatically posts a Reddit comment to the thread. Cause of death (acid poisoning, starvation, flood, constipation), how long you lived, how much karma you earned, your generation number. The comment thread becomes a graveyard over time.<br><br>The bin runs on a real 7-day cycle. The tea reservoir at the bottom fills from everyone's activity. Every week it drains and the top contributors get a karma bonus. If nobody drains it in time, the bin floods and every active worm takes damage simultaneously.<br><br>No install. Built on Reddit's Devvit platform — it runs as a custom post type inside the feed.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d22" readonly>I made a multiplayer worm game that lives inside a Reddit post. No download, no app. Your worm dies and leaves a comment.
+
+I've been building this for about three months. It's called Wigglers Room. You're an earthworm in a shared composting bin that lives inside a Reddit post.
+
+The basics: you eat, dig tunnels, poop (which enriches the soil — where you do it matters), and eventually die. Your worm state is persistent — come back the next day and it's still there, but it got hungrier while you were away. The bin is shared with other players. You can see their worms moving around in real time.
+
+The part that surprised people in testing: when your worm dies, the game automatically posts a Reddit comment to the thread. Cause of death (acid poisoning, starvation, flood, constipation), how long you lived, how much karma you earned, your generation number. The comment thread becomes a graveyard over time.
+
+The bin runs on a real 7-day cycle. The tea reservoir at the bottom fills from everyone's activity. Every week it drains and the top contributors get a karma bonus. If nobody drains it in time, the bin floods and every active worm takes damage simultaneously.
+
+No install. Built on Reddit's Devvit platform — it runs as a custom post type inside the feed.
+
+[LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d23">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 23</span>
+        <span class="card-date">+2 · <a class="sub-link" href="https://reddit.com/r/incremental_games" target="_blank">r/incremental_games</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d23')" id="btn-d23">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d23')" id="mark-d23" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Wigglers Room launched — the idle worm composting game that runs inside Reddit posts</div>
+      <div class="post-body">The persistence model for anyone curious how it works:<br><br>Your worm's gut drains at a fixed rate while you're offline. It's capped — maximum 85% drain while you're away, so you can't come back to a dead worm from pure inactivity. But come back after too long without eating and you're in trouble.<br><br>While you're offline, your previously deposited worm castings continue contributing to the castingEnrichment value that drives the whole soil system — food fragment spawn rates, tunnel regen speed, clog decay. The bin remembers what you did.<br><br>The weekly drain cycle runs on real-world time regardless of whether anyone is playing. The tea level in the sump builds from everyone's contributions across the week. The drain fires when the first player opens the game after the 7-day window — that player's client detects the expired timer, fires the drain, and broadcasts the new start timestamp via Realtime so all other active clients update.<br><br>No dedicated game server. All persistence through Reddit's KV store. Realtime presence via Reddit's channel system.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d23" readonly>Wigglers Room launched — the idle worm composting game that runs inside Reddit posts
+
+The persistence model for anyone curious how it works:
+
+Your worm's gut drains at a fixed rate while you're offline. It's capped — maximum 85% drain while you're away, so you can't come back to a dead worm from pure inactivity. But come back after too long without eating and you're in trouble.
+
+While you're offline, your previously deposited worm castings continue contributing to the castingEnrichment value that drives the whole soil system — food fragment spawn rates, tunnel regen speed, clog decay. The bin remembers what you did.
+
+The weekly drain cycle runs on real-world time regardless of whether anyone is playing. The tea level in the sump builds from everyone's contributions across the week. The drain fires when the first player opens the game after the 7-day window — that player's client detects the expired timer, fires the drain, and broadcasts the new start timestamp via Realtime so all other active clients update.
+
+No dedicated game server. All persistence through Reddit's KV store. Realtime presence via Reddit's channel system.
+
+[LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d24">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 24</span>
+        <span class="card-date">+3 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d24')" id="btn-d24">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d24')" id="mark-d24" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">What shipping Wigglers Room actually looked like — the honest version</div>
+      <div class="post-body">The P1 blocker going into launch was a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race every time, populating the world with stale cached data from the previous session before fresh KV values arrived. It only showed in production — our playtest environment had different message timing and never triggered it.<br><br>The fix was removing localStorage entirely as an initialization source for world state. Server is authoritative. If the data hasn't arrived yet, the client waits. localStorage is only for UI preferences now, never game state.<br><br>That fix shipped July 1. We held the main branch frozen for three weeks while the spec was being written and tested.<br><br>The dev workflow: every session started with Claude pulling the architecture doc and audit log fresh from the repo. Claude proposed every change, showed a diff, waited for approval before pushing anything. A relay script in a GitHub Codespace handled deploys automatically after each push cleared CI. The whole thing ran from my phone.<br><br>25 sessions. 9,000 lines. No desktop.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d24" readonly>What shipping Wigglers Room actually looked like — the honest version
+
+The P1 blocker going into launch was a localStorage race condition. The game read from localStorage on init before the Devvit host finished sending authoritative server state. localStorage was winning the race every time, populating the world with stale cached data from the previous session before fresh KV values arrived. It only showed in production — our playtest environment had different message timing and never triggered it.
+
+The fix was removing localStorage entirely as an initialization source for world state. Server is authoritative. If the data hasn't arrived yet, the client waits. localStorage is only for UI preferences now, never game state.
+
+That fix shipped July 1. We held the main branch frozen for three weeks while the spec was being written and tested.
+
+The dev workflow: every session started with Claude pulling the architecture doc and audit log fresh from the repo. Claude proposed every change, showed a diff, waited for approval before pushing anything. A relay script in a GitHub Codespace handled deploys automatically after each push cleared CI. The whole thing ran from my phone.
+
+25 sessions. 9,000 lines. No desktop.
+
+[LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d25">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 25</span>
+        <span class="card-date">+4 · <a class="sub-link" href="https://reddit.com/r/composting" target="_blank">r/composting + r/vermiculture</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d25')" id="btn-d25">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d25')" id="mark-d25" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">The worm composting game is live — here's how real the mechanics ended up being</div>
+      <div class="post-body">The mechanics that held up to scrutiny from actual worm keepers:<br><br>Acid foods (coffee grounds, citrus) damage your worm. Eggshells neutralize acid — eating one when your worm is acid-damaged triggers a visible recovery effect. Worm castings deposited deep in the compost build up a soil enrichment value that affects how fast food fragments spawn and how quickly clogs decay. The tea reservoir at the bottom fills from castings activity across the week and drains on a real 7-day cycle.<br><br>Cocoons take 7 real-world days to hatch. Not game time. Actual calendar days.<br><br>The things I simplified or invented: the worm has a gut bar instead of a realistic gut transit time. Tunnels glow. There's a farmer character named Snoo who tips in new food scraps. The poop system uses a two-finger tap instead of being automatic.<br><br>The vermiculture community's feedback before launch pushed me to make the castingEnrichment system actually visible in gameplay rather than just running silently in the background.<br><br>[LINK to the game post]</div>
+      <textarea class="copy-source" id="src-d25" readonly>The worm composting game is live — here's how real the mechanics ended up being
+
+The mechanics that held up to scrutiny from actual worm keepers:
+
+Acid foods (coffee grounds, citrus) damage your worm. Eggshells neutralize acid — eating one when your worm is acid-damaged triggers a visible recovery effect. Worm castings deposited deep in the compost build up a soil enrichment value that affects how fast food fragments spawn and how quickly clogs decay. The tea reservoir at the bottom fills from castings activity across the week and drains on a real 7-day cycle.
+
+Cocoons take 7 real-world days to hatch. Not game time. Actual calendar days.
+
+The things I simplified or invented: the worm has a gut bar instead of a realistic gut transit time. Tunnels glow. There's a farmer character named Snoo who tips in new food scraps. The poop system uses a two-finger tap instead of being automatic.
+
+The vermiculture community's feedback before launch pushed me to make the castingEnrichment system actually visible in gameplay rather than just running silently in the background.
+
+[LINK to the game post]</textarea>
+    </div>
+
+    <div class="card" id="card-d26">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 26</span>
+        <span class="card-date">+5 · <a class="sub-link" href="https://reddit.com/r/ClaudeAI" target="_blank">r/ClaudeAI</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d26')" id="btn-d26">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d26')" id="mark-d26" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">The game I built with Claude just launched. Here's what the workflow looked like from session 1 to session 25.</div>
+      <div class="post-body">Session 1: one Claude chat, one HTML file, no structure. Claude had no memory of the previous session. Everything had to be re-explained every time. The code was already getting crossed by session 3.<br><br>The problem was context loss. Every session started from scratch. Claude would propose confident changes based on assumptions that were wrong because nothing persisted between sessions.<br><br>What I built to fix it: a skills system. 12 reusable workflow files stored in a separate GitHub repo. At the start of every session, Claude bootstraps from these files — loads the architecture doc, the audit log, the open issues list. It knows what's broken, what must not be touched, what the naming conventions are, what was done last session. Context loss stopped being a problem.<br><br>The skills started with an average score of 68/100. By session 25 they averaged 84/100 after five phases of refinement. The session-health skill — which runs a drift check before any code changes — scored 97/100.<br><br>The game shipped. 9,000 lines of JavaScript. 25 sessions. Built and deployed from an iPhone.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d26" readonly>The game I built with Claude just launched. Here's what the workflow looked like from session 1 to session 25.
+
+Session 1: one Claude chat, one HTML file, no structure. Claude had no memory of the previous session. Everything had to be re-explained every time. The code was already getting crossed by session 3.
+
+The problem was context loss. Every session started from scratch. Claude would propose confident changes based on assumptions that were wrong because nothing persisted between sessions.
+
+What I built to fix it: a skills system. 12 reusable workflow files stored in a separate GitHub repo. At the start of every session, Claude bootstraps from these files — loads the architecture doc, the audit log, the open issues list. It knows what's broken, what must not be touched, what the naming conventions are, what was done last session. Context loss stopped being a problem.
+
+The skills started with an average score of 68/100. By session 25 they averaged 84/100 after five phases of refinement. The session-health skill — which runs a drift check before any code changes — scored 97/100.
+
+The game shipped. 9,000 lines of JavaScript. 25 sessions. Built and deployed from an iPhone.
+
+[LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d27">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 27</span>
+        <span class="card-date">+6 · <a class="sub-link" href="https://reddit.com/r/indiegaming" target="_blank">r/indiegaming</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d27')" id="btn-d27">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d27')" id="mark-d27" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I've been posting about building this game for a month. Here's everything that actually went wrong.</div>
+      <div class="post-body">The cache ghost: we reverted good code twice because Reddit was serving the old cached version after deploys. The game was fine. We thought it was broken. We lost about four sessions of valid work that way. Fix: always hard-refresh after deploy, always open a brand new test post after re-upload.<br><br>The localStorage race: the P1 bug that held us back three weeks before launch. World state loading from cache before the authoritative server data arrived. Only showed in production, never in playtest. The fix was removing localStorage from the initialization path entirely.<br><br>The draw() split: we refactored the main drawing function into subfunctions in session 5. It caused a movement bug we couldn't diagnose for two sessions. We reverted. &quot;Do not attempt to split draw() or updatePhysics()&quot; is now a hard rule in the architecture document.<br><br>The token incident: I carefully uploaded my GitHub PAT as a file to avoid pasting it in chat. Claude then reprinted the full token in its response while explaining where to store it. Had to rotate immediately.<br><br>The invented CLI command: Claude confidently told me to run `devvit tokens` to get my Devvit credentials. That command doesn't exist. We found the real auth method.<br><br>The skill drift: the architecture skill that gave Claude context about the game was built at session 8 and never updated. By session 19 it had drifted 12 sessions out of date. Score dropped from 72 to 51 on re-audit. It was describing systems that had been removed, missing 14 open issues, and had no knowledge of a major function split that was tried and reverted.<br><br>This is what AI-assisted dev actually looks like from the inside. [LINK]</div>
+      <textarea class="copy-source" id="src-d27" readonly>I've been posting about building this game for a month. Here's everything that actually went wrong.
+
+The cache ghost: we reverted good code twice because Reddit was serving the old cached version after deploys. The game was fine. We thought it was broken. We lost about four sessions of valid work that way. Fix: always hard-refresh after deploy, always open a brand new test post after re-upload.
+
+The localStorage race: the P1 bug that held us back three weeks before launch. World state loading from cache before the authoritative server data arrived. Only showed in production, never in playtest. The fix was removing localStorage from the initialization path entirely.
+
+The draw() split: we refactored the main drawing function into subfunctions in session 5. It caused a movement bug we couldn't diagnose for two sessions. We reverted. "Do not attempt to split draw() or updatePhysics()" is now a hard rule in the architecture document.
+
+The token incident: I carefully uploaded my GitHub PAT as a file to avoid pasting it in chat. Claude then reprinted the full token in its response while explaining where to store it. Had to rotate immediately.
+
+The invented CLI command: Claude confidently told me to run \`devvit tokens\` to get my Devvit credentials. That command doesn't exist. We found the real auth method.
+
+The skill drift: the architecture skill that gave Claude context about the game was built at session 8 and never updated. By session 19 it had drifted 12 sessions out of date. Score dropped from 72 to 51 on re-audit. It was describing systems that had been removed, missing 14 open issues, and had no knowledge of a major function split that was tried and reverted.
+
+This is what AI-assisted dev actually looks like from the inside. [LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d28">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 28</span>
+        <span class="card-date">+7 · <a class="sub-link" href="https://reddit.com/r/devvit" target="_blank">r/devvit</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d28')" id="btn-d28">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d28')" id="mark-d28" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Wigglers Room has been live for a week. Here's what the Devvit platform actually did and didn't do.</div>
+      <div class="post-body">What worked: KV store persistence is solid. Realtime presence channels handled concurrent players without issues. The postMessage bridge between TypeScript host and JavaScript webview is reliable once you understand the envelope format. Reddit auth as the identity layer is seamless — no separate login, no account creation, players are just themselves.<br><br>What bit us: external fetch() to non-Reddit domains silently fails. No error, no timeout, nothing. Killed an early plan to pull real weather data for the bin environment. webView.mount() only works inside onPress — call it in the render body and it fires on every render and crashes without an error message. Channel names must be alphanumeric only — a colon in a channel name crashes the render silently. Old posts go read-only after re-upload, which means every version gets its own test post.<br><br>The caching behavior: Reddit's CDN serves the previous version of your webview on first load after an upload. Hard-refresh clears it, but we lost multiple sessions debugging code that was already fixed before we understood this.<br><br>The CI pipeline we run on every push: typecheck, lint, test, build. It catches the obvious things. The subtle Devvit-specific bugs — message timing, KV read ordering, cache behavior — only show in production.<br><br>[LINK to the game]</div>
+      <textarea class="copy-source" id="src-d28" readonly>Wigglers Room has been live for a week. Here's what the Devvit platform actually did and didn't do.
+
+What worked: KV store persistence is solid. Realtime presence channels handled concurrent players without issues. The postMessage bridge between TypeScript host and JavaScript webview is reliable once you understand the envelope format. Reddit auth as the identity layer is seamless — no separate login, no account creation, players are just themselves.
+
+What bit us: external fetch() to non-Reddit domains silently fails. No error, no timeout, nothing. Killed an early plan to pull real weather data for the bin environment. webView.mount() only works inside onPress — call it in the render body and it fires on every render and crashes without an error message. Channel names must be alphanumeric only — a colon in a channel name crashes the render silently. Old posts go read-only after re-upload, which means every version gets its own test post.
+
+The caching behavior: Reddit's CDN serves the previous version of your webview on first load after an upload. Hard-refresh clears it, but we lost multiple sessions debugging code that was already fixed before we understood this.
+
+The CI pipeline we run on every push: typecheck, lint, test, build. It catches the obvious things. The subtle Devvit-specific bugs — message timing, KV read ordering, cache behavior — only show in production.
+
+[LINK to the game]</textarea>
+    </div>
+
+    <div class="card" id="card-d29">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 29</span>
+        <span class="card-date">+8 · <a class="sub-link" href="https://reddit.com/r/gamedev" target="_blank">r/gamedev</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d29')" id="btn-d29">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d29')" id="mark-d29" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">Three months building a game. Here's what I actually learned about shipping something.</div>
+      <div class="post-body">The architecture document mattered more than the code. GAME_ARCHITECTURE.md — updated every session, read by Claude at the start of every session — was the thing that kept 25 sessions of work coherent. Without it, sessions 1–5 were chaotic. With it, the project had a memory.<br><br>The approve-before-push rule was more valuable than I expected. Every change went through: Claude proposes, shows diff, waits. I say go or I don't. That friction forced me to understand every change before it shipped. The two times I was tempted to skip the gate were the two times the change would have been wrong.<br><br>The failure mode for AI-assisted dev isn't bad code. It's confident code that solves the wrong problem. The architecture doc and the gate together were the answer to that.<br><br>Building from a phone is viable. Not comfortable — copying diffs on a small screen is annoying and long sessions are harder than on desktop — but viable. The bridge script and the approve-gate workflow are actually well-suited to mobile because the role is reviewer, not typist.<br><br>The hardest part wasn't any of the technical stuff. It was the three weeks between finishing the code and shipping it while a known bug sat there unfixed.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d29" readonly>Three months building a game. Here's what I actually learned about shipping something.
+
+The architecture document mattered more than the code. GAME_ARCHITECTURE.md — updated every session, read by Claude at the start of every session — was the thing that kept 25 sessions of work coherent. Without it, sessions 1–5 were chaotic. With it, the project had a memory.
+
+The approve-before-push rule was more valuable than I expected. Every change went through: Claude proposes, shows diff, waits. I say go or I don't. That friction forced me to understand every change before it shipped. The two times I was tempted to skip the gate were the two times the change would have been wrong.
+
+The failure mode for AI-assisted dev isn't bad code. It's confident code that solves the wrong problem. The architecture doc and the gate together were the answer to that.
+
+Building from a phone is viable. Not comfortable — copying diffs on a small screen is annoying and long sessions are harder than on desktop — but viable. The bridge script and the approve-gate workflow are actually well-suited to mobile because the role is reviewer, not typist.
+
+The hardest part wasn't any of the technical stuff. It was the three weeks between finishing the code and shipping it while a known bug sat there unfixed.
+
+[LINK]</textarea>
+    </div>
+
+    <div class="card" id="card-d30">
+      <div class="card-header">
+        <span class="day-badge" style="background:#c44b2e">Day 30</span>
+        <span class="card-date">+9 · <a class="sub-link" href="https://reddit.com/r/InternetIsBeautiful" target="_blank">r/InternetIsBeautiful</a></span>
+        <div class="card-actions">
+          <button class="copy-btn" onclick="copyPost('d30')" id="btn-d30">Copy title + body</button>
+          <button class="mark-btn" onclick="markPosted('d30')" id="mark-d30" title="Mark as posted">○</button>
+        </div>
+      </div>
+      <div class="post-title">I spent three months building a worm game that lives inside a Reddit post. Here's what it became.</div>
+      <div class="post-body">The game is called Wigglers Room. Your earthworm lives in a shared compost bin inside a Reddit post. No app. No install. Open the post and your worm is there.<br><br>The bin has been running continuously since the first deploy. The tea reservoir has filled and drained on its weekly cycle. Worms have eaten, dug tunnels, pooped strategically, and died. Every death posted a comment to the thread — username, cause of death, how long they lived, their generation.<br><br>The composting mechanics are real: acid foods damage your worm, eggshells neutralize it, castings you deposit deep in the soil enrich the compost and speed up food fragment spawning, the moisture level affects everything, tunnels you dig persist and decay over time.<br><br>The whole thing runs on vanilla JavaScript and HTML5 Canvas inside Reddit's Devvit platform. 9,000 lines. 25 development sessions. Built and shipped entirely from an iPhone using Claude as the primary development partner.<br><br>[LINK]</div>
+      <textarea class="copy-source" id="src-d30" readonly>I spent three months building a worm game that lives inside a Reddit post. Here's what it became.
+
+The game is called Wigglers Room. Your earthworm lives in a shared compost bin inside a Reddit post. No app. No install. Open the post and your worm is there.
+
+The bin has been running continuously since the first deploy. The tea reservoir has filled and drained on its weekly cycle. Worms have eaten, dug tunnels, pooped strategically, and died. Every death posted a comment to the thread — username, cause of death, how long they lived, their generation.
+
+The composting mechanics are real: acid foods damage your worm, eggshells neutralize it, castings you deposit deep in the soil enrich the compost and speed up food fragment spawning, the moisture level affects everything, tunnels you dig persist and decay over time.
+
+The whole thing runs on vanilla JavaScript and HTML5 Canvas inside Reddit's Devvit platform. 9,000 lines. 25 development sessions. Built and shipped entirely from an iPhone using Claude as the primary development partner.
+
+[LINK]</textarea>
+    </div>
+  </section>
+
+
+  <div class="rules-section">
+    <div class="rules-title">Rules</div>
+    <ul class="rules-list">
+      <li>Read each post before you paste it — change anything that doesn't sound like you</li>
+      <li>Reply to every comment within 2 hours if possible. The thread is the product.</li>
+      <li>Never cross-post identical content to two subreddits</li>
+      <li>No game links until Day 21 — nothing to link to yet</li>
+      <li>If a post gets &lt;5 upvotes in 2 hours, move on. Don't delete it.</li>
+      <li>If a post pops off, stay in the comments. That's where the audience is built.</li>
+      <li>Days 21–30 timing is flexible. Don't start Phase 3 until the game is genuinely stable.</li>
+      <li>Never mention this is a marketing plan</li>
+      <li>Composting communities are skeptical. Earn trust before asking for anything.</li>
+      <li>Dev communities want failure stories more than success stories</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // ── Storage keys ──
+  const STORAGE_KEY = 'wigglers_posted';
+
+  function getPosted() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch { return {}; }
+  }
+  function savePosted(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  // ── Copy to clipboard ──
+  function copyPost(cardId) {
+    const src = document.getElementById('src-' + cardId);
+    const btn = document.getElementById('btn-' + cardId);
+    if (!src || !btn) return;
+
+    navigator.clipboard.writeText(src.value).then(() => {
+      btn.textContent = 'Copied ✓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy title + body';
+        btn.classList.remove('copied');
+      }, 2000);
+    }).catch(() => {
+      // Fallback
+      src.select();
+      document.execCommand('copy');
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = 'Copy title + body'; }, 2000);
+    });
+  }
+
+  // ── Mark as posted ──
+  function markPosted(cardId) {
+    const posted = getPosted();
+    const isPosted = posted[cardId];
+    const card = document.getElementById('card-' + cardId);
+    const btn  = document.getElementById('mark-' + cardId);
+
+    if (isPosted) {
+      delete posted[cardId];
+      card.classList.remove('posted');
+      btn.textContent = '○';
+      btn.classList.remove('posted-mark');
+      btn.title = 'Mark as posted';
+    } else {
+      posted[cardId] = true;
+      card.classList.add('posted');
+      btn.textContent = '✓';
+      btn.classList.add('posted-mark');
+      btn.title = 'Posted — click to unmark';
+    }
+    savePosted(posted);
+    updateProgress();
+  }
+
+  // ── Progress bar ──
+  function updateProgress() {
+    const posted = getPosted();
+    const count  = Object.keys(posted).length;
+    const total  = 30;
+    const pct    = Math.round((count / total) * 100);
+    document.getElementById('posted-count').textContent = count + ' of ' + total + ' posted';
+    document.getElementById('posted-pct').textContent   = pct + '%';
+    document.getElementById('progress-fill').style.width = pct + '%';
+  }
+
+  // ── Restore state on load ──
+  function restoreState() {
+    const posted = getPosted();
+    Object.keys(posted).forEach(cardId => {
+      const card = document.getElementById('card-' + cardId);
+      const btn  = document.getElementById('mark-' + cardId);
+      if (card) card.classList.add('posted');
+      if (btn)  { btn.textContent = '✓'; btn.classList.add('posted-mark'); btn.title = 'Posted — click to unmark'; }
+    });
+    updateProgress();
+  }
+
+  restoreState();
+</script>
+</body>
+</html>
