@@ -118,7 +118,7 @@ body::before {
 
 .section p {
   font-size: 0.88rem;
-  color: var(--text-dim);
+  color: #d09090;
   line-height: 1.7;
   margin-bottom: 12px;
 }
@@ -745,14 +745,12 @@ body::before {
   <div class="guide-panel">
 
     <div class="section">
-      <div class="section-eyebrow">The game</div>
       <h2>Hi, I'm Wiggler.</h2>
       <p>I'm an earthworm. I live in this shared compost bin on Reddit. Your Reddit account is all you need to get in the bin with me.</p>
-      <p>My whole life is about eating food scraps, digging tunnel networks to help manage the tea drainage so the compost doesn't oversaturate, and dropping castings to enrich everything around me. While you're away the bin keeps going. So do I.</p>
+      <p>My whole life is about eating food scraps, digging tunnel networks to help manage the tea drainage so the compost doesn't oversaturate. And dropping castings to enrich everything around me. While you're away the bin keeps going. So do I.</p>
     </div>
 
     <div class="section">
-      <div class="section-eyebrow">Controls — Mobile (Touch)</div>
       <h2>Touch gestures</h2>
       <div class="controls-grid">
         <div class="ctrl">
@@ -766,14 +764,14 @@ body::before {
           <div class="ctrl-icon">2×</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Two-finger tap — Poop</div>
-            <div class="ctrl-desc">I deposit castings wherever I am. Do it deep in the compost zone for maximum enrichment bonus — helps everyone in the bin, not just us.</div>
+            <div class="ctrl-desc">Tell me to poop. I deposit castings wherever I am. Do it deep in the compost zone for maximum enrichment bonus — helps everyone in the bin, not just us.</div>
           </div>
         </div>
         <div class="ctrl">
           <div class="ctrl-icon">hold</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Long press — Sleep / Wake</div>
-            <div class="ctrl-desc">But only if I'm in the compost layer. I need to be sleeping in the compost when you leave so my health doesn't drain out quickly.</div>
+            <div class="ctrl-desc">But only if I'm in the compost layer. I need to be in the compost layer sleeping when you leave the game so my health doesn't drain out quickly.</div>
           </div>
         </div>
         <div class="ctrl">
@@ -787,28 +785,13 @@ body::before {
           <div class="ctrl-icon">3×</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Three-finger tap — Cycle avatar</div>
-            <div class="ctrl-desc">Changes how I look. Your username shows above me either way.</div>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-icon">⌥</div>
-          <div class="ctrl-body">
-            <div class="ctrl-action">Tap valve button — Drain control</div>
-            <div class="ctrl-desc">When tea gets dangerously high, a valve button appears in the HUD. Tap it to trigger an emergency drain. Saves the bin. Earns big karma.</div>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-icon">≡</div>
-          <div class="ctrl-body">
-            <div class="ctrl-action">Drag (while sleeping) — Scroll bin</div>
-            <div class="ctrl-desc">When I'm sleeping, drag to scroll the camera and see the whole bin.</div>
+            <div class="ctrl-desc">Cycle avatar, u/name.</div>
           </div>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-eyebrow">Controls — Desktop (Keyboard)</div>
       <h2>Keyboard shortcuts</h2>
       <div class="controls-grid">
         <div class="ctrl">
@@ -822,7 +805,7 @@ body::before {
           <div class="ctrl-icon">spc</div>
           <div class="ctrl-body">
             <div class="ctrl-action"><kbd class="kbd">Space</kbd> — Poop</div>
-            <div class="ctrl-desc">Deposit castings wherever I am.</div>
+            <div class="ctrl-desc">Poop.</div>
           </div>
         </div>
         <div class="ctrl">
@@ -843,48 +826,22 @@ body::before {
           <div class="ctrl-icon">N</div>
           <div class="ctrl-body">
             <div class="ctrl-action"><kbd class="kbd">N</kbd> — Cycle avatar</div>
-            <div class="ctrl-desc">Changes how I look. Your username shows above me either way.</div>
+            <div class="ctrl-desc">Cycle avatar, u/name.</div>
           </div>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-eyebrow">Your worm</div>
-      <h2>HP and Gut — keep an eye on these</h2>
-      <div class="stat-row">
-        <div class="stat-label">Health (HP)</div>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:75%;background:#e87070"></div></div>
-        <div class="stat-val">75%</div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-label">Gut (hunger)</div>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:55%;background:#d4880a"></div></div>
-        <div class="stat-val">55%</div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-label">Acid level</div>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:30%;background:#c84030"></div></div>
-        <div class="stat-val">30%</div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-label">Moisture</div>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:40%;background:#4a9fd4"></div></div>
-        <div class="stat-val">40%</div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-label">Tea reservoir</div>
-        <div class="stat-bar-wrap"><div class="stat-bar" style="width:68%;background:var(--tea-gold)"></div></div>
-        <div class="stat-val">68%</div>
-      </div>
-      <p style="margin-top:8px">When my gut gets full I need to poop or my HP drains from constipation. When it's empty my HP drains from starvation. It's up to you to keep me balanced.</p>
-      <p style="margin-top:8px">Acid intake can drain my HP when it gets too high — you'll see me turn bright green when that happens. The acid drains with digestion but you can neutralize it quickly by eating eggshell.</p>
-      <p style="margin-top:8px">While you're away your gut drains slowly and then your HP does — if it hits zero, your worm will die. Fill up and put yourself to sleep deep in the compost before you leave. Do that and you've got roughly a 12-hour window before you need to fill up again.</p>
+      <h2>HP and Gut stats</h2>
+      <p>Keep an eye on these.</p>
+      <p>When my gut gets full I need to poop or my HP drains from constipation. When it's empty my HP drains from starvation. It's up to you to keep me balanced.</p>
+      <p>Acid intake can drain my HP when it gets too high — you'll see me change to a bright green color when that happens. The acid drains with digestion but you can neutralize it quickly by eating egg shell.</p>
+      <p>While you're away your gut drains slowly and then your HP does — and if it hits zero, your worm will die. Fill up and put yourself to sleep deep in the compost before you leave. Do that and you've got roughly a 12-hour window before you need to fill up again.</p>
     </div>
 
     <div class="section">
-      <div class="section-eyebrow">Food</div>
-      <h2>What I eat</h2>
+      <h2>What I eat?</h2>
       <p>Whatever I can reach — but some things do damage.</p>
 
       <div class="carousel-wrap">
@@ -910,7 +867,7 @@ body::before {
         </div>
       </div>
 
-      <p>The eggshell is the most important item in my bin. One eggshell clears significant acid buildup. Prioritise it over everything else when my acid is high. Always.</p>
+    </div>
     </div>
 
     <div class="section">
@@ -946,9 +903,9 @@ body::before {
         </div>
       </div>
     </div>
+    </div>
 
     <div class="section">
-      <div class="section-eyebrow">Advanced mechanics</div>
       <h2>Tunnels, drains &amp; junctions</h2>
       <div class="mech-card">
         <h3>Tunnels</h3>
@@ -956,7 +913,7 @@ body::before {
       </div>
       <div class="mech-card">
         <h3>Creating a drain point</h3>
-        <p>Get me to the sump and hold me completely still. A glowing ring appears — when it completes I've created a drain and tea can now flow out.</p>
+        <p>Get me to the sump (bottom layer) and hold me completely still. A glowing ring appears. When it completes, I've created a drain — tea can now flow out.</p>
       </div>
       <div class="mech-card">
         <h3>Junctions</h3>
@@ -969,47 +926,15 @@ body::before {
     </div>
 
     <div class="section">
-      <div class="section-eyebrow">Community</div>
-      <h2>The weekly tea cycle</h2>
-      <div class="mech-card">
-        <h3>Tea reservoir</h3>
-        <p>Every worm's poop contributes to the tea reservoir all week. After 7 real days the cycle resets — top contributors earn karma bonuses. But if it hits 90% before the reset, the bin floods and every active worm takes damage at once. Including me.</p>
-      </div>
-      <div class="mech-card">
-        <h3>Flood warning</h3>
-        <p>Watch the tea level in the HUD. Above 80% you'll see a warning. Tap the valve button to trigger an emergency drain before it hits 90%. The worm who saves the bin earns the Drain Hero bonus.</p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-eyebrow">Life &amp; death</div>
       <h2>When I die</h2>
-      <div class="death-card">
+      <div class="mech-card">
         <h3>What kills me</h3>
         <p>Acid poisoning · Starvation · Flood damage · Constipation</p>
       </div>
       <div class="mech-card">
         <h3>The cocoon</h3>
-        <p>If I die, a Reddit comment gets posted automatically — my username, cause of death, how long I lived, my generation, total karma. I come back as my own offspring if I was able to lay a cocoon in the deep compost — this allows me to carry some karma forward.</p>
+        <p>If I die, a Reddit comment gets posted automatically — my username, cause of death, how long I lived, my generation, total karma. I come back as my own offspring if I was able to lay a cocoon in the deep compost — this allows me some karma carried forward.</p>
       </div>
-      <div class="mech-card">
-        <h3>Generations</h3>
-        <p>Gen 1 is my first life. Gen 2 is my child. Each generation starts a little further ahead — karma compounds. Some worms in this bin are already Gen 4 or Gen 5.</p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-eyebrow">Quick tips</div>
-      <h2>Things I want you to know</h2>
-      <ul class="tip-list">
-        <li>Eggshell first, everything else second. Always. Non-negotiable.</li>
-        <li>Poop deep. Surface deposits barely do anything. The compost layer depth bonus is huge.</li>
-        <li>Build tunnel networks before you poop. Poop without a path just clogs the system.</li>
-        <li>Check the tea level before you leave. Above 75% and the weekly reset is days away? Use the valve.</li>
-        <li>Sleep me in the compost zone, not the scraps layer. I'll warn you if you try in the wrong spot.</li>
-        <li>Death is a chapter break, not a failure. My Gen 2 starts with karma. Don't stress it.</li>
-        <li>Hold me still over existing tunnels to create junctions — earns karma and helps the whole bin drain faster.</li>
-      </ul>
     </div>
 
   </div><!-- /guide-panel -->
