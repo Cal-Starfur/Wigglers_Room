@@ -220,7 +220,7 @@ body::before {
   padding: 8px 10px;
   display: flex; gap: 8px; align-items: flex-start;
 }
-.food-card .food-icon { font-size: 1.1rem; flex-shrink: 0; }
+.food-card .food-icon { flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
 .food-card .food-name { font-size: 0.72rem; font-weight: 700; color: var(--text); }
 .food-card .food-note { font-size: 0.68rem; color: var(--text-dim); }
 .food-card.acid { border-color: rgba(220,50,50,0.35); }
@@ -658,49 +658,49 @@ body::before {
       <h2>Touch gestures</h2>
       <div class="controls-grid">
         <div class="ctrl">
-          <div class="ctrl-icon">👆</div>
+          <div class="ctrl-icon">drag</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Single finger drag</div>
             <div class="ctrl-desc">That's how you steer me. Drag your finger toward what you want me to eat and I'll follow. Slow and steady through a scrap — that's how I eat it.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">✌️</div>
+          <div class="ctrl-icon">✌</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Two-finger tap — Poop</div>
             <div class="ctrl-desc">Tell me to poop. I deposit castings wherever I am. Do it deep in the compost zone for maximum enrichment bonus — helps everyone in the bin, not just us.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">⏱️</div>
+          <div class="ctrl-icon">hold</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Long press 600ms — Sleep / Wake</div>
             <div class="ctrl-desc">Hold still for 0.6 seconds and I'll go to sleep. Do it again to wake me up. I need to be in the compost layer — not up in the scraps zone.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">☝️</div>
+          <div class="ctrl-icon">↑</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Swipe up — Lay cocoon</div>
             <div class="ctrl-desc">Flick upward quickly and I'll lay a cocoon. Earns karma. Only works when I'm alive and active.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">🤟</div>
+          <div class="ctrl-icon">3×</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Three-finger tap — Cycle avatar</div>
             <div class="ctrl-desc">Changes how I look. Cosmetic only — I still eat the same either way.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">🚰</div>
+          <div class="ctrl-icon">⌥</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Tap valve button — Drain control</div>
             <div class="ctrl-desc">When tea gets dangerously high, a valve button appears in the HUD. Tap it to trigger an emergency drain. Saves the bin. Earns big karma.</div>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-icon">📜</div>
+          <div class="ctrl-icon">≡</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Drag (while sleeping) — Scroll bin</div>
             <div class="ctrl-desc">When I'm sleeping, drag to scroll the camera and see the whole bin.</div>
@@ -714,7 +714,7 @@ body::before {
       <h2>Keyboard shortcuts</h2>
       <div class="controls-grid">
         <div class="ctrl">
-          <div class="ctrl-icon">🖱️</div>
+          <div class="ctrl-icon">mouse</div>
           <div class="ctrl-body">
             <div class="ctrl-action">Mouse move — Steer</div>
             <div class="ctrl-desc">I follow your cursor. Move it slowly through scraps to eat them.</div>
@@ -788,35 +788,35 @@ body::before {
       <p>Snoo (the Reddit mascot) tips new scraps into the bin from up top. I eat whatever I can reach — but some things do damage.</p>
       <div class="food-grid">
         <div class="food-card acid">
-          <div class="food-icon">☕</div>
+          <div class="food-icon" data-chunk="tea_bag" data-sz="20"></div>
           <div><div class="food-name">Coffee grounds</div><div class="food-note">High acid — eats into my HP over time</div></div>
         </div>
         <div class="food-card acid">
-          <div class="food-icon">🍊</div>
+          <div class="food-icon" data-chunk="orange_peel" data-sz="20"></div>
           <div><div class="food-name">Orange peel</div><div class="food-note">Very acidic — avoid when I'm already hurting</div></div>
         </div>
         <div class="food-card acid">
-          <div class="food-icon">🍎</div>
+          <div class="food-icon" data-chunk="apple_core" data-sz="20"></div>
           <div><div class="food-name">Apple core</div><div class="food-note">Mildly acidic</div></div>
         </div>
         <div class="food-card acid">
-          <div class="food-icon">🍇</div>
+          <div class="food-icon" data-chunk="overripe_fruit" data-sz="20"></div>
           <div><div class="food-name">Overripe fruit</div><div class="food-note">Most acidic thing in the bin. Careful.</div></div>
         </div>
         <div class="food-card antidote">
-          <div class="food-icon">🥚</div>
-          <div><div class="food-name">Eggshell ✓</div><div class="food-note">Neutralizes acid — eat immediately</div></div>
+          <div class="food-icon" data-chunk="egg_shell" data-sz="20"></div>
+          <div><div class="food-name">Eggshell</div><div class="food-note">Neutralizes acid — eat immediately</div></div>
         </div>
         <div class="food-card antidote">
-          <div class="food-icon">📰</div>
-          <div><div class="food-name">Newspaper ✓</div><div class="food-note">Carbon — safe, good gut fill</div></div>
+          <div class="food-icon" data-chunk="newspaper" data-sz="20"></div>
+          <div><div class="food-name">Newspaper</div><div class="food-note">Carbon — safe, good gut fill</div></div>
         </div>
         <div class="food-card">
-          <div class="food-icon">🍕</div>
+          <div class="food-icon" data-chunk="pizza" data-sz="20"></div>
           <div><div class="food-name">Pizza</div><div class="food-note">Big chunk, lots of gut fill</div></div>
         </div>
         <div class="food-card">
-          <div class="food-icon">🥬</div>
+          <div class="food-icon" data-chunk="lettuce" data-sz="20"></div>
           <div><div class="food-name">Lettuce</div><div class="food-note">Fast to eat, safe</div></div>
         </div>
       </div>
@@ -861,19 +861,19 @@ body::before {
       <div class="section-eyebrow">Advanced mechanics</div>
       <h2>Tunnels, drains &amp; junctions</h2>
       <div class="mech-card">
-        <h3>🌿 Tunnels</h3>
+        <h3>Tunnels</h3>
         <p>Every move I make carves a tunnel through the compost. Tea drops and poop follow those tunnels down to the sump. The better my network, the better the whole bin drains — it's not just for me.</p>
       </div>
       <div class="mech-card">
-        <h3>🕳️ Creating a drain point</h3>
+        <h3>Creating a drain point</h3>
         <p>Get me to the sump (bottom layer) and hold me completely still for about 1.5 seconds. A glowing ring appears. When it completes, I've created a down-drain — tea can now flow out. Earns +25 to +100 karma.</p>
       </div>
       <div class="mech-card">
-        <h3>🔀 Junctions</h3>
+        <h3>Junctions</h3>
         <p>Hold me still over an existing tunnel segment (not at the sump) for ~1.5 seconds to connect tunnel branches into a more efficient network. Better drainage for everyone. Earns karma.</p>
       </div>
       <div class="mech-card">
-        <h3>💩 Strategic pooping</h3>
+        <h3>Strategic pooping</h3>
         <p>The deeper in the compost I poop, the more enrichment it adds. High enrichment means faster food spawns and healthier tunnels — for every worm in the bin, not just me.</p>
       </div>
     </div>
@@ -882,11 +882,11 @@ body::before {
       <div class="section-eyebrow">Community</div>
       <h2>The weekly tea cycle</h2>
       <div class="mech-card">
-        <h3>☕ Tea reservoir</h3>
+        <h3>Tea reservoir</h3>
         <p>Every worm's poop contributes to the tea reservoir all week. After 7 real days the cycle resets — top contributors earn karma bonuses. But if it hits 90% before the reset, the bin floods and every active worm takes damage at once. Including me.</p>
       </div>
       <div class="mech-card">
-        <h3>🚨 Flood warning</h3>
+        <h3>Flood warning</h3>
         <p>Watch the tea level in the HUD. Above 80% you'll see a warning. Tap the valve button to trigger an emergency drain before it hits 90%. The worm who saves the bin earns the Drain Hero bonus.</p>
       </div>
     </div>
@@ -899,11 +899,11 @@ body::before {
         <p>Acid poisoning (too much citrus or coffee, not enough eggshell) · Starvation (gut fully emptied) · Flood damage (bin overflows while I'm active) · Constipation (gut completely full, can't move)</p>
       </div>
       <div class="mech-card">
-        <h3>🥚 The cocoon</h3>
+        <h3>The cocoon</h3>
         <p>When I die, a Reddit comment gets posted automatically — my username, cause of death, how long I lived, my generation, total karma. A cocoon appears at the death site. After 7 real days it hatches, and I come back as my own offspring with some karma carried forward.</p>
       </div>
       <div class="mech-card">
-        <h3>🌱 Generations</h3>
+        <h3>Generations</h3>
         <p>Gen 1 is my first life. Gen 2 is my child. Each generation starts a little further ahead — karma compounds. Some worms in this bin are already Gen 4 or Gen 5.</p>
       </div>
     </div>
@@ -912,13 +912,13 @@ body::before {
       <div class="section-eyebrow">Quick tips</div>
       <h2>Things I want you to know</h2>
       <ul class="tip-list">
-        <li data-icon="🥚">Eggshell first, everything else second. Always. Non-negotiable.</li>
-        <li data-icon="💩">Poop deep. Surface deposits barely do anything. The compost layer depth bonus is huge.</li>
-        <li data-icon="🌿">Build tunnel networks before you poop. Poop without a path just clogs the system.</li>
-        <li data-icon="🚰">Check the tea level before you leave. Above 75% and the weekly reset is days away? Use the valve.</li>
-        <li data-icon="😴">Sleep me in the compost zone, not the scraps layer. I'll warn you if you try in the wrong spot.</li>
-        <li data-icon="💀">Death is a chapter break, not a failure. My Gen 2 starts with karma. Don't stress it.</li>
-        <li data-icon="🔀">Hold me still over existing tunnels to create junctions — earns karma and helps the whole bin drain faster.</li>
+        <li>Eggshell first, everything else second. Always. Non-negotiable.</li>
+        <li>Poop deep. Surface deposits barely do anything. The compost layer depth bonus is huge.</li>
+        <li>Build tunnel networks before you poop. Poop without a path just clogs the system.</li>
+        <li>Check the tea level before you leave. Above 75% and the weekly reset is days away? Use the valve.</li>
+        <li>Sleep me in the compost zone, not the scraps layer. I'll warn you if you try in the wrong spot.</li>
+        <li>Death is a chapter break, not a failure. My Gen 2 starts with karma. Don't stress it.</li>
+        <li>Hold me still over existing tunnels to create junctions — earns karma and helps the whole bin drain faster.</li>
       </ul>
     </div>
 
@@ -1273,5 +1273,732 @@ setInterval(function() {
 })();
 </script>
 
+
+<script id="chunk-draw-lib">
+function drawTrashChunk(ctx, name, r, hpFrac) {
+  // dim() kept for colour reuse but always returns full brightness
+  function dim(hex) { return hex; }
+
+  switch(name) {
+
+    case 'pizza': // Pizza slice
+      // Crust outer triangle
+      ctx.fillStyle = dim('#d4936a');
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.9);
+      ctx.lineTo(-r*0.85, r*0.72);
+      ctx.lineTo(r*0.85, r*0.72);
+      ctx.closePath(); ctx.fill();
+      // Dough fill
+      ctx.fillStyle = dim('#f0c888');
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.62);
+      ctx.lineTo(-r*0.65, r*0.62);
+      ctx.lineTo(r*0.65, r*0.62);
+      ctx.closePath(); ctx.fill();
+      // Tomato sauce patches
+      ctx.fillStyle = dim('#c03020');
+      ctx.beginPath(); ctx.ellipse(-r*0.15, r*0.1, r*0.32, r*0.22, 0.3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(r*0.2, -r*0.15, r*0.2, r*0.16, -0.5, 0, Math.PI*2); ctx.fill();
+      // Cheese blobs
+      ctx.fillStyle = dim('#f0d060');
+      ctx.beginPath(); ctx.ellipse(r*0.05, r*0.05, r*0.18, r*0.12, 0.8, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-r*0.28, -r*0.08, r*0.13, r*0.09, -0.3, 0, Math.PI*2); ctx.fill();
+      // Pepperoni
+      ctx.fillStyle = dim('#8a2010');
+      ctx.beginPath(); ctx.arc(-r*0.05, -r*0.28, r*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(r*0.3, r*0.28, r*0.09, 0, Math.PI*2); ctx.fill();
+      // Crust ridge
+      ctx.strokeStyle = dim('#b87040');
+      ctx.lineWidth = r*0.09;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.85, r*0.72); ctx.lineTo(r*0.85, r*0.72);
+      ctx.stroke();
+      break;
+
+    case 'banana_peel': // Floppy banana peel
+      // Four splayed peel lobes
+      var peelCols = [dim('#d4a808'), dim('#c09808'), dim('#e8c010'), dim('#b88800')];
+      var angles = [-0.7, 0.2, 1.1, 2.0];
+      for (var peelI = 0; peelI < 4; peelI++) {
+        ctx.fillStyle = peelCols[peelI];
+        ctx.save();
+        ctx.rotate(angles[peelI]);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(r*0.2, -r*0.3, r*0.5, -r*1.0, r*0.15, -r*1.1);
+        ctx.bezierCurveTo(-r*0.2, -r*1.0, -r*0.4, -r*0.4, 0, 0);
+        ctx.fill();
+        // Inner pale peel surface
+        ctx.fillStyle = dim('#f5e090');
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.05);
+        ctx.bezierCurveTo(r*0.1, -r*0.3, r*0.3, -r*0.85, r*0.1, -r*0.95);
+        ctx.bezierCurveTo(-r*0.1, -r*0.82, -r*0.22, -r*0.32, 0, -r*0.05);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Brown tip nub
+      ctx.fillStyle = dim('#5a3a00');
+      ctx.beginPath(); ctx.arc(0, 0, r*0.15, 0, Math.PI*2); ctx.fill();
+      break;
+
+    case 'apple_core': // Gnawed apple core
+      // Core body
+      ctx.fillStyle = dim('#d4c8a0');
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r*0.38, r*0.9, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Remaining red flesh patches
+      if (hpFrac > 0.3) {
+        ctx.fillStyle = dim('#d83020');
+        ctx.beginPath(); ctx.ellipse(-r*0.25, -r*0.3, r*0.22, r*0.35, 0.4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(r*0.22, r*0.2, r*0.18, r*0.28, -0.3, 0, Math.PI*2); ctx.fill();
+      }
+      // Seeds
+      ctx.fillStyle = dim('#3a2008');
+      for (var seedI = 0; seedI < 3; seedI++) {
+        ctx.beginPath(); ctx.ellipse((seedI-1)*r*0.12, seedI*r*0.18-r*0.12, r*0.06, r*0.1, 0.2, 0, Math.PI*2); ctx.fill();
+      }
+      // Top stem
+      ctx.strokeStyle = dim('#5a3010');
+      ctx.lineWidth = r*0.1; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, -r*0.9); ctx.lineTo(r*0.08, -r*1.15); ctx.stroke();
+      // Bottom calyx
+      ctx.strokeStyle = dim('#5a3010');
+      ctx.lineWidth = r*0.08;
+      ctx.beginPath(); ctx.moveTo(-r*0.12, r*0.88); ctx.lineTo(r*0.12, r*0.95); ctx.stroke();
+      break;
+
+    case 'melon_rind': // Big curved rind — green outside, pale inside, pink flesh remnant
+      // Green outer rind
+      ctx.fillStyle = '#4a8820';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.95, r*0.1);
+      ctx.bezierCurveTo(-r*0.9, -r*0.55, r*0.9, -r*0.55, r*0.95, r*0.1);
+      ctx.bezierCurveTo(r*0.85, r*0.75, -r*0.85, r*0.75, -r*0.95, r*0.1);
+      ctx.fill();
+      // White pith band
+      ctx.fillStyle = '#e8f0d8';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.82, r*0.12);
+      ctx.bezierCurveTo(-r*0.78, -r*0.38, r*0.78, -r*0.38, r*0.82, r*0.12);
+      ctx.bezierCurveTo(r*0.72, r*0.58, -r*0.72, r*0.58, -r*0.82, r*0.12);
+      ctx.fill();
+      // Pink flesh
+      ctx.fillStyle = '#e85870';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.62, r*0.14);
+      ctx.bezierCurveTo(-r*0.58, -r*0.18, r*0.58, -r*0.18, r*0.62, r*0.14);
+      ctx.bezierCurveTo(r*0.52, r*0.42, -r*0.52, r*0.42, -r*0.62, r*0.14);
+      ctx.fill();
+      // Seeds
+      ctx.fillStyle = '#1a1008';
+      for (var melonSeedI = 0; melonSeedI < 4; melonSeedI++) {
+        ctx.beginPath(); ctx.ellipse(-r*0.3+melonSeedI*r*0.2, r*0.1, r*0.04, r*0.07, 0.2, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+
+    case 'corn_cob': // Corn cob with a few kernels still on
+      // Cob body
+      ctx.fillStyle = '#d4a828';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r*0.42, r*0.9, 0, 0, Math.PI*2);
+      ctx.fill();
+      // Kernel rows — fixed grid
+      ctx.fillStyle = '#f0cc50';
+      for (var cri = -3; cri <= 3; cri++) {
+        for (var cci = 0; cci < 4; cci++) {
+          var kx = (cci - 1.5) * r*0.18;
+          var ky = cri * r*0.22;
+          ctx.beginPath(); ctx.ellipse(kx, ky, r*0.08, r*0.09, 0, 0, Math.PI*2); ctx.fill();
+        }
+      }
+      // Kernel shadow lines
+      ctx.strokeStyle = '#b88818'; ctx.lineWidth = r*0.03;
+      for (var cornRowI = -3; cornRowI <= 3; cornRowI++) {
+        ctx.beginPath(); ctx.moveTo(-r*0.35, cornRowI*r*0.22-r*0.05); ctx.lineTo(r*0.35, cornRowI*r*0.22-r*0.05); ctx.stroke();
+      }
+      // Silk strands at top
+      ctx.strokeStyle = '#e8c878'; ctx.lineWidth = r*0.03; ctx.lineCap='round';
+      for (var silkI = 0; silkI < 5; silkI++) {
+        ctx.beginPath();
+        ctx.moveTo((silkI-2)*r*0.08, -r*0.88);
+        ctx.lineTo((silkI-2)*r*0.12, -r*1.15);
+        ctx.stroke();
+      }
+      // Husk leaf remnants at bottom
+      ctx.fillStyle = '#78a028';
+      ctx.beginPath(); ctx.moveTo(-r*0.42, r*0.78); ctx.bezierCurveTo(-r*0.6, r*1.1, r*0.1, r*1.2, r*0.3, r*0.9); ctx.lineTo(r*0.42, r*0.78); ctx.closePath(); ctx.fill();
+      break;
+
+    case 'watermelon_chunk': // Big wedge of watermelon — bright and juicy
+      // Green rind outer
+      ctx.fillStyle = '#3a8818';
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.15);
+      ctx.lineTo(-r*0.95, r*0.82);
+      ctx.lineTo(r*0.95, r*0.82);
+      ctx.closePath(); ctx.fill();
+      // White pith
+      ctx.fillStyle = '#e8f4d8';
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.08);
+      ctx.lineTo(-r*0.82, r*0.75);
+      ctx.lineTo(r*0.82, r*0.75);
+      ctx.closePath(); ctx.fill();
+      // Red flesh
+      ctx.fillStyle = '#e82840';
+      ctx.beginPath();
+      ctx.moveTo(0, r*0.05);
+      ctx.lineTo(-r*0.68, r*0.72);
+      ctx.lineTo(r*0.68, r*0.72);
+      ctx.closePath(); ctx.fill();
+      // Seeds
+      ctx.fillStyle = '#1a1008';
+      var wmSeeds = [[-r*0.28,r*0.38],[r*0.18,r*0.28],[-r*0.05,r*0.52],[r*0.4,r*0.48],[-r*0.45,r*0.55]];
+      for (var wmSeedI=0; wmSeedI<wmSeeds.length; wmSeedI++) {
+        ctx.beginPath(); ctx.ellipse(wmSeeds[wmSeedI][0], wmSeeds[wmSeedI][1], r*0.04, r*0.07, 0.3, 0, Math.PI*2); ctx.fill();
+      }
+      // Stripe on rind
+      ctx.strokeStyle = '#285a10'; ctx.lineWidth = r*0.06;
+      ctx.beginPath(); ctx.moveTo(-r*0.5, r*0.42); ctx.lineTo(-r*0.72, r*0.78); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r*0.38, r*0.38); ctx.lineTo(r*0.58, r*0.78); ctx.stroke();
+      break;
+
+    case 'avocado_pit': // Hard round pit — brown, smooth, dense
+      // Outer skin
+      ctx.fillStyle = '#3a2008';
+      ctx.beginPath(); ctx.ellipse(0, 0, r*0.82, r*0.95, 0.15, 0, Math.PI*2); ctx.fill();
+      // Inner flesh colour showing through crack
+      ctx.fillStyle = '#c89840';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.1, -r*0.7);
+      ctx.bezierCurveTo(r*0.3, -r*0.5, r*0.35, r*0.3, r*0.0, r*0.6);
+      ctx.bezierCurveTo(-r*0.25, r*0.3, -r*0.3, -r*0.4, -r*0.1, -r*0.7);
+      ctx.fill();
+      // Surface sheen
+      ctx.fillStyle = 'rgba(255,220,160,0.18)';
+      ctx.beginPath(); ctx.ellipse(-r*0.22, -r*0.28, r*0.28, r*0.18, -0.6, 0, Math.PI*2); ctx.fill();
+      break;
+
+    case 'cardboard_tube': // Toilet roll / kitchen roll cardboard tube
+      // Tube body — open cylinder
+      ctx.fillStyle = '#c8a060';
+      ctx.beginPath();
+      ctx.ellipse(0, -r*0.72, r*0.52, r*0.14, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(-r*0.52, -r*0.72, r*1.04, r*1.44);
+      ctx.beginPath();
+      ctx.ellipse(0, r*0.72, r*0.52, r*0.14, 0, 0, Math.PI*2); ctx.fill();
+      // Hollow interior (open ends)
+      ctx.fillStyle = '#7a4820';
+      ctx.beginPath(); ctx.ellipse(0, -r*0.72, r*0.36, r*0.09, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, r*0.72, r*0.36, r*0.09, 0, 0, Math.PI*2); ctx.fill();
+      // Spiral seam line
+      ctx.strokeStyle = '#a07840'; ctx.lineWidth = r*0.05;
+      ctx.beginPath();
+      ctx.moveTo(-r*0.52, -r*0.4);
+      ctx.bezierCurveTo(r*0.0, -r*0.55, r*0.0, r*0.55, r*0.52, r*0.4);
+      ctx.stroke();
+      // Slight crush dent
+      ctx.fillStyle = 'rgba(80,40,10,0.18)';
+      ctx.beginPath(); ctx.ellipse(r*0.3, r*0.1, r*0.2, r*0.38, 0.3, 0, Math.PI*2); ctx.fill();
+      break;
+
+    case 'mushroom': // Whole mushroom — cap and stubby stalk
+      // Stalk
+      ctx.fillStyle = '#e8dcc8';
+      ctx.beginPath(); ctx.ellipse(0, r*0.55, r*0.22, r*0.48, 0, 0, Math.PI*2); ctx.fill();
+      // Gills under cap
+      ctx.fillStyle = '#c8b8a0';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.78, r*0.08);
+      ctx.bezierCurveTo(-r*0.5, r*0.28, r*0.5, r*0.28, r*0.78, r*0.08);
+      ctx.lineTo(r*0.22, r*0.08);
+      ctx.bezierCurveTo(r*0.1, r*0.22, -r*0.1, r*0.22, -r*0.22, r*0.08);
+      ctx.closePath(); ctx.fill();
+      // Gill lines
+      ctx.strokeStyle = '#a89070'; ctx.lineWidth = r*0.03;
+      for (var gi2 = -3; gi2 <= 3; gi2++) {
+        ctx.beginPath(); ctx.moveTo(gi2*r*0.22, r*0.1); ctx.lineTo(gi2*r*0.12, r*0.22); ctx.stroke();
+      }
+      // Cap
+      ctx.fillStyle = '#b07040';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.78, r*0.1);
+      ctx.bezierCurveTo(-r*0.88, -r*0.4, -r*0.55, -r*0.92, 0, -r*0.95);
+      ctx.bezierCurveTo(r*0.55, -r*0.92, r*0.88, -r*0.4, r*0.78, r*0.1);
+      ctx.closePath(); ctx.fill();
+      // Cap highlights
+      ctx.fillStyle = '#c88850';
+      ctx.beginPath(); ctx.ellipse(-r*0.15, -r*0.55, r*0.28, r*0.18, -0.4, 0, Math.PI*2); ctx.fill();
+      break;
+
+    case 'overripe_fruit': // Squashed overripe plum/fig — purple, oozing
+      // Main body, irregular squashed blob
+      ctx.fillStyle = '#6a1858';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.1, -r*0.88);
+      ctx.bezierCurveTo(r*0.65, -r*0.8, r*0.92, -r*0.1, r*0.85, r*0.5);
+      ctx.bezierCurveTo(r*0.7, r*0.92, -r*0.4, r*0.88, -r*0.82, r*0.55);
+      ctx.bezierCurveTo(-r*1.0, r*0.1, -r*0.75, -r*0.62, -r*0.1, -r*0.88);
+      ctx.fill();
+      // Oozing juice patch
+      ctx.fillStyle = '#c03880';
+      ctx.beginPath(); ctx.ellipse(r*0.2, r*0.3, r*0.42, r*0.28, 0.5, 0, Math.PI*2); ctx.fill();
+      // Stem nub
+      ctx.strokeStyle = '#3a1808'; ctx.lineWidth = r*0.1; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-r*0.08, -r*0.88); ctx.lineTo(r*0.04, -r*1.1); ctx.stroke();
+      // Wrinkled skin lines
+      ctx.strokeStyle = 'rgba(100,10,60,0.4)'; ctx.lineWidth = r*0.05;
+      ctx.beginPath(); ctx.moveTo(-r*0.5, -r*0.3); ctx.bezierCurveTo(-r*0.2, r*0.1, r*0.3, r*0.0, r*0.55, r*0.4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r*0.6, r*0.2); ctx.bezierCurveTo(-r*0.1, r*0.5, r*0.2, r*0.6, r*0.5, r*0.62); ctx.stroke();
+      break;
+
+    case 'walnut_shell': // Cracked walnut half — hard ridged shell
+      // Outer shell
+      ctx.fillStyle = '#6a3a10';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.72, r*0.1);
+      ctx.bezierCurveTo(-r*0.82, -r*0.55, -r*0.3, -r*0.92, r*0.0, -r*0.88);
+      ctx.bezierCurveTo(r*0.35, -r*0.85, r*0.82, -r*0.45, r*0.72, r*0.1);
+      ctx.bezierCurveTo(r*0.6, r*0.55, -r*0.6, r*0.55, -r*0.72, r*0.1);
+      ctx.fill();
+      // Inner pale shell wall
+      ctx.fillStyle = '#c8a868';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.58, r*0.08);
+      ctx.bezierCurveTo(-r*0.65, -r*0.38, -r*0.2, -r*0.72, r*0.0, -r*0.68);
+      ctx.bezierCurveTo(r*0.25, -r*0.65, r*0.62, -r*0.3, r*0.55, r*0.08);
+      ctx.bezierCurveTo(r*0.42, r*0.38, -r*0.42, r*0.38, -r*0.58, r*0.08);
+      ctx.fill();
+      // Ridge lines across shell
+      ctx.strokeStyle = '#4a2808'; ctx.lineWidth = r*0.06; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(0, -r*0.72); ctx.bezierCurveTo(-r*0.1, -r*0.2, -r*0.05, r*0.2, 0, r*0.42); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r*0.38, -r*0.42); ctx.bezierCurveTo(-r*0.3, -r*0.1, -r*0.28, r*0.12, -r*0.22, r*0.38); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r*0.38, -r*0.42); ctx.bezierCurveTo(r*0.3, -r*0.1, r*0.28, r*0.12, r*0.22, r*0.38); ctx.stroke();
+      break;
+
+    case 'dried_leaves': // Crumpled autumn leaf
+      ctx.fillStyle = '#8a5818';
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.95);
+      ctx.bezierCurveTo(r*0.5, -r*0.8, r*0.95, -r*0.3, r*0.88, r*0.15);
+      ctx.bezierCurveTo(r*0.75, r*0.55, r*0.3, r*0.92, 0, r*0.95);
+      ctx.bezierCurveTo(-r*0.3, r*0.92, -r*0.75, r*0.55, -r*0.88, r*0.15);
+      ctx.bezierCurveTo(-r*0.95, -r*0.3, -r*0.5, -r*0.8, 0, -r*0.95);
+      ctx.fill();
+      // Dried colour variation patches
+      ctx.fillStyle = '#c07828';
+      ctx.beginPath(); ctx.ellipse(r*0.3, -r*0.2, r*0.28, r*0.2, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-r*0.25, r*0.35, r*0.22, r*0.16, -0.4, 0, Math.PI*2); ctx.fill();
+      // Midrib and veins
+      ctx.strokeStyle = '#5a3008'; ctx.lineWidth = r*0.05; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(0, -r*0.88); ctx.lineTo(0, r*0.88); ctx.stroke();
+      ctx.lineWidth = r*0.03;
+      var dvAngles = [-0.5, -0.25, 0.25, 0.5];
+      for (var dvi=0; dvi<4; dvi++) {
+        ctx.beginPath(); ctx.moveTo(dvAngles[dvi]*r*0.3, dvi*r*0.38-r*0.38);
+        ctx.lineTo(dvAngles[dvi]*r*0.8, dvi*r*0.38-r*0.28); ctx.stroke();
+      }
+      break;
+
+    case 'straw_clump': // Clump of dried straw / hay
+      ctx.lineCap='round';
+      var stAngles = [-0.35,-0.18,-0.05,0.08,0.22,0.38,-0.28,0.15,-0.12,0.3];
+      var stCols = ['#c8a830','#d4b840','#b89820','#e0c050','#c0a028'];
+      for (var sti=0; sti<10; sti++) {
+        ctx.strokeStyle = stCols[sti%5]; ctx.lineWidth = r*0.07;
+        ctx.save(); ctx.rotate(stAngles[sti]);
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.9);
+        ctx.bezierCurveTo(r*0.1, -r*0.4, -r*0.1, r*0.2, r*0.05, r*0.92);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Binding wisp in middle
+      ctx.strokeStyle = '#906018'; ctx.lineWidth = r*0.12;
+      ctx.beginPath(); ctx.moveTo(-r*0.25, 0); ctx.lineTo(r*0.25, 0); ctx.stroke();
+      break;
+
+    case 'grass_clippings': // Handful of fresh cut grass
+      ctx.lineCap='round';
+      var gcAngles = [-0.4,-0.22,-0.08,0.05,0.18,0.32,0.45,-0.3,0.1,-0.15,0.28];
+      var gcCols = ['#508020','#68a028','#407018','#80c030','#5a9020'];
+      for (var gci=0; gci<11; gci++) {
+        ctx.strokeStyle = gcCols[gci%5]; ctx.lineWidth = r*0.06;
+        ctx.save(); ctx.rotate(gcAngles[gci]);
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.92);
+        ctx.bezierCurveTo(r*0.12, -r*0.5, -r*0.08, r*0.1, r*0.04, r*0.88);
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+
+    case 'dead_flower': // Wilted flower head — drooping petals
+      // Centre seed head
+      ctx.fillStyle = '#5a3808';
+      ctx.beginPath(); ctx.arc(0, 0, r*0.28, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#8a5818';
+      ctx.beginPath(); ctx.arc(0, 0, r*0.18, 0, Math.PI*2); ctx.fill();
+      // Drooping petals — 7 wilted, all angled downward
+      var dfPetalAngles = [0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4];
+      var dfCols = ['#c07820','#d08830','#b86818','#e09838'];
+      for (var dfi=0; dfi<7; dfi++) {
+        ctx.save();
+        ctx.rotate(dfPetalAngles[dfi]);
+        ctx.fillStyle = dfCols[dfi%4];
+        ctx.beginPath();
+        // Petals droop — control points lean down
+        ctx.moveTo(0, -r*0.25);
+        ctx.bezierCurveTo(r*0.2, -r*0.4, r*0.35, -r*0.9, r*0.12, -r*0.98);
+        ctx.bezierCurveTo(-r*0.18, -r*0.85, -r*0.22, -r*0.4, 0, -r*0.25);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Stem stub
+      ctx.strokeStyle = '#486010'; ctx.lineWidth = r*0.1;
+      ctx.beginPath(); ctx.moveTo(0, r*0.25); ctx.lineTo(r*0.08, r*0.88); ctx.stroke();
+      break;
+
+    case 'root_bulb': // Gnarly root / small bulb with trailing roots
+      // Main bulb body
+      ctx.fillStyle = '#9a7040';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.2, -r*0.72);
+      ctx.bezierCurveTo(r*0.55, -r*0.68, r*0.85, -r*0.08, r*0.75, r*0.38);
+      ctx.bezierCurveTo(r*0.6, r*0.78, -r*0.3, r*0.82, -r*0.68, r*0.48);
+      ctx.bezierCurveTo(-r*0.9, r*0.08, -r*0.72, -r*0.48, -r*0.2, -r*0.72);
+      ctx.fill();
+      // Soil patches
+      ctx.fillStyle = '#6a4820';
+      ctx.beginPath(); ctx.ellipse(r*0.2, r*0.2, r*0.25, r*0.15, 0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-r*0.28, -r*0.18, r*0.18, r*0.1, -0.3, 0, Math.PI*2); ctx.fill();
+      // Trailing root tendrils
+      ctx.strokeStyle = '#8a6030'; ctx.lineWidth = r*0.05; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(r*0.5, r*0.55); ctx.bezierCurveTo(r*0.7, r*0.8, r*0.85, r*0.9, r*0.75, r*1.05); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r*0.4, r*0.62); ctx.bezierCurveTo(-r*0.6, r*0.88, -r*0.55, r*1.0, -r*0.42, r*1.1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r*0.1, r*0.78); ctx.bezierCurveTo(r*0.2, r*1.0, r*0.12, r*1.1, r*0.18, r*1.18); ctx.stroke();
+      // Green sprout tip
+      ctx.strokeStyle = '#508020'; ctx.lineWidth = r*0.08;
+      ctx.beginPath(); ctx.moveTo(-r*0.18, -r*0.72); ctx.lineTo(-r*0.1, -r*1.05); ctx.stroke();
+      break;
+
+    case 'whole_tomato': // Ripe tomato, slightly squished
+      // Body
+      ctx.fillStyle = '#d02020';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.1, -r*0.82);
+      ctx.bezierCurveTo(r*0.65, -r*0.78, r*0.95, -r*0.18, r*0.92, r*0.28);
+      ctx.bezierCurveTo(r*0.85, r*0.78, r*0.3, r*0.95, 0, r*0.95);
+      ctx.bezierCurveTo(-r*0.35, r*0.95, -r*0.88, r*0.72, -r*0.92, r*0.22);
+      ctx.bezierCurveTo(-r*0.95, -r*0.28, -r*0.65, -r*0.8, -r*0.1, -r*0.82);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,160,140,0.35)';
+      ctx.beginPath(); ctx.ellipse(-r*0.28, -r*0.28, r*0.3, r*0.2, -0.5, 0, Math.PI*2); ctx.fill();
+      // Ribbing lines
+      ctx.strokeStyle = '#a01818'; ctx.lineWidth = r*0.04;
+      for (var tri=0; tri<4; tri++) {
+        var ta = tri * Math.PI/2 + 0.3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ta)*r*0.12, Math.sin(ta)*r*0.12-r*0.72);
+        ctx.bezierCurveTo(Math.cos(ta)*r*0.5, Math.sin(ta)*r*0.2, Math.cos(ta)*r*0.6, Math.sin(ta)*r*0.5, Math.cos(ta)*r*0.55, Math.sin(ta)*r*0.88);
+        ctx.stroke();
+      }
+      // Calyx star
+      ctx.fillStyle = '#286010';
+      for (var tci=0; tci<5; tci++) {
+        var tca = tci * Math.PI*2/5 - Math.PI/2;
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.8);
+        ctx.lineTo(Math.cos(tca)*r*0.32, Math.sin(tca)*r*0.2-r*0.82);
+        ctx.lineTo(Math.cos(tca+0.6)*r*0.1, Math.sin(tca+0.6)*r*0.1-r*0.82);
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+
+    case 'egg_shell': // Cracked eggshell halves
+      // Bottom half shell
+      ctx.fillStyle = dim('#ede8d8');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.75, r*0.1);
+      ctx.bezierCurveTo(-r*0.8, r*0.8, r*0.8, r*0.8, r*0.75, r*0.1);
+      ctx.closePath(); ctx.fill();
+      // Inner yolk residue
+      ctx.fillStyle = dim('#d4a820');
+      ctx.beginPath(); ctx.ellipse(0, r*0.5, r*0.3, r*0.2, 0, 0, Math.PI*2); ctx.fill();
+      // Top broken half, tilted
+      ctx.save(); ctx.rotate(-0.35);
+      ctx.fillStyle = dim('#f0ead8');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.6, -r*0.8);
+      ctx.bezierCurveTo(-r*0.72, -r*0.1, r*0.72, -r*0.1, r*0.6, -r*0.8);
+      ctx.closePath(); ctx.fill();
+      // Jagged crack edge on top half
+      ctx.strokeStyle = dim('#c8c0a8'); ctx.lineWidth = r*0.05;
+      ctx.beginPath();
+      ctx.moveTo(-r*0.6, -r*0.8);
+      ctx.lineTo(-r*0.3, -r*0.65); ctx.lineTo(-r*0.1, -r*0.78);
+      ctx.lineTo(r*0.15, -r*0.6); ctx.lineTo(r*0.35, -r*0.72); ctx.lineTo(r*0.6, -r*0.8);
+      ctx.stroke();
+      ctx.restore();
+      break;
+
+    case 'newspaper': // Crumpled newspaper sheet
+      ctx.fillStyle = dim('#d8d4b8');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.9, -r*0.7);
+      ctx.lineTo(-r*0.5, -r*0.95);
+      ctx.lineTo(r*0.3, -r*0.88);
+      ctx.lineTo(r*0.95, -r*0.55);
+      ctx.lineTo(r*0.85, r*0.4);
+      ctx.lineTo(r*0.4, r*0.92);
+      ctx.lineTo(-r*0.4, r*0.88);
+      ctx.lineTo(-r*0.92, r*0.5);
+      ctx.closePath(); ctx.fill();
+      // Text lines — fixed offsets, no random
+      ctx.strokeStyle = dim('#888070'); ctx.lineWidth = r*0.04;
+      var lineOffsets = [0.05, -0.03, 0.04, -0.05, 0.02, -0.04, 0.03];
+      for (var li3 = -3; li3 <= 3; li3++) {
+        var lo = lineOffsets[li3+3];
+        ctx.beginPath();
+        ctx.moveTo(-r*0.7, li3*r*0.22);
+        ctx.lineTo(r*0.68 + lo*r, li3*r*0.22 + lo*r*0.4);
+        ctx.stroke();
+      }
+      // Headline block
+      ctx.fillStyle = dim('#555048');
+      ctx.fillRect(-r*0.65, -r*0.62, r*1.3, r*0.18);
+      // Crease fold line
+      ctx.strokeStyle = dim('#a8a490'); ctx.lineWidth = r*0.06;
+      ctx.beginPath(); ctx.moveTo(-r*0.8, -r*0.2); ctx.lineTo(r*0.8, r*0.1); ctx.stroke();
+      break;
+
+    case 'tea_bag': // Tea bag with string
+      // Bag body
+      ctx.fillStyle = dim('#c8a060');
+      ctx.beginPath();
+      ctx.roundRect(-r*0.55, r*0.0, r*1.1, r*0.85, r*0.12);
+      ctx.fill();
+      // Wet tea stain darker centre
+      ctx.fillStyle = dim('#7a4820');
+      ctx.beginPath(); ctx.ellipse(0, r*0.45, r*0.32, r*0.25, 0, 0, Math.PI*2); ctx.fill();
+      // Tag top
+      ctx.fillStyle = dim('#e8e0c8');
+      ctx.beginPath(); ctx.roundRect(-r*0.22, -r*0.88, r*0.44, r*0.28, r*0.06); ctx.fill();
+      // String
+      ctx.strokeStyle = dim('#a08060'); ctx.lineWidth = r*0.05; ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.6); ctx.quadraticCurveTo(r*0.3, -r*0.35, r*0.05, r*0.0);
+      ctx.stroke();
+      // Staple
+      ctx.strokeStyle = dim('#888'); ctx.lineWidth = r*0.07;
+      ctx.beginPath(); ctx.moveTo(-r*0.1, -r*0.6); ctx.lineTo(r*0.1, -r*0.6); ctx.stroke();
+      break;
+
+    case 'orange_peel': // Orange peel strips curled
+      ctx.fillStyle = dim('#d86818');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.85, -r*0.3);
+      ctx.bezierCurveTo(-r*0.7, -r*1.0, r*0.4, -r*0.9, r*0.85, -r*0.2);
+      ctx.bezierCurveTo(r*0.7, r*0.5, -r*0.2, r*0.8, -r*0.55, r*0.7);
+      ctx.bezierCurveTo(-r*0.9, r*0.55, -r*1.0, r*0.2, -r*0.85, -r*0.3);
+      ctx.fill();
+      ctx.fillStyle = dim('#f0e8d0');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.7, -r*0.2);
+      ctx.bezierCurveTo(-r*0.55, -r*0.78, r*0.28, -r*0.7, r*0.65, -r*0.12);
+      ctx.bezierCurveTo(r*0.5, r*0.38, -r*0.12, r*0.62, -r*0.38, r*0.55);
+      ctx.bezierCurveTo(-r*0.7, r*0.4, -r*0.8, r*0.1, -r*0.7, -r*0.2);
+      ctx.fill();
+      ctx.fillStyle = dim('#c05010');
+      for (var di3 = 0; di3 < 8; di3++) {
+        var da = di3 * 0.78 + 0.3;
+        ctx.beginPath(); ctx.arc(Math.cos(da)*r*0.4, Math.sin(da)*r*0.28, r*0.04, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = dim('#e07820');
+      ctx.beginPath();
+      ctx.moveTo(r*0.2, r*0.55);
+      ctx.bezierCurveTo(r*0.7, r*0.3, r*0.85, r*0.8, r*0.4, r*0.95);
+      ctx.bezierCurveTo(r*0.1, r*1.0, -r*0.1, r*0.75, r*0.2, r*0.55);
+      ctx.fill();
+      break;
+
+    case 'bread_crust': // Crusty bread heel
+      ctx.fillStyle = dim('#c89038');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.9, r*0.5);
+      ctx.bezierCurveTo(-r*0.95, -r*0.2, -r*0.5, -r*0.9, r*0.1, -r*0.85);
+      ctx.bezierCurveTo(r*0.7, -r*0.8, r*0.95, -r*0.1, r*0.88, r*0.5);
+      ctx.closePath(); ctx.fill();
+      // Inner soft crumb
+      ctx.fillStyle = dim('#f0d880');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.65, r*0.38);
+      ctx.bezierCurveTo(-r*0.7, -r*0.1, -r*0.32, -r*0.65, r*0.08, -r*0.6);
+      ctx.bezierCurveTo(r*0.5, -r*0.55, r*0.68, -r*0.05, r*0.62, r*0.38);
+      ctx.closePath(); ctx.fill();
+      // Air bubble holes — fixed positions
+      ctx.fillStyle = dim('#c89038');
+      var bhX = [-r*0.38, -r*0.12, r*0.15, r*0.4];
+      var bhY = [-r*0.12, r*0.08, -r*0.18, r*0.05];
+      var bhA = [0.3, 0.9, 0.5, 1.2];
+      for (var bhi = 0; bhi < 4; bhi++) {
+        ctx.beginPath();
+        ctx.ellipse(bhX[bhi], bhY[bhi], r*0.07, r*0.05, bhA[bhi], 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+
+    case 'lettuce': // Wilted lettuce leaf
+      ctx.fillStyle = dim('#70b838');
+      ctx.beginPath();
+      ctx.moveTo(0, -r*0.95);
+      ctx.bezierCurveTo(r*0.8, -r*0.7, r*1.0, r*0.2, r*0.6, r*0.9);
+      ctx.bezierCurveTo(r*0.2, r*1.05, -r*0.4, r*0.85, -r*0.65, r*0.5);
+      ctx.bezierCurveTo(-r*1.0, -r*0.1, -r*0.75, -r*0.72, 0, -r*0.95);
+      ctx.fill();
+      // Leaf veins — fixed endpoint offsets
+      ctx.strokeStyle = dim('#48880e'); ctx.lineWidth = r*0.05; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(0, -r*0.8); ctx.lineTo(r*0.05, r*0.7); ctx.stroke();
+      var veinEndX = [r*0.12, r*0.52, r*0.48, -r*0.28];
+      var veinEndY = [-r*0.2, -r*0.04, r*0.24, r*0.48];
+      for (var vi = 0; vi < 4; vi++) {
+        var va = -0.6 + vi*0.4;
+        ctx.beginPath();
+        ctx.moveTo(va*r*0.1, -r*0.5 + vi*r*0.28);
+        ctx.lineTo(veinEndX[vi], veinEndY[vi]);
+        ctx.stroke();
+      }
+      // Wilting brown edges
+      if (hpFrac < 0.6) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = dim('#906020');
+        ctx.beginPath(); ctx.ellipse(r*0.55, r*0.65, r*0.22, r*0.14, 0.8, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+      break;
+
+    case 'potato': // Muddy potato
+      ctx.fillStyle = dim('#b09050');
+      ctx.beginPath();
+      ctx.moveTo(-r*0.2, -r*0.95);
+      ctx.bezierCurveTo(r*0.5, -r*0.88, r*0.92, -r*0.3, r*0.88, r*0.3);
+      ctx.bezierCurveTo(r*0.82, r*0.88, r*0.1, r*1.0, -r*0.45, r*0.85);
+      ctx.bezierCurveTo(-r*0.95, r*0.65, -r*0.92, -r*0.1, -r*0.7, -r*0.6);
+      ctx.bezierCurveTo(-r*0.55, -r*0.9, -r*0.2, -r*0.95, -r*0.2, -r*0.95);
+      ctx.fill();
+      // Mud patches
+      ctx.fillStyle = dim('#7a5828');
+      ctx.beginPath(); ctx.ellipse(-r*0.2, r*0.3, r*0.22, r*0.14, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(r*0.3, -r*0.3, r*0.15, r*0.1, -0.3, 0, Math.PI*2); ctx.fill();
+      // Eyes (sprout bumps)
+      ctx.fillStyle = dim('#d0b870');
+      for (var eyi = 0; eyi < 3; eyi++) {
+        var ea2 = eyi * 2.1 + 0.5;
+        ctx.beginPath(); ctx.arc(Math.cos(ea2)*r*0.55, Math.sin(ea2)*r*0.55, r*0.07, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+
+    case 'pasta': // Clump of cooked pasta
+      ctx.fillStyle = dim('#e8d078');
+      // Several noodle strands tangled
+      ctx.lineWidth = r*0.18; ctx.lineCap='round'; ctx.lineJoin='round';
+      var pastaPaths = [
+        [[-r*0.7,-r*0.5],[r*0.1,-r*0.8],[r*0.7,-r*0.2],[r*0.3,r*0.6]],
+        [[-r*0.4,-r*0.2],[r*0.6,r*0.1],[-r*0.1,r*0.7],[-r*0.6,r*0.3]],
+        [[r*0.2,-r*0.6],[-r*0.5,r*0.0],[r*0.4,r*0.5],[r*0.05,r*0.9]]
+      ];
+      for (var pi3 = 0; pi3 < pastaPaths.length; pi3++) {
+        ctx.strokeStyle = dim(pi3===1?'#d4b858':'#f0de90');
+        var pp = pastaPaths[pi3];
+        ctx.beginPath(); ctx.moveTo(pp[0][0], pp[0][1]);
+        for (var pj = 1; pj < pp.length; pj++) ctx.bezierCurveTo(pp[pj-1][0]+r*0.2, pp[pj-1][1], pp[pj][0]-r*0.2, pp[pj][1], pp[pj][0], pp[pj][1]);
+        ctx.stroke();
+      }
+      break;
+
+    case 'fish_bone': // Fish skeleton
+      // Spine
+      ctx.strokeStyle = dim('#d8cca8'); ctx.lineWidth = r*0.12; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-r*0.92, 0); ctx.lineTo(r*0.82, 0); ctx.stroke();
+      // Tail fan
+      ctx.fillStyle = dim('#d0c4a0');
+      ctx.beginPath();
+      ctx.moveTo(r*0.82, 0);
+      ctx.lineTo(r*1.05, -r*0.38); ctx.lineTo(r*0.88, 0); ctx.lineTo(r*1.05, r*0.38);
+      ctx.closePath(); ctx.fill();
+      // Ribs
+      ctx.lineWidth = r*0.07;
+      for (var ri3 = 0; ri3 < 6; ri3++) {
+        var rx = -r*0.6 + ri3*r*0.22;
+        ctx.strokeStyle = dim('#c8bc98');
+        ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx - r*0.08, -r*0.45); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx - r*0.08, r*0.45); ctx.stroke();
+      }
+      // Head outline
+      ctx.strokeStyle = dim('#d0c4a0'); ctx.lineWidth = r*0.1;
+      ctx.beginPath(); ctx.arc(-r*0.82, 0, r*0.28, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = dim('#1a1808');
+      ctx.beginPath(); ctx.arc(-r*0.88, -r*0.1, r*0.06, 0, Math.PI*2); ctx.fill();
+      break;
+
+    case 'broccoli': // Broccoli stalk and florets
+      // Stalk
+      ctx.fillStyle = dim('#607828');
+      ctx.beginPath(); ctx.roundRect(-r*0.14, r*0.1, r*0.28, r*0.85, r*0.08); ctx.fill();
+      // Cut stalk bottom
+      ctx.fillStyle = dim('#90b840');
+      ctx.beginPath(); ctx.ellipse(0, r*0.95, r*0.14, r*0.07, 0, 0, Math.PI*2); ctx.fill();
+      // Floret clusters
+      var floretPos = [[-r*0.38,-r*0.28],[r*0.38,-r*0.22],[0,-r*0.52],[-r*0.55,r*0.08],[r*0.52,r*0.1],[0,r*0.0]];
+      for (var fi2 = 0; fi2 < floretPos.length; fi2++) {
+        ctx.fillStyle = dim(fi2%2===0?'#3a8820':'#50a830');
+        ctx.beginPath();
+        ctx.arc(floretPos[fi2][0], floretPos[fi2][1], r*(0.22+fi2*0.03), 0, Math.PI*2);
+        ctx.fill();
+      }
+      // Darker floret tips
+      ctx.fillStyle = dim('#286010');
+      for (var fi3 = 0; fi3 < floretPos.length; fi3++) {
+        ctx.beginPath();
+        ctx.arc(floretPos[fi3][0], floretPos[fi3][1]-r*0.06, r*0.1, 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+
+  }
+}
+// ---- Debris fragment drawing ---- //
+// Draws a small torn chunk of a specific trash type, centered at (0,0), radius ~r
+// Called for both falling debris and settled tier-1 scraps
+
+function renderChunkCanvas(name, sz) {
+  var pad = Math.ceil(sz * 1.4) + 4;
+  var size = pad * 2;
+  var canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  canvas.style.display = 'block';
+  var ctx = canvas.getContext('2d');
+  ctx.save(); ctx.translate(pad, pad);
+  drawTrashChunk(ctx, name, sz, 1.0);
+  ctx.restore();
+  return canvas;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('[data-chunk]').forEach(function(el) {
+    var name = el.getAttribute('data-chunk');
+    var sz = parseInt(el.getAttribute('data-sz') || '22');
+    el.innerHTML = '';
+    el.appendChild(renderChunkCanvas(name, sz));
+  });
+});
+</script>
 </body>
 </html>
