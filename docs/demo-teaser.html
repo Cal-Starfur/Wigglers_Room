@@ -109,6 +109,7 @@ body::before {
 .section {
   padding: 28px 28px 0;
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
 }
 .section:last-child { border-bottom: none; padding-bottom: 28px; }
 
@@ -548,7 +549,7 @@ body::before {
   position: relative;
   overflow: hidden;
   width: 100%;
-  contain: layout style;
+  max-width: 100%;
   margin-bottom: 10px;
   mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
@@ -921,7 +922,7 @@ body::before {
       <h2>What I eat?</h2>
       <p>Whatever I can reach — but some things do damage.</p>
 
-      <div style="position:relative;overflow:hidden;">
+      <div style="position:relative;overflow:hidden;max-width:100%;">
       <div class="carousel-wrap">
         <div class="carousel-rows" id="food-carousel">
         <div class="fc-row" id="fc-row-1" style="animation-delay:0s">
