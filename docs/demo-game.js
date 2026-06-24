@@ -3952,7 +3952,7 @@ function updatePlayer() {
           drainDownCooldown = JUNCTION_HOLD_FRAMES;
           window._sumpHadDown = true;
           karma += 100;
-          drainBonusPopups.push({ text: '🌿 Down drain connected! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
+          drainBonusPopups.push({ text: 'Down drain connected! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
           pPath.push({x: head.x, y: 3*H, r: pSR, ti: 2, sumpExit: true});
           pPath.push(null);
           pLastX = -999; pLastY = -999;
