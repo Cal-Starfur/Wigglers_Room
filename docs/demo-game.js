@@ -3918,7 +3918,7 @@ function updatePlayer() {
           junctionTimer++;
           if (junctionTimer >= JUNCTION_HOLD_FRAMES) {
             // ── Stamp junction ──────────────────────────────────────────────
-            pPath.push({x: head.x, y: head.y, r: pSR, ti: 2, junctionTarget: junctionTargetIdx});
+            pPath.push({x: head.x, y: head.y, r: pSR, ti: 2, junctionTarget: {arr: pPath, idx: junctionTargetIdx}});
             pPath.push(null);
             pLastX = -999; pLastY = -999;
             junctionUsedPoints.push({x: head.x, y: head.y});
@@ -4379,15 +4379,16 @@ function updatePhysics() {
                 d.vy = 0.5;
                 if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Tea passed sumpExit — clog='+((pp.clog||0).toFixed(3))+' pathIdx='+d.pathIdx);
               }
-            } else if (pp.junctionTarget != null && pp.junctionTarget >= 0 && pp.junctionTarget < P.length) {
-              // Junction point — hop to the connected drain segment.
-              // Scan forward from junctionTarget to find the first point that is at or
-              // deeper than the junction's own Y, so the drop never stalls or reverses.
+            } else if (pp.junctionTarget != null && pp.junctionTarget.arr) {
+              // Junction point — hop to the connected drain segment, which may live on a
+              // DIFFERENT path (player<->NPC or NPC<->NPC). Target is a {arr, idx} reference.
+              var _jt   = pp.junctionTarget;
+              var _jarr = _jt.arr;
               var _jHopY = pp.y; // Y of the junction stamp
               var _jBest = -1;
               // First try: find a point in the target segment at or below junction Y
-              for (var _jsi = pp.junctionTarget; _jsi < P.length; _jsi++) {
-                var _jsp = P[_jsi];
+              for (var _jsi = _jt.idx; _jsi < _jarr.length; _jsi++) {
+                var _jsp = _jarr[_jsi];
                 if (!_jsp) break; // end of that segment
                 var _jsa = _jsp.alpha != null ? _jsp.alpha : 1;
                 if (_jsa <= 0) continue;
@@ -4396,8 +4397,8 @@ function updatePhysics() {
               // Fallback: deepest point in that segment regardless of Y
               if (_jBest < 0) {
                 var _jDeepY = -Infinity, _jDeepI = -1;
-                for (var _jsi2 = pp.junctionTarget; _jsi2 < P.length; _jsi2++) {
-                  var _jsp2 = P[_jsi2];
+                for (var _jsi2 = _jt.idx; _jsi2 < _jarr.length; _jsi2++) {
+                  var _jsp2 = _jarr[_jsi2];
                   if (!_jsp2) break;
                   var _jsa2 = _jsp2.alpha != null ? _jsp2.alpha : 1;
                   if (_jsa2 <= 0) continue;
@@ -4407,8 +4408,8 @@ function updatePhysics() {
               }
               if (_jBest >= 0) {
                 // Tea must not hop into a clogged connected drain — stall at the junction point.
-                var _jBestClog = (P[_jBest].clog || 0);
-                var _jBestIsSumpExit = !!(P[_jBest].sumpExit);
+                var _jBestClog = (_jarr[_jBest].clog || 0);
+                var _jBestIsSumpExit = !!(_jarr[_jBest].sumpExit);
                 if (!d.isPoop && _jBestClog >= (_jBestIsSumpExit ? 0.3 : 0.55)) {
                   // Connected drain is clogged — block here at the junction stamp point.
                   d.pathIdx     = null;
@@ -4417,9 +4418,10 @@ function updatePhysics() {
                   d.clogStalled = true;
                 } else {
                   d.prevPathIdx = d.pathIdx;
+                  d.pathArr = _jarr;   // hop ACROSS to the target's path
                   d.pathIdx = _jBest;
-                  d.x = P[_jBest].x;
-                  d.y = P[_jBest].y;
+                  d.x = _jarr[_jBest].x;
+                  d.y = _jarr[_jBest].y;
                 }
               } else {
                 // Target segment gone — free-fall
@@ -8193,12 +8195,19 @@ function updateNPCSims() {
     // ── Poop when gut >80% in compost ────────────────────────────────────
     sim.poopTimer = (sim.poopTimer || 0) - 1;
     if (sim.gut >= sim.gutMax * 0.8 && sim.poopTimer <= 0 && inCompost(sim.segs[0].y)) {
-      castings.push({
-        x: sim.segs[0].x + (Math.random() - 0.5) * sim.sr * 2,
-        y: sim.segs[0].y,
-        vy: 0.3 + Math.random() * 0.3,
-        sz: sim.sr * (0.5 + Math.random() * 0.4),
-        rest: false, restY: 0, alpha: 1
+      // Poop as a tube-routing isPoop drop (like the player) so NPC waste flows into
+      // whichever tube is nearest — its own, another NPC's, or the player's tunnels.
+      var _npGutFrac = sim.gutMax > 0 ? sim.gut / sim.gutMax : 0;
+      var _ptail = sim.segs[Math.max(0, sim.segs.length - 2)];
+      dropsPush({
+        x:              _ptail.x + (Math.random() - 0.5) * 6,
+        y:              _ptail.y,
+        vy:             0.8 + Math.random() * 0.5,
+        sz:             sim.sr * (0.5 + Math.random() * 0.4),
+        active:         true,
+        isPoop:         true,
+        clogAmt:        0.12 + _npGutFrac * 0.16,
+        enteredCompost: inCompost(_ptail.y)
       });
       sim.gut = Math.max(0, sim.gut - sim.gutMax * 0.6);
       sim.poopTimer = 300 + Math.random() * 600;
