@@ -6083,11 +6083,13 @@ function draw() {
       }
       if (!tc6.locked && tc6.hpFrac < 0.95) {
         var bw4 = curR * 2.4;
+        var pad6hp = Math.ceil(curR * 1.4) + 2; // matches prerender pad
+        var barY = tcy + depthY - pad6hp - 5;   // 5px above the image top
         ctx.globalAlpha = 0.85;
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(tc6.x - bw4/2, tcy + depthY - curR - 8, bw4, 4);
+        ctx.fillRect(tc6.x - bw4/2, barY, bw4, 4);
         ctx.fillStyle = tc6.hpFrac > 0.5 ? '#60d840' : tc6.hpFrac > 0.25 ? '#f0c020' : '#f02010';
-        ctx.fillRect(tc6.x - bw4/2, tcy + depthY - curR - 8, bw4 * tc6.hpFrac, 4);
+        ctx.fillRect(tc6.x - bw4/2, barY, bw4 * tc6.hpFrac, 4);
         ctx.globalAlpha = 1;
       }
       // Eating glow — active layer only
