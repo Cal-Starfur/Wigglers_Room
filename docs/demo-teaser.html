@@ -1106,12 +1106,16 @@ function _demoTick() {
 
   // ── Card 2 → Card 3: eating → gut full → poop ──────────────────────────────
   if (_demoState === 'eating') {
-    if (gut >= gutMax * 0.75) _demoGutWasFull = true;
+    // Clear card-digest after just one more scrap (~78%), show card-poop
+    if (gut >= gutMax * 0.78 && !_demoGutWasFull) {
+      _demoGutWasFull = true;
+      _fadeOut('card-digest');
+      _showCard('card-poop');
+    }
+    // Advance once they actually poop
     if (_demoGutWasFull && typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
       _demoPooped = true;
       _demoState = 'pooped';
-      _fadeOut('card-digest');
-      _showCard('card-poop');
     }
     return;
   }
