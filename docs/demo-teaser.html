@@ -2109,19 +2109,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    // Pause on hover, show tooltip
-    carousel.addEventListener('mouseenter', function() {
-      carousel.classList.add('paused');
-    });
-    carousel.addEventListener('mouseleave', function() {
-      carousel.classList.remove('paused');
-      tooltip.classList.remove('visible');
-    });
+    var hideTimer = null;
 
-    // Tooltip on card hover
-    carousel.addEventListener('mouseover', function(e) {
-      var card = e.target.closest('.fc-card');
-      if (!card) return;
+    function showTooltip(card) {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      carousel.classList.add('paused');
 
       var label = card.getAttribute('data-label');
       var desc  = card.getAttribute('data-desc');
@@ -2138,8 +2130,8 @@ document.addEventListener('DOMContentLoaded', function() {
       var hardEl = tooltip.querySelector('.ft-hard');
       var liqEl  = tooltip.querySelector('.ft-liq');
 
-      ptsEl.textContent  = pts + ' pts';
-      ptsEl.className    = 'ft-stat pts';
+      ptsEl.textContent = pts + ' pts';
+      ptsEl.className   = 'ft-stat pts';
 
       if (acid && acid !== 'none') {
         acidEl.textContent = 'acid ' + acid;
@@ -2151,11 +2143,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
       hardEl.textContent = hard + '% resist';
       hardEl.className   = 'ft-stat';
-
       liqEl.textContent  = 'liq ' + liq;
       liqEl.className    = 'ft-stat';
 
       tooltip.classList.add('visible');
+    }
+
+    function scheduleHide() {
+      hideTimer = setTimeout(function() {
+        carousel.classList.remove('paused');
+        tooltip.classList.remove('visible');
+        hideTimer = null;
+      }, 120);
+    }
+
+    // Per-card hover — use event delegation on carousel
+    carousel.addEventListener('mouseover', function(e) {
+      var card = e.target.closest('.fc-card');
+      if (card) showTooltip(card);
+    });
+    carousel.addEventListener('mouseleave', function() {
+      scheduleHide();
+    });
+
+    // Keep visible when mouse moves to tooltip
+    tooltip.addEventListener('mouseenter', function() {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    });
+    tooltip.addEventListener('mouseleave', function() {
+      scheduleHide();
     });
   }
 
