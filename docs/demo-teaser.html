@@ -59,6 +59,7 @@ body::before {
   max-width: 1300px;
   margin: 0 auto;
   min-height: calc(100vh - 200px);
+  overflow: hidden;
 }
 
 @media (max-width: 900px) {
@@ -91,9 +92,10 @@ body::before {
 /* ── Guide panel (right) ── */
 .guide-panel {
   padding: 0;
+  overflow-x: clip;
   overflow-y: auto;
-  overflow-x: hidden;
   position: relative; z-index: 1;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ── Guide sections ── */
