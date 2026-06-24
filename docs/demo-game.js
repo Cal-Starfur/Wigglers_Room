@@ -8169,6 +8169,25 @@ function updateNPCSims() {
       if (!_placed && sim.hist.length) { sim.segs[_i].x = sim.hist[0].x; sim.segs[_i].y = sim.hist[0].y; }
     }
 
+    // ── Carve tunnel as NPC moves through compost ────────────────────────
+    var _nHx = sim.segs[0].x, _nHy = sim.segs[0].y;
+    var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
+    var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
+    if (_nmoved > 1.5 && _nHy > H * 1.2) {
+      // Only carve in compost zone (below tier 1 scraps)
+      if (!sim._pathLastX || Math.abs(_nHx - sim._pathLastX) > sim.sr * 1.8 || Math.abs(_nHy - sim._pathLastY) > sim.sr * 1.8) {
+        pPath.push({ x: _nHx, y: _nHy, r: sim.sr * 0.85, ti: 2 });
+        sim._pathLastX = _nHx;
+        sim._pathLastY = _nHy;
+      }
+    }
+    sim._lastX = _nHx; sim._lastY = _nHy;
+
+    // ── ZZZ particles when sleeping ───────────────────────────────────────
+    if (opp.sleeping && frame % 90 === 0) {
+      pZzz.push({ x: sim.segs[0].x + (Math.random()-0.5)*sim.sr*2, wy: sim.segs[0].y - sim.sr*2, vy: -0.5, alpha: 1, size: 6 + Math.random()*5, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
+    }
+
     // ── Sync back to otherPlayers ─────────────────────────────────────────
     opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
     opp.targetX = sim.segs[0].x; opp.targetY = sim.segs[0].y;
