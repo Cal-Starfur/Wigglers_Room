@@ -674,24 +674,33 @@ var MAX_PPATH = 2000;
 // scan skip the vast majority of the 2,000-point array.
 // Each bucket key is Math.floor(y / PPATH_BUCKET_H) → array of pPath indices.
 // The index is maintained incrementally: addPoint() inserts, splice() rebuilds.
-var _pPathBuckets = {};          // { bucketKey: [pPath indices] }
+var _pPathBuckets = {};          // { bucketKey: [ {arr, idx} ] } — spatial index across ALL registered paths
 var PPATH_BUCKET_H = 8;          // px — matches worm radius; ~1–3 buckets per scan
 function _pPathBucketKey(y) { return Math.floor(y / PPATH_BUCKET_H); }
 
-// Insert one index into the bucket for a given Y.
-function _pPathBucketInsert(idx, y) {
+// Registry of every carve-able path. pPath (player) is always first; NPC sim.path
+// arrays are appended at runtime (step 2). The spatial index and drop router address
+// points as {arr, idx} so a drop can bind to and route through any registered path.
+// With only pPath registered, every {arr} resolves to pPath — behaviour is unchanged.
+var pathRegistry = [pPath];
+
+// Insert one {arr, idx} reference into the bucket for a given Y.
+function _pPathBucketInsert(arr, idx, y) {
   var k = _pPathBucketKey(y);
   if (!_pPathBuckets[k]) _pPathBuckets[k] = [];
-  _pPathBuckets[k].push(idx);
+  _pPathBuckets[k].push({ arr: arr, idx: idx });
 }
 
-// Full rebuild — called after splice() shifts all indices.
-// O(pPath.length) but only runs when MAX_PPATH is hit, not every frame.
+// Full rebuild — called after a splice() shifts indices in any registered path.
+// Walks every path in the registry. Only fires when a MAX cap is hit, not every frame.
 function _pPathBucketRebuild() {
   _pPathBuckets = {};
-  for (var _bi = 0; _bi < pPath.length; _bi++) {
-    var _bp = pPath[_bi];
-    if (_bp) _pPathBucketInsert(_bi, _bp.y);
+  for (var _ri = 0; _ri < pathRegistry.length; _ri++) {
+    var _ra = pathRegistry[_ri];
+    for (var _bi = 0; _bi < _ra.length; _bi++) {
+      var _bp = _ra[_bi];
+      if (_bp) _pPathBucketInsert(_ra, _bi, _bp.y);
+    }
   }
 }
 
@@ -804,8 +813,9 @@ function nearestPathIdx(wx, wy, xTol, yTol) {
     var bucket = _pPathBuckets[k];
     if (!bucket) continue;
     for (var _bi = 0; _bi < bucket.length; _bi++) {
-      var i = bucket[_bi];
-      var p = pPath[i];
+      var entry = bucket[_bi];
+      var i = entry.idx;
+      var p = entry.arr[entry.idx];
       if (!p) continue;
       var a = p.alpha != null ? p.alpha : 1;
       if (a <= 0) continue;
@@ -833,7 +843,7 @@ function addPoint(path, x, y, r, lastX, lastY) {
   // path === pPath check guards against any future secondary path arrays.
   var _newIdx = path.length;
   path.push({x:x, y:y, r:r, ti:ti});
-  if (path === pPath) _pPathBucketInsert(_newIdx, y);
+  if (pathRegistry.indexOf(path) >= 0) _pPathBucketInsert(path, _newIdx, y);
   // Prune oldest complete segment(s) when over cap — always cut on a null boundary
   // so no segment is left half-orphaned (drops referencing pruned indices detach safely).
   if (path.length > MAX_PPATH) {
@@ -845,13 +855,15 @@ function addPoint(path, x, y, r, lastX, lastY) {
     path.splice(0, _pruneAt);
     // PERF-2: rebuild the bucket index after splice — all indices shifted by _pruneAt.
     // O(pPath.length) but only fires when MAX_PPATH is hit, not every frame.
-    if (path === pPath) _pPathBucketRebuild();
+    if (pathRegistry.indexOf(path) >= 0) _pPathBucketRebuild();
     // Shift all pathIdx references on active drops — they point into the OLD array
     // Drops that referenced pruned entries will have pathIdx < 0 after shift and must detach.
     // (updatePhysics already handles null/missing pPath[d.pathIdx] by detaching the drop.)
     if (typeof drops !== 'undefined') {
       for (var _ppi = 0; _ppi < drops.length; _ppi++) {
         var _ppd = drops[_ppi];
+        // Only drops bound to THIS path's array are affected by its splice.
+        if ((_ppd.pathArr || pPath) !== path) continue;
         if (_ppd.pathIdx != null) {
           _ppd.pathIdx -= _pruneAt;
           if (_ppd.pathIdx < 0) { _ppd.pathIdx = null; _ppd.stalled = false; }
@@ -4244,19 +4256,19 @@ function updatePhysics() {
   // Helper: find the null-boundary index that starts the segment containing pPath[idx].
   // Returns 0 if idx is in the first segment (no null before it).
   // Used so stalled tea drops only re-scan their own segment, not cross into older tunnels.
-  function _dropSegStart(idx) {
+  function _dropSegStart(arr, idx) {
     for (var _ss = idx - 1; _ss >= 0; _ss--) {
-      if (!pPath[_ss]) return _ss + 1;
+      if (!arr[_ss]) return _ss + 1;
     }
     return 0;
   }
   // Helper: find the index one past the null boundary that ends the segment at idx.
-  // Returns pPath.length if there is no trailing null (last segment).
-  function _dropSegEnd(idx) {
-    for (var _se = idx + 1; _se < pPath.length; _se++) {
-      if (!pPath[_se]) return _se;
+  // Returns arr.length if there is no trailing null (last segment).
+  function _dropSegEnd(arr, idx) {
+    for (var _se = idx + 1; _se < arr.length; _se++) {
+      if (!arr[_se]) return _se;
     }
-    return pPath.length;
+    return arr.length;
   }
 
   // Returns the {x,y} where a drop should stall on the clog-facing side.
@@ -4266,6 +4278,7 @@ function updatePhysics() {
   for (var i = drops.length - 1; i >= 0; i--) {
     var d = drops[i];
     if (!d.active) continue;
+    var P = d.pathArr || pPath;   // the path this drop is currently bound to (defaults to player)
 
     // Free-fall move — only applied when NOT on a path tunnel.
     // When d.pathIdx is set, the steering block below handles all movement;
@@ -4280,15 +4293,15 @@ function updatePhysics() {
         if (!d.isPoop) pooled = Math.min(1, pooled + 0.005);
       }
 
-      // Follow pPath — attach to nearest path point at or below drop, then walk forward
+      // Follow P — attach to nearest path point at or below drop, then walk forward
       if (d.pathIdx != null) {
-        var pp = pPath[d.pathIdx];
+        var pp = P[d.pathIdx];
         if (!pp || (pp.alpha != null && pp.alpha <= 0)) {
           // Target point deleted or faded — detach, free-fall from here
-          d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+          d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
           d.pathIdx = null;
         } else {
-          // On pPath — tunnel acts as clear channel, speed governed by angle of segment
+          // On P — tunnel acts as clear channel, speed governed by angle of segment
           // ptdist needs computing first for angle, then reused for steering
           var ptdx = pp.x - d.x, ptdy = pp.y - d.y;
           var ptdist = Math.sqrt(ptdx*ptdx + ptdy*ptdy);
@@ -4313,7 +4326,7 @@ function updatePhysics() {
             // Reached this point
             d.x = pp.x; d.y = pp.y;
             if (d.isPoop && typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE && (frame % 6 === 0)) {
-              console.log('[POOP-ARRIVE] y='+pp.y.toFixed(1)+' sumpExit='+!!pp.sumpExit+' junctionTarget='+pp.junctionTarget+' clog='+(pp.clog||0).toFixed(3)+' pathIdx='+d.pathIdx+' pPathLen='+pPath.length);
+              console.log('[POOP-ARRIVE] y='+pp.y.toFixed(1)+' sumpExit='+!!pp.sumpExit+' junctionTarget='+pp.junctionTarget+' clog='+(pp.clog||0).toFixed(3)+' pathIdx='+d.pathIdx+' pPathLen='+P.length);
             }
             // If this is the sealed sump exit point — drop into sump OR deposit clog
             if (pp.sumpExit) {
@@ -4323,8 +4336,8 @@ function updatePhysics() {
                 // For an up-drain the sumpExit is the entry at the bottom and live points
                 // continue upward — poop should advance past it, not clog the entry.
                 var _nextAfterExit = false;
-                for (var _nae = d.pathIdx + 1; _nae < pPath.length; _nae++) {
-                  var _naep = pPath[_nae];
+                for (var _nae = d.pathIdx + 1; _nae < P.length; _nae++) {
+                  var _naep = P[_nae];
                   if (!_naep) break; // segment boundary — nothing follows
                   var _naea = _naep.alpha != null ? _naep.alpha : 1;
                   if (_naea > 0) { _nextAfterExit = true; break; }
@@ -4344,10 +4357,10 @@ function updatePhysics() {
                   d.upDrain = true; // switch advance direction: poop now climbs toward shallower points
                   // Lock to this segment immediately — prevents the rescan from snapping
                   // the poop to a nearby down-drain if the up-drain advance stalls or detaches.
-                  d.lastSegStart = _dropSegStart(d.pathIdx);
-                  d.lastSegEnd   = _dropSegEnd(d.pathIdx);
-                  for (var _uae = d.pathIdx + 1; _uae < pPath.length; _uae++) {
-                    var _uaep = pPath[_uae];
+                  d.lastSegStart = _dropSegStart(P, d.pathIdx);
+                  d.lastSegEnd   = _dropSegEnd(P, d.pathIdx);
+                  for (var _uae = d.pathIdx + 1; _uae < P.length; _uae++) {
+                    var _uaep = P[_uae];
                     if (!_uaep) break;
                     var _uaea = _uaep.alpha != null ? _uaep.alpha : 1;
                     if (_uaea > 0) { d.prevPathIdx = d.pathIdx; d.pathIdx = _uae; break; }
@@ -4366,15 +4379,15 @@ function updatePhysics() {
                 d.vy = 0.5;
                 if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Tea passed sumpExit — clog='+((pp.clog||0).toFixed(3))+' pathIdx='+d.pathIdx);
               }
-            } else if (pp.junctionTarget != null && pp.junctionTarget >= 0 && pp.junctionTarget < pPath.length) {
+            } else if (pp.junctionTarget != null && pp.junctionTarget >= 0 && pp.junctionTarget < P.length) {
               // Junction point — hop to the connected drain segment.
               // Scan forward from junctionTarget to find the first point that is at or
               // deeper than the junction's own Y, so the drop never stalls or reverses.
               var _jHopY = pp.y; // Y of the junction stamp
               var _jBest = -1;
               // First try: find a point in the target segment at or below junction Y
-              for (var _jsi = pp.junctionTarget; _jsi < pPath.length; _jsi++) {
-                var _jsp = pPath[_jsi];
+              for (var _jsi = pp.junctionTarget; _jsi < P.length; _jsi++) {
+                var _jsp = P[_jsi];
                 if (!_jsp) break; // end of that segment
                 var _jsa = _jsp.alpha != null ? _jsp.alpha : 1;
                 if (_jsa <= 0) continue;
@@ -4383,8 +4396,8 @@ function updatePhysics() {
               // Fallback: deepest point in that segment regardless of Y
               if (_jBest < 0) {
                 var _jDeepY = -Infinity, _jDeepI = -1;
-                for (var _jsi2 = pp.junctionTarget; _jsi2 < pPath.length; _jsi2++) {
-                  var _jsp2 = pPath[_jsi2];
+                for (var _jsi2 = pp.junctionTarget; _jsi2 < P.length; _jsi2++) {
+                  var _jsp2 = P[_jsi2];
                   if (!_jsp2) break;
                   var _jsa2 = _jsp2.alpha != null ? _jsp2.alpha : 1;
                   if (_jsa2 <= 0) continue;
@@ -4394,8 +4407,8 @@ function updatePhysics() {
               }
               if (_jBest >= 0) {
                 // Tea must not hop into a clogged connected drain — stall at the junction point.
-                var _jBestClog = (pPath[_jBest].clog || 0);
-                var _jBestIsSumpExit = !!(pPath[_jBest].sumpExit);
+                var _jBestClog = (P[_jBest].clog || 0);
+                var _jBestIsSumpExit = !!(P[_jBest].sumpExit);
                 if (!d.isPoop && _jBestClog >= (_jBestIsSumpExit ? 0.3 : 0.55)) {
                   // Connected drain is clogged — block here at the junction stamp point.
                   d.pathIdx     = null;
@@ -4405,12 +4418,12 @@ function updatePhysics() {
                 } else {
                   d.prevPathIdx = d.pathIdx;
                   d.pathIdx = _jBest;
-                  d.x = pPath[_jBest].x;
-                  d.y = pPath[_jBest].y;
+                  d.x = P[_jBest].x;
+                  d.y = P[_jBest].y;
                 }
               } else {
                 // Target segment gone — free-fall
-                d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                 d.pathIdx = null;
                 d.vy = Math.max(0.08, d.vy);
               }
@@ -4422,8 +4435,8 @@ function updatePhysics() {
               var nextIsHorizontal = false;
               if (d.upDrain) {
                 // ── Up-drain: advance toward shallower points ──────────────────────
-                for (var pi8 = d.pathIdx + 1; pi8 < pPath.length; pi8++) {
-                  var upp = pPath[pi8];
+                for (var pi8 = d.pathIdx + 1; pi8 < P.length; pi8++) {
+                  var upp = P[pi8];
                   if (!upp) break;
                   var ua = upp.alpha != null ? upp.alpha : 1;
                   if (ua <= 0) continue;
@@ -4461,15 +4474,15 @@ function updatePhysics() {
                     d.clogStalled = true;
                   } else {
                     // No clog — tea exits the top of the up-drain and free-falls from here
-                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                    d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
                 }
               } else {
               // ── Normal: advance toward deeper points ───────────────────────────
-              for (var pi3 = d.pathIdx + 1; pi3 < pPath.length; pi3++) {
-                var npp = pPath[pi3];
+              for (var pi3 = d.pathIdx + 1; pi3 < P.length; pi3++) {
+                var npp = P[pi3];
                 if (!npp) break;
                 var na = npp.alpha != null ? npp.alpha : 1;
                 if (na <= 0) continue;
@@ -4503,8 +4516,8 @@ function updatePhysics() {
               }
               if (!advanced && nextIsHorizontal) {
                 // Horizontal section — advance along it regardless of whether descent follows
-                for (var pi7 = d.pathIdx + 1; pi7 < pPath.length; pi7++) {
-                  var hpp2 = pPath[pi7];
+                for (var pi7 = d.pathIdx + 1; pi7 < P.length; pi7++) {
+                  var hpp2 = P[pi7];
                   if (!hpp2) break;
                   var ha2 = hpp2.alpha != null ? hpp2.alpha : 1;
                   if (ha2 <= 0) continue;
@@ -4512,7 +4525,7 @@ function updatePhysics() {
                 }
                 // If nothing ahead on the horizontal — detach and free-fall from here
                 if (!advanced) {
-                  d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                  d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                   d.pathIdx = null;
                   d.vy = Math.max(0.05, d.vy);
                   advanced = true; // prevent backward scan re-attaching
@@ -4522,7 +4535,7 @@ function updatePhysics() {
                 // Nothing deeper forward — scan backward within the SAME segment only.
                 // Stop at null (segment boundary) to prevent drops drifting into older tunnels.
                 for (var pi5 = d.pathIdx - 1; pi5 >= 0; pi5--) {
-                  var bpp = pPath[pi5];
+                  var bpp = P[pi5];
                   if (!bpp) break; // stop at segment boundary — do NOT cross into other tunnels
                   var ba = bpp.alpha != null ? bpp.alpha : 1;
                   if (ba <= 0) continue;
@@ -4541,8 +4554,8 @@ function updatePhysics() {
                   // Before depositing, scan forward for a sumpExit still ahead in this segment.
                   // Poop may have stalled on a flat/upward section before reaching the drain mouth.
                   var _foundSumpFwd = false;
-                  for (var _sf = d.pathIdx + 1; _sf < pPath.length; _sf++) {
-                    var _sfp = pPath[_sf];
+                  for (var _sf = d.pathIdx + 1; _sf < P.length; _sf++) {
+                    var _sfp = P[_sf];
                     if (!_sfp) break;
                     var _sfa = _sfp.alpha != null ? _sfp.alpha : 1;
                     if (_sfa <= 0) continue;
@@ -4560,9 +4573,9 @@ function updatePhysics() {
                   // Check if any point in this segment is clogged
                   var _segHasClog = (pp.clog || 0) > 0;
                   if (!_segHasClog) {
-                    var _chkS = _dropSegStart(d.pathIdx), _chkE = _dropSegEnd(d.pathIdx);
+                    var _chkS = _dropSegStart(P, d.pathIdx), _chkE = _dropSegEnd(P, d.pathIdx);
                     for (var _chk = _chkS; _chk < _chkE; _chk++) {
-                      var _chkP = pPath[_chk];
+                      var _chkP = P[_chk];
                       if (_chkP && (_chkP.clog || 0) >= 0.55) { _segHasClog = true; break; }
                     }
                   }
@@ -4573,7 +4586,7 @@ function updatePhysics() {
                     d.stalled     = true;
                     d.clogStalled = true;
                   } else {
-                    d.lastSegStart = _dropSegStart(d.pathIdx); d.lastSegEnd = _dropSegEnd(d.pathIdx);
+                    d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
                   }
@@ -4627,13 +4640,13 @@ function updatePhysics() {
 
         // Even while stalled, keep scanning for a nearby tunnel that could carry
         // this drop the rest of the way down.
-        var _bestIdx = -1, _bestDist = 999999;
+        var _bestArr = null, _bestIdx = -1, _bestDist = 999999;
         var _scanX = d.x, _scanY = d.y;
         // Poop scans only the current active segment — prevents snapping to distant
-        // tunnels carved elsewhere. Tea scans all of pPath as before.
+        // tunnels carved elsewhere. Tea scans all of P as before.
         var _xTol = d.isPoop ? pSR * 1.8 : (d.stalled ? pSR * 5 : pSR * 2);
         var _yTol = d.isPoop ? pSR * 2.5 : (d.stalled ? pSR * 5 : pSR * 2);
-        // Both poop and tea scan all of pPath. Poop previously only scanned
+        // Both poop and tea scan all of P. Poop previously only scanned
         // the current active segment to prevent jumping, but that stopped it
         // from finding sealed sump-connected tunnels. Null boundaries now
         // do the isolation work — segment scanning stops at nulls naturally.
@@ -4643,7 +4656,7 @@ function updatePhysics() {
         // Poop in upDrain mode is also locked to its segment.
         var _scanRestricted = (d.isPoop && d.upDrain) && d.lastSegStart != null;
         var _rStart = _scanRestricted ? d.lastSegStart : _scanStart;
-        var _rEnd   = _scanRestricted ? d.lastSegEnd   : pPath.length;
+        var _rEnd   = _scanRestricted ? d.lastSegEnd   : P.length;
 
         // PERF-2: build a candidate index set from Y-buckets so the inner loop
         // only visits points near this drop instead of all 2,000.
@@ -4670,8 +4683,9 @@ function updatePhysics() {
         // Scan: either bucket candidates (fast path) or the full index range (restricted / fallback).
         var _scanLen = _useBuckets ? _bucketCandidates.length : (_rEnd - _rStart);
         for (var _siLoop = 0; _siLoop < _scanLen; _siLoop++) {
-          var _si = _useBuckets ? _bucketCandidates[_siLoop] : (_rStart + _siLoop);
-          var _sp = pPath[_si];
+          var _cand = _useBuckets ? _bucketCandidates[_siLoop] : { arr: P, idx: _rStart + _siLoop };
+          var _carr = _cand.arr, _si = _cand.idx;
+          var _sp = _carr[_si];
           if (!_sp) continue;
           var _sa = _sp.alpha != null ? _sp.alpha : 1;
           if (_sa <= 0) continue;
@@ -4682,8 +4696,8 @@ function updatePhysics() {
           if (Math.abs(_sp.x - _scanX) > _xTol) continue;
           // Check both forward and backward in this segment for a deeper point
           var _segHasDeeper = false;
-          for (var _si2 = _si + 1; _si2 < Math.min(pPath.length, _si + 60); _si2++) {
-            var _sp2 = pPath[_si2];
+          for (var _si2 = _si + 1; _si2 < Math.min(_carr.length, _si + 60); _si2++) {
+            var _sp2 = _carr[_si2];
             if (!_sp2) break;
             var _sa2 = _sp2.alpha != null ? _sp2.alpha : 1;
             if (_sa2 <= 0) continue;
@@ -4692,7 +4706,7 @@ function updatePhysics() {
           if (!_segHasDeeper) {
             // Also scan backward within the same segment only — stop at null boundary
             for (var _si3 = _si - 1; _si3 >= Math.max(0, _si - 60); _si3--) {
-              var _sp3 = pPath[_si3];
+              var _sp3 = _carr[_si3];
               if (!_sp3) break; // stop at segment boundary — do NOT cross into other tunnels
               var _sa3 = _sp3.alpha != null ? _sp3.alpha : 1;
               if (_sa3 <= 0) continue;
@@ -4711,13 +4725,14 @@ function updatePhysics() {
           var _dist = Math.sqrt(_ddx*_ddx + _ddy*_ddy);
           // Poop: hard cap on snap distance — never teleport more than ~2 worm radii away
           if (d.isPoop && _dist > pSR * 2.2) continue;
-          if (_dist < _bestDist) { _bestIdx = _si; _bestDist = _dist; }
+          if (_dist < _bestDist) { _bestArr = _carr; _bestIdx = _si; _bestDist = _dist; }
         }
         if (_bestIdx >= 0) {
           d.prevPathIdx  = null;   // fresh attachment — no meaningful previous index yet
+          d.pathArr      = _bestArr;
           d.pathIdx      = _bestIdx;
-          d.x            = pPath[_bestIdx].x;
-          d.y            = pPath[_bestIdx].y;
+          d.x            = _bestArr[_bestIdx].x;
+          d.y            = _bestArr[_bestIdx].y;
           d.stalled      = false;  // tunnel found — resume flowing
           d.clogStalled  = false;  // clear blockage flag
           d.stallDepth   = null;   // allow re-stall if it detaches again deeper down
