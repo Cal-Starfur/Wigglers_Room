@@ -3951,6 +3951,12 @@ function updatePlayer() {
           drainUpTimer = 0;
           drainDownCooldown = JUNCTION_HOLD_FRAMES;
           window._sumpHadDown = true;
+          // Demo: grant a cocoon on down-drain connect
+          if (window._demoMode && cocoons.filter(function(c){ return c.owner === username; }).length === 0) {
+            var _dnow = Date.now();
+            cocoons.push({ x: head.x, y: Math.max(2.7*H, head.y), owner: username, laid: _dnow, gifted: false, matured: true });
+            window._cocoonMsg = '🥚 Cocoon formed!'; window._cocoonMsgT = frame;
+          }
           pPath.push({x: head.x, y: 3*H, r: pSR, ti: 2, sumpExit: true});
           pPath.push(null);
           pLastX = -999; pLastY = -999;
@@ -4029,12 +4035,6 @@ function updatePlayer() {
         karma += 100;
         drainBonusPopups.push({ text: '🌿 Up drain complete! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
         window._upDrainBonusFired = true;
-        // Demo: grant a cocoon immediately on drain connect
-        if (window._demoMode && cocoons.filter(function(c){ return c.owner === username; }).length === 0) {
-          var _now = Date.now();
-          cocoons.push({ x: head.x, y: Math.max(2.7*H, head.y), owner: username, laid: _now, gifted: false, matured: true });
-          window._cocoonMsg = '🥚 Cocoon formed!'; window._cocoonMsgT = frame;
-        }
         // Seal the completed up-drain as its own segment so drops can't
         // jump across into other tunnels. The sumpExit at the bottom stays
         // as the drain point — this null gives the tunnel its own identity.
