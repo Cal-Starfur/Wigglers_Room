@@ -58,18 +58,12 @@ body::before {
   gap: 0;
   max-width: 1300px;
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: calc(100vh - 200px);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
   .game-panel { height: 60vw; min-height: 300px; position: relative; }
-}
-
-@media (min-width: 701px) and (max-width: 1100px) {
-  .layout { grid-template-columns: 1fr minmax(0, 320px); }
-  .guide-panel { max-width: 320px; }
-  .section { padding: 20px 18px 0; }
 }
 
 /* ── Game panel (left) ── */
@@ -100,9 +94,6 @@ body::before {
   overflow-y: auto;
   overflow-x: hidden;
   position: relative; z-index: 1;
-  min-width: 0;
-  width: 100%;
-  max-width: 400px;
 }
 
 /* ── Guide sections ── */
