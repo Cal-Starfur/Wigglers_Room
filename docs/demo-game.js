@@ -8076,7 +8076,7 @@ function updateNPCSims() {
         sim.segs[_sc].y += (_scy + Math.sin(_ca) * _cr * 0.6 - sim.segs[_sc].y) * 0.14;
       }
       if (inCompost(sim.segs[0].y)) sim.hp = Math.min(1, sim.hp + 0.00002);
-      if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; sim.sleepTimer = 1800 + Math.random() * 3600; }
+      if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; sim.sleepTimer = 1800 + Math.random() * 3600; sim._pathLastX = null; sim._pathLastY = null; }
       opp.sleeping = true;
       opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
       // ZZZ particles for sleeping NPCs
@@ -8177,13 +8177,17 @@ function updateNPCSims() {
     var _nHx = sim.segs[0].x, _nHy = sim.segs[0].y;
     var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
     var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
-    if (_nmoved > 0.2 && _nHy > H * 1.2) {
-      // Only carve in compost zone (below tier 1 scraps)
-      if (!sim._pathLastX || Math.abs(_nHx - sim._pathLastX) > sim.sr * 1.8 || Math.abs(_nHy - sim._pathLastY) > sim.sr * 1.8) {
-        pPath.push({ x: _nHx, y: _nHy, r: sim.sr * 0.85, ti: 2 });
-        sim._pathLastX = _nHx;
-        sim._pathLastY = _nHy;
-      }
+    if (_nmoved > 0.1) {
+      // Insert a null separator if this NPC jumped far (new segment) or is just starting
+      var _nJump = (sim._pathLastX != null) &&
+                   (Math.abs(_nHx - sim._pathLastX) > sim.sr * 6 ||
+                    Math.abs(_nHy - sim._pathLastY) > sim.sr * 6);
+      if (!sim._pathLastX || _nJump) pPath.push(null);
+      // Use addPoint() — handles min-distance, tier check, bucket index, null-on-jump, pruning
+      var _carved = addPoint(pPath, _nHx, _nHy, sim.sr * 0.85,
+                             sim._pathLastX != null ? sim._pathLastX : _nHx - _nmx,
+                             sim._pathLastY != null ? sim._pathLastY : _nHy - _nmy);
+      if (_carved) { sim._pathLastX = _nHx; sim._pathLastY = _nHy; }
     }
     sim._lastX = _nHx; sim._lastY = _nHy;
 
