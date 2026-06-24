@@ -717,6 +717,7 @@ var clitellumReady    = false;
 var JUNCTION_HOLD_FRAMES = 90;   // ~1.5s at 60fps
 var junctionTimer = 0;           // counts up while worm holds still over a drain
 var junctionTargetIdx = -1;      // pPath index of nearest sump-connected point
+var junctionTargetRef = null;    // {arr, idx} of the cross-path point being held over
 var junctionUsedPoints = [];     // [{x,y}] locations already junctioned — no re-use
 var junctionCarveOrigin = null;  // {x,y} set on junction stamp — suppresses carving until 20px away
 var drainDownTimer = 0;          // charges while worm holds still at sump (down drain)
@@ -3885,64 +3886,76 @@ function updatePlayer() {
   // Only active in compost, not at the sump boundary itself
   if (!_atSump && inCompost(head.y)) {
     if (_hmoved < 0.01) {
-      // Find where the current active segment starts (after the last null)
+      // Find where the player's OWN active segment starts (after the last null) —
+      // you can't junction the tube you're currently carving into itself.
       var _activeSegStart = 0;
       for (var _asi = pPath.length - 1; _asi >= 0; _asi--) {
         if (!pPath[_asi]) { _activeSegStart = _asi + 1; break; }
       }
-      // Scan for a nearby sump-connected path point NOT in the current active segment
-      var _jFound = -1;
+      // Scan EVERY registered path for the nearest junctionable point. On the player's
+      // own path only points BEFORE the active segment are eligible; on every other
+      // path (NPC tubes) all points are fair game.
+      var _jFoundArr = null, _jFoundIdx = -1, _jBestD = Infinity;
       var _jProx = pSR * 2;
-      for (var _ji = 0; _ji < _activeSegStart; _ji++) {
-        var _jp = pPath[_ji];
-        if (!_jp) continue;
-        var _ja = _jp.alpha != null ? _jp.alpha : 1;
-        if (_ja <= 0) continue;
-        if (Math.abs(_jp.x - head.x) > _jProx || Math.abs(_jp.y - head.y) > _jProx) continue;
-        // Skip locations already junctioned
-        var _jUsed = false;
-        for (var _jui = 0; _jui < junctionUsedPoints.length; _jui++) {
-          var _ju = junctionUsedPoints[_jui];
-          if (Math.abs(_ju.x - _jp.x) < pSR * 3 && Math.abs(_ju.y - _jp.y) < pSR * 3) { _jUsed = true; break; }
+      for (var _jpi = 0; _jpi < pathRegistry.length; _jpi++) {
+        var _jArrS = pathRegistry[_jpi];
+        var _jLimit = (_jArrS === pPath) ? _activeSegStart : _jArrS.length;
+        for (var _ji = 0; _ji < _jLimit; _ji++) {
+          var _jp = _jArrS[_ji];
+          if (!_jp) continue;
+          var _ja = _jp.alpha != null ? _jp.alpha : 1;
+          if (_ja <= 0) continue;
+          var _jdxA = Math.abs(_jp.x - head.x), _jdyA = Math.abs(_jp.y - head.y);
+          if (_jdxA > _jProx || _jdyA > _jProx) continue;
+          // Skip locations already junctioned
+          var _jUsed = false;
+          for (var _jui = 0; _jui < junctionUsedPoints.length; _jui++) {
+            var _ju = junctionUsedPoints[_jui];
+            if (Math.abs(_ju.x - _jp.x) < pSR * 3 && Math.abs(_ju.y - _jp.y) < pSR * 3) { _jUsed = true; break; }
+          }
+          if (_jUsed) continue;
+          var _jdSum = _jdxA + _jdyA;
+          if (_jdSum < _jBestD) { _jBestD = _jdSum; _jFoundArr = _jArrS; _jFoundIdx = _ji; }
         }
-        if (_jUsed) continue;
-        _jFound = _ji; break;
       }
-      if (_jFound >= 0) {
-        // Holding still over a valid drain — advance timer
-        if (junctionTargetIdx !== _jFound) {
+      if (_jFoundArr) {
+        // Holding still over a valid drain point — advance timer
+        if (!junctionTargetRef || junctionTargetRef.arr !== _jFoundArr || junctionTargetRef.idx !== _jFoundIdx) {
           // Moved to a different point — reset
           junctionTimer = 0;
-          junctionTargetIdx = _jFound;
+          junctionTargetRef = { arr: _jFoundArr, idx: _jFoundIdx };
         } else {
           junctionTimer++;
           if (junctionTimer >= JUNCTION_HOLD_FRAMES) {
-            // ── Stamp junction ──────────────────────────────────────────────
-            pPath.push({x: head.x, y: head.y, r: pSR, ti: 2, junctionTarget: {arr: pPath, idx: junctionTargetIdx}});
+            // ── Stamp junction onto the player's tube, targeting ANY path ────
+            pPath.push({x: head.x, y: head.y, r: pSR, ti: 2, junctionTarget: { arr: junctionTargetRef.arr, idx: junctionTargetRef.idx }});
             pPath.push(null);
             pLastX = -999; pLastY = -999;
             junctionUsedPoints.push({x: head.x, y: head.y});
+            if (junctionUsedPoints.length > 200) junctionUsedPoints.shift(); // bound growth
             junctionCarveOrigin = {x: head.x, y: head.y}; // suppress carving for 20px
             var jScore = Math.round(15 * (1 + compostDepth(head.y)));
             karma += jScore;
             drainBonusPopups.push({ text: '🌿 Junction linked! +' + jScore, x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
             junctionTimer = 0;
-            junctionTargetIdx = -1;
+            junctionTargetRef = null;
           }
         }
       } else {
         // No drain nearby — reset
         junctionTimer = 0;
-        junctionTargetIdx = -1;
+        junctionTargetRef = null;
       }
     } else {
       // Worm moved — reset
       junctionTimer = 0;
       junctionTargetIdx = -1;
+      junctionTargetRef = null;
     }
   } else {
     junctionTimer = 0;
     junctionTargetIdx = -1;
+    junctionTargetRef = null;
   }
   // Drain connections — worm holds still at sump to charge, same mechanic as junction.
   // Down drain: first hold stamps sumpExit + seals segment, rewards if tunnel spans to top.
@@ -8247,9 +8260,9 @@ function updateNPCSims() {
     }
 
     // ── Carve tunnel as NPC moves through compost ────────────────────────
-    // Each NPC carves into its OWN path array (sim.path), never pPath. This keeps
-    // NPC trails purely cosmetic and fully isolated from the player's tunnel
-    // mechanics (junctions, drains, drop attachment, sump connectivity, pruning).
+    // Each NPC carves into its OWN path array (sim.path), registered in pathRegistry
+    // so drops route through it. As it roams it auto-junctions into nearby tubes on
+    // any other path (player or another NPC) — see the auto-junction block below.
     var _nHx = sim.segs[0].x, _nHy = sim.segs[0].y;
     var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
     var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
@@ -8258,7 +8271,46 @@ function updateNPCSims() {
       var _carved = addPoint(sim.path, _nHx, _nHy, sim.sr * 0.85,
                              sim._pathLastX != null ? sim._pathLastX : _nHx - _nmx,
                              sim._pathLastY != null ? sim._pathLastY : _nHy - _nmy);
-      if (_carved) { sim._pathLastX = _nHx; sim._pathLastY = _nHy; }
+      if (_carved) {
+        sim._pathLastX = _nHx; sim._pathLastY = _nHy;
+        // ── NPC auto-junction — link this tube into a nearby tube on ANY other
+        //    path (player or another NPC) as the NPC roams. Throttled per NPC.
+        sim._jcool = (sim._jcool || 0) - 1;
+        if (sim._jcool <= 0) {
+          var _naProx = sim.sr * 2;
+          var _naFoundArr = null, _naFoundIdx = -1, _naBestD = Infinity;
+          for (var _napi = 0; _napi < pathRegistry.length; _napi++) {
+            var _naArr = pathRegistry[_napi];
+            if (_naArr === sim.path) continue; // never junction into own tube
+            for (var _naj = 0; _naj < _naArr.length; _naj++) {
+              var _nap = _naArr[_naj];
+              if (!_nap) continue;
+              var _naa = _nap.alpha != null ? _nap.alpha : 1;
+              if (_naa <= 0) continue;
+              var _nadx = Math.abs(_nap.x - _nHx), _nady = Math.abs(_nap.y - _nHy);
+              if (_nadx > _naProx || _nady > _naProx) continue;
+              var _naUsed = false;
+              for (var _naui = 0; _naui < junctionUsedPoints.length; _naui++) {
+                var _nau = junctionUsedPoints[_naui];
+                if (Math.abs(_nau.x - _nap.x) < sim.sr * 3 && Math.abs(_nau.y - _nap.y) < sim.sr * 3) { _naUsed = true; break; }
+              }
+              if (_naUsed) continue;
+              var _nad = _nadx + _nady;
+              if (_nad < _naBestD) { _naBestD = _nad; _naFoundArr = _naArr; _naFoundIdx = _naj; }
+            }
+          }
+          if (_naFoundArr) {
+            // Stamp a junction on the NPC's own tube targeting the foreign point, then
+            // seal the segment (null) so the link reads as its own connector.
+            sim.path.push({ x: _nHx, y: _nHy, r: sim.sr, ti: 2, junctionTarget: { arr: _naFoundArr, idx: _naFoundIdx } });
+            sim.path.push(null);
+            sim._pathLastX = null; sim._pathLastY = null;
+            junctionUsedPoints.push({ x: _nHx, y: _nHy });
+            if (junctionUsedPoints.length > 200) junctionUsedPoints.shift(); // bound growth
+            sim._jcool = 240 + Math.floor(Math.random() * 240); // ~4-8s before the next auto-junction
+          }
+        }
+      }
     }
     sim._lastX = _nHx; sim._lastY = _nHy;
 
