@@ -2388,32 +2388,5 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 
-<script id="layout-diag">
-(function() {
-  function runDiag() {
-    var results = [];
-    var selectors = [
-      'body', '.layout', '.guide-panel', '.section',
-      '.carousel-wrap', '.carousel-rows', '.fc-row', '.fc-card'
-    ];
-    selectors.forEach(function(sel) {
-      var el = document.querySelector(sel);
-      if (!el) return;
-      results.push(sel + ': offsetWidth=' + el.offsetWidth + ' scrollWidth=' + el.scrollWidth);
-    });
-    // Show as overlay
-    var div = document.createElement('div');
-    div.style.cssText = 'position:fixed;top:0;left:0;right:0;background:rgba(0,0,0,0.92);color:#0f0;font:11px monospace;padding:8px;z-index:9999;white-space:pre;overflow:auto;max-height:50vh;';
-    div.textContent = results.join('\n');
-    document.body.appendChild(div);
-    div.addEventListener('click', function() { div.remove(); });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { setTimeout(runDiag, 500); });
-  } else {
-    setTimeout(runDiag, 500);
-  }
-})();
-</script>
 </body>
 </html>
