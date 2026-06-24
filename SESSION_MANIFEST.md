@@ -1,5 +1,5 @@
 # Session Manifest — Wigglers Room
-Session: 26 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
+Session: 27 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
 
 ## Blocked
 - ISS-19 (localStorage race condition) — blocked until 2026-07-01
@@ -9,27 +9,42 @@ Session: 26 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
 - UX/design work on docs/demo-teaser.html + docs/demo-game.js
 - NPC full simulation (Option B) shipped: gut, eat, poop, sleep, waypoints, gen colour, seg chain
 - NPC username labels and gen badges removed from ghost worm render
-- All guide copy rewritten in Wiggler's voice (Wiggler speaks directly to the player)
-- Baseline critique saved: docs/.impeccable/critique/demo-teaser-baseline.md (score: 16/40)
-- Marketing sequence executing — Day 3 post due today (r/gamedev)
+- Guide panel fully rewritten in player voice, stripped to exact approved copy
+- Food section replaced with 27-chunk horizontal carousel (2 rows, seamless loop, hover tooltips)
+- New docs/trash-chunks.html — standalone asset sheet for all 27 in-game scrap chunks
+- Animated HP/Gut stat bars in guide panel with flashing Eat!/Poop! indicators (exact game logic)
+- Animated acid worm canvas (pink→green color cycle, exact game color math)
+- Layout wrap bug fixed — guide-panel locked to 400px, breakpoint lowered to 700px
 
-## Session 26 commits (all to main)
-- d245491 docs/demo-game.js — NPC full sim (Option B): gut, eat, poop, sleep, waypoints, gen colour, seg chain + updateNPCSims() + loop hook + new ghost worm draw block
-- 419d1a8 docs/demo-teaser.html — Attach .sim to injected NPCs; remove stale _updateNPCPositions from _demoTick
-- 2a66e75 docs/demo-game.js — Remove username labels and gen badges from NPC ghost worms
-- deb7ed8 docs/demo-teaser.html — Rewrite all guide copy in Wiggler's voice
+## Session 27 commits (all to main)
+- 91fadd4 docs/demo-teaser.html — Bin layer guide rewrite: My Bin, simplified 1–4 labels and player-facing descriptions
+- 124f0ae docs/demo-teaser.html — Remove "The bin" eyebrow label; sump layer scraps-blue + 50% green tea fill
+- e30eb07 docs/demo-teaser.html — layer-desc text #d09090 pink
+- b810454 docs/demo-teaser.html — section h2 + layer-name Fredoka One #b06070
+- 42f759a docs/trash-chunks.html — NEW: standalone asset sheet, all 27 chunks, size/HP sliders, tooltips
+- 0982a80 docs/demo-teaser.html — Food panel emoji → canvas chunks; strip all guide emojis and checkmarks
+- 532ebe8 docs/demo-teaser.html — Food carousel: 27 chunks, 2 rows × 4 col window, seamless loop, auto-scroll
+- 8eeb5d7 docs/demo-teaser.html — Full guide copy rewrite in approved player voice
+- 7c3916c docs/demo-teaser.html — Strip remaining emojis (peace sign, keyboard icons → text labels)
+- e524d19 docs/demo-teaser.html — Fix carousel tooltip: scope data-chunk handler, pointer-events on canvas
+- f25c6c5 docs/demo-teaser.html — Fix tooltip hide/show on repeat hover (120ms delay, tooltip mouseenter)
+- 37bd7ad docs/demo-teaser.html — Strip guide to exact approved copy; remove stat bars/Community/Generations/Quick tips
+- 694a475 docs/demo-teaser.html — Strip all ctrl-icon placeholder labels
+- 0bb13b5 docs/demo-teaser.html — Fix layout wrap on iPad: guide-panel 400px, breakpoint 700px
+- d2d5260 docs/demo-teaser.html — Animated acid worm canvas (pink→green, exact game color math, glow)
+- 05bd31b docs/demo-teaser.html — Animated HP/Gut bars: exact game colors, flashing Eat!/Poop! indicators
 
-## Current file SHAs (as of session 26 end)
-- docs/demo-game.js: 2a66e75 (GitHub API SHA: 11046ce6)
-- docs/demo-teaser.html: deb7ed8 (GitHub API SHA: d4eb46b3)
+## Current file SHAs (as of session 27 end)
+- docs/demo-teaser.html: 05bd31b (GitHub API SHA: TBD)
+- docs/demo-game.js: 2a66e75 (GitHub API SHA: 11046ce6) — unchanged
+- docs/trash-chunks.html: 42f759a — NEW this session
 
-## Key architecture: NPC simulation
-- updateNPCSims() in demo-game.js — drives all otherPlayers entries with .sim
-- Called in loop() after updatePlayer(), before updatePhysics()
-- .sim objects attached in _injectNPCs() via 50ms setTimeout after setPresence dispatch
-- .sim fields: segs, hist, sr, nSeg, gen, gut, gutMax, hp, acid, sleeping, sleepCurl, sleepTimer, wakeTimer, poopTimer, poopFlash, waypoints, wpIdx, wpTimer
-- _updateNPCPositions() no longer called from _demoTick — NPCs driven every frame by updateNPCSims()
-- NPC HP floors at 0.1 — NPCs never die in the demo
+## Key architecture: guide panel
+- guide-panel is a scrollable right column (400px fixed, overflow-x hidden)
+- Food carousel: two .fc-row flex strips, cards duplicated in HTML for seamless -50% loop
+- Tooltip: showTooltip()/scheduleHide() with 120ms delay; tooltip has own mouseenter/leave
+- Stat bars: rAF loop pulling live pHP/pGut/pGutMax/pAcid when available, demo sine waves otherwise
+- Acid worm: standalone canvas, lerpHex() color cycle, 8s sine loop
 
 ## Skills — load on demand, not upfront
 
