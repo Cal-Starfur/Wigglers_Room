@@ -597,18 +597,17 @@ body::before {
 /* ── Food tooltip ── */
 .food-tooltip {
   display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 6px;
-  z-index: 20;
+  position: fixed;
+  z-index: 200;
+  width: 344px;
+  max-width: calc(100vw - 32px);
   background: var(--surface);
   border: 1px solid var(--pink);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 0.75rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  pointer-events: auto;
 }
 .food-tooltip.visible { display: block; }
 
@@ -910,7 +909,7 @@ body::before {
       <h2>What I eat?</h2>
       <p>Whatever I can reach — but some things do damage.</p>
 
-      <div style="position:relative;overflow:visible;width:100%;padding-bottom:90px;">
+      <div style="position:relative;overflow:hidden;">
       <div class="carousel-wrap">
         <div class="carousel-rows" id="food-carousel">
         <div class="fc-row" id="fc-row-1" style="animation-delay:0s">
@@ -922,7 +921,9 @@ body::before {
         </div>
       </div><!-- /carousel-wrap -->
 
-      <!-- Tooltip — absolute positioned, no layout shift -->
+      </div><!-- /carousel-tooltip-wrap -->
+
+      <!-- Tooltip — fixed positioned, placed via JS -->
       <div class="food-tooltip" id="food-tooltip">
         <div class="ft-name"></div>
         <div class="ft-desc"></div>
@@ -933,7 +934,6 @@ body::before {
           <span class="ft-stat ft-liq"></span>
         </div>
       </div>
-      </div><!-- /carousel-tooltip-wrap -->
 
     </div>
     </div>
@@ -2107,6 +2107,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function showTooltip(card) {
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
       carousel.classList.add('paused');
+      // Position tooltip below the carousel using fixed coords
+      var carouselRect = carousel.closest('.carousel-wrap').getBoundingClientRect();
+      tooltip.style.top  = (carouselRect.bottom + 8) + 'px';
+      tooltip.style.left = carouselRect.left + 'px';
 
       var label = card.getAttribute('data-label');
       var desc  = card.getAttribute('data-desc');
