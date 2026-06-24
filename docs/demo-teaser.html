@@ -102,7 +102,6 @@ body::before {
 .section {
   padding: 28px 28px 0;
   border-bottom: 1px solid var(--border);
-  overflow: hidden;
 }
 .section:last-child { border-bottom: none; padding-bottom: 28px; }
 
@@ -549,18 +548,21 @@ body::before {
 }
 
 .carousel-rows {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
   width: 100%;
   overflow: hidden;
-  padding: 4px 0;
 }
 
 .fc-row {
-  display: inline-flex;
+  display: flex;
   flex-direction: row;
   gap: 6px;
+  width: max-content;
   animation: carousel-scroll 32s linear infinite;
-  vertical-align: top;
+  will-change: transform;
 }
 
 .carousel-rows.paused .fc-row {
