@@ -6814,14 +6814,6 @@ function draw() {
       ctx.globalAlpha = 0.65 * _staleAlpha;
       drawWorm(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
 
-      // Username + gen badge
-      ctx.globalAlpha = 0.85 * _staleAlpha;
-      ctx.font = 'bold 9px monospace';
-      ctx.fillStyle = oppCol;
-      ctx.textAlign = 'center';
-      ctx.fillText(opp.username, ghostSegs[0].x, headScreenY - oppSR - 6);
-      if (oppGen > 0) drawGenBadge(ghostSegs[0].x, headScreenY - oppSR - 6, oppGen);
-
       // Poop flash for NPC sims
       if (sim && sim.poopFlash > 0) {
         sim.poopFlash--;
