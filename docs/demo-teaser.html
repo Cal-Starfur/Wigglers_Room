@@ -371,20 +371,7 @@ body::before {
 #demo-hud .title { font-size: 0.85rem; font-weight: 700; color: var(--text); flex: 1; }
 #demo-hud .title span { color: var(--amber-glow); }
 
-/* ── Progress dots ── */
-#progress-dots {
-  position: absolute; right: 12px; top: 50%;
-  transform: translateY(-50%);
-  display: flex; flex-direction: column; gap: 8px;
-  z-index: 502; pointer-events: none;
-}
-.pdot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  transition: background 0.3s, transform 0.3s;
-}
-.pdot.active { background: var(--amber-glow); transform: scale(1.4); }
-.pdot.done { background: var(--leaf); }
+
 
 /* ── Layer toast ── */
 #layer-toast {
@@ -683,51 +670,58 @@ body::before {
     <!-- Layer toast -->
     <div id="layer-toast"></div>
 
-    <!-- Progress dots -->
-    <div id="progress-dots">
-      <div class="pdot active" id="pd0"></div>
-      <div class="pdot" id="pd1"></div>
-      <div class="pdot" id="pd2"></div>
-      <div class="pdot" id="pd3"></div>
-      <div class="pdot" id="pd4"></div>
-    </div>
-
     <!-- Demo overlay (step cards) -->
     <div id="demo-overlay">
 
       <div class="step-card" id="card-eat">
         <h2>There's food up here</h2>
-        <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↑ food zone</div>
-        <p>Steer me into the food chunks at the top of the bin. Drag slow — that's how I eat.</p>
+        <p>Steer yourself into the food scraps in this bin — that's how you eat.</p>
         <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-drag"></div></div>
-        <div class="step-hint">Drag or mouse to steer</div>
+        <div class="step-hint">Touch the screen or drag the mouse to steer</div>
+      </div>
+
+      <div class="step-card" id="card-digest">
+        <h2>Fill up your gut</h2>
+        <p>As you digest you regain HP.</p>
       </div>
 
       <div class="step-card" id="card-poop">
-        <h2>Now tell me to poop</h2>
-        <p>Fill my gut, then tell me to go. I deposit castings right where I am — deep in the compost is best.</p>
+        <h2>Poop when your gut is full</h2>
+        <p>You can deposit castings right where you are — but deep in the compost is best.</p>
         <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-tap"></div></div>
         <div class="step-hint">Space · or two-finger tap to poop</div>
       </div>
 
       <div class="step-card" id="card-refill">
-        <h2>Back up — I'm hungry again</h2>
-        <p>Steer me back up to the scraps and fill my gut before we head deep.</p>
+        <h2>Back up — head to the scraps</h2>
+        <p>Head up to the large scraps at the top of the bin and fill your gut. Your digestion will speed up from the harder work in the compost.</p>
         <div class="step-hint">Back up to the food</div>
       </div>
 
       <div class="step-card" id="card-sump">
-        <h2>Take me to the sump</h2>
+        <h2>Take yourself to the sump</h2>
         <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↓ sump zone</div>
-        <p>Steer me all the way down. Hold me still at the bottom — I'll connect a drain point.</p>
+        <p>Take yourself to the sump to connect a drain for the worm tea to flow. Steer yourself all the way down.</p>
+        <div class="step-hint">Go deep</div>
+      </div>
+
+      <div class="step-card" id="card-hold">
+        <h2>Hold still</h2>
+        <p>Hold yourself still at the bottom — you'll connect a drain point.</p>
         <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-hold"></div></div>
-        <div class="step-hint">Go deep · hold still</div>
+        <div class="step-hint">Hold still at the bottom</div>
+      </div>
+
+      <div class="step-card" id="card-cocoon">
+        <h2>Down here you can lay cocoons</h2>
+        <p>Deep in the compost you can lay your cocoons. Swipe up to lay one now.</p>
+        <div class="step-hint">Swipe up · or E key to lay cocoon</div>
       </div>
 
       <div class="step-card" id="card-sleep">
-        <h2>Put me to sleep</h2>
-        <p>Drains connected — the bin is alive. Press S or long press to let me rest.</p>
-        <div class="step-hint">S key · or long press to sleep</div>
+        <h2>Time to take a nap</h2>
+        <p>Now that you've done all that — time to rest.</p>
+        <div class="step-hint">Press S · or long press to sleep</div>
       </div>
 
     </div><!-- /demo-overlay -->
@@ -1104,107 +1098,102 @@ function _demoTick() {
   var gut    = (typeof pGut !== 'undefined') ? pGut : 0;
   var gutMax = (typeof pGutMax !== 'undefined' && pGutMax > 0) ? pGutMax : 8;
 
-  // ── Dot 1: idle → eating (first bite) ──────────────────────────────────────
+  // ── Card 1 → Card 2: idle → first bite ─────────────────────────────────────
   if (_demoState === 'idle') {
-    if (gut > 0.1) {
+    if (gut > gutMax * 0.55) {
       _demoState = 'eating';
       _fadeOut('card-eat');
-      _showCard('card-poop');
-      _setProgress(1);
+      _showCard('card-digest');
     }
     return;
   }
 
-  // ── Dot 1→2: eating — fill gut then poop ───────────────────────────────────
+  // ── Card 2 → Card 3: eating → gut full → poop ──────────────────────────────
   if (_demoState === 'eating') {
-    // Latch once gut is full enough — poop drains it so we can't check both at once
     if (gut >= gutMax * 0.75) _demoGutWasFull = true;
     if (_demoGutWasFull && typeof pPooping !== 'undefined' && pPooping && !_demoPooped) {
       _demoPooped = true;
-      _demoState = 'refilling';
-      _fadeOut('card-poop');
-      _showCard('card-refill');
-      _setProgress(2);
+      _demoState = 'pooped';
+      _fadeOut('card-digest');
+      _showCard('card-poop');
     }
     return;
   }
 
-  // ── Dot 2→3: refilling — eat more (gut rises from post-poop baseline) ───────
+  // ── Card 3 → Card 4: after poop → refill ───────────────────────────────────
+  if (_demoState === 'pooped') {
+    // Auto-advance after poop animation (pPooping goes false)
+    if (typeof pPooping !== 'undefined' && !pPooping && _demoPooped) {
+      _demoState = 'refilling';
+      _fadeOut('card-poop');
+      _showCard('card-refill');
+    }
+    return;
+  }
+
+  // ── Card 4 → Card 5: refill → dive ─────────────────────────────────────────
   if (_demoState === 'refilling') {
-    // Capture gut level right after poop (first tick in this state)
     if (_demoRefillBaseline < 0) _demoRefillBaseline = gut;
-    // Advance once gut rises at least 25% of gutMax from the post-poop level
-    // Cap target at 85% so we never force constipation (game forces poop at 98%)
     var refillTarget = Math.min(_demoRefillBaseline + gutMax * 0.25, gutMax * 0.85);
     if (gut >= refillTarget) {
       _demoState = 'diving';
       _fadeOut('card-refill');
       _showCard('card-sump');
-      _setProgress(3);
       _showToast('Now dive all the way to the sump!');
     }
     return;
   }
 
-  // ── Dot 3→4: diving — reach sump, connect down then up drain ───────────────
+  // ── Card 5 → Card 6: diving → reached sump ─────────────────────────────────
   if (_demoState === 'diving') {
     var inSump = (typeof H !== 'undefined') && headY >= 3 * H - 20;
-
-    if (!_demoDownDrainDone && window._sumpHadDown) {
-      _demoDownDrainDone = true;
-      _showToast('Down-drain connected! Hold still for the up-drain…');
-    }
-
-    if (_demoDownDrainDone && !_demoUpDrainDone && window._upDrainBonusFired) {
-      _demoUpDrainDone = true;
-      _demoState = 'draining';
-      _fadeOut('card-sump');
-      _showCard('card-sleep');
-      _setProgress(4);
-      _showToast('Up-drain connected! The bin is alive 🌿');
-      _demoHeldFrames = 0;
-      return;
-    }
-
-    // Fallback: 5 s of stillness in sump advances past drain step
     if (inSump) {
-      var moved = Math.abs(headY - _demoLastHeadY);
-      if (moved < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
-      if (_demoHeldFrames >= 300 && !_demoUpDrainDone) {
-        _demoUpDrainDone = true;
-        _demoState = 'draining';
-        _fadeOut('card-sump');
-        _showCard('card-sleep');
-        _setProgress(4);
-        _demoHeldFrames = 0;
-      }
-    } else {
-      _demoHeldFrames = 0;
+      _demoState = 'holding';
+      _fadeOut('card-sump');
+      _showCard('card-hold');
     }
-    _demoLastHeadY = headY;
     return;
   }
 
-  // ── Dot 4→5: sleep — player presses S or long press ──────────────────────
+  // ── Card 6 → Card 7: holding → drain connected ─────────────────────────────
+  if (_demoState === 'holding') {
+    var moved = Math.abs(headY - _demoLastHeadY);
+    if (moved < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
+
+    var drainDone = window._sumpHadDown || window._upDrainBonusFired || _demoHeldFrames >= 300;
+    if (drainDone) {
+      // Grant worm a cocoon so card-7 can trigger
+      if (typeof cocoons !== 'undefined') cocoons = Math.max(1, cocoons);
+      _demoState = 'cocoon';
+      _fadeOut('card-hold');
+      _showCard('card-cocoon');
+      _showToast('Drain connected! Now lay a cocoon.');
+      _demoHeldFrames = 0;
+    }
+    return;
+  }
+
+  // ── Card 7 → Card 8: cocoon laid → sleep ───────────────────────────────────
+  if (_demoState === 'cocoon') {
+    if (typeof lastCocoonLaid !== 'undefined' && lastCocoonLaid > 0 && lastCocoonLaid !== _demoCocoonBaseline) {
+      _demoState = 'draining';
+      _fadeOut('card-cocoon');
+      _showCard('card-sleep');
+    }
+    return;
+  }
+
+  // ── Card 8 → done: sleeping ─────────────────────────────────────────────────
   if (_demoState === 'draining') {
     if (typeof pSleeping !== 'undefined' && pSleeping) {
       _demoState = 'done';
       _fadeOut('card-sleep');
-      _setProgress(5);
       _triggerEnd();
     }
   }
   _demoLastHeadY = headY;
 }
 
-function _triggerEnd() {
-  _demoState = 'done';
-  _setProgress(4);
-  _showToast('Sleeping — the bin is alive');
-  setTimeout(function() {
-    document.getElementById('end-screen').classList.add('show');
-  }, 2500);
-}
 
 function _showCard(id) {
   var el = document.getElementById(id);
@@ -1219,17 +1208,11 @@ function _showToast(msg) {
   el.classList.add('show');
   setTimeout(function(){ el.classList.remove('show'); }, 2500);
 }
-function _setProgress(n) {
-  ['pd0','pd1','pd2','pd3','pd4'].forEach(function(id,i) {
-    var d = document.getElementById(id);
-    if (!d) return;
-    d.classList.toggle('active', i === n);
-    d.classList.toggle('done', i < n);
-  });
-}
+
 
 // 6b. Intro screen dismissal
 var _introDismissed = false;
+var _demoCocoonBaseline = (typeof lastCocoonLaid !== 'undefined') ? lastCocoonLaid : 0;
 function _enterBin() {
   if (_introDismissed) return;
   _introDismissed = true;
