@@ -676,7 +676,6 @@ body::before {
       <div class="step-card" id="card-eat">
         <h2>There's food up here</h2>
         <p>Steer yourself into the food scraps in this bin — that's how you eat.</p>
-        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-drag"></div></div>
         <div class="step-hint">Touch the screen or drag the mouse to steer</div>
       </div>
 
@@ -688,7 +687,6 @@ body::before {
       <div class="step-card" id="card-poop">
         <h2>Poop when your gut is full</h2>
         <p>You can deposit castings right where you are — but deep in the compost is best.</p>
-        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-tap"></div></div>
         <div class="step-hint">Space · or two-finger tap to poop</div>
       </div>
 
@@ -700,7 +698,6 @@ body::before {
 
       <div class="step-card" id="card-sump">
         <h2>Take yourself to the sump</h2>
-        <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↓ sump zone</div>
         <p>Take yourself to the sump to connect a drain for the worm tea to flow. Steer yourself all the way down.</p>
         <div class="step-hint">Go deep</div>
       </div>
@@ -708,7 +705,6 @@ body::before {
       <div class="step-card" id="card-hold">
         <h2>Hold still</h2>
         <p>Hold yourself still at the bottom — you'll connect a drain point.</p>
-        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-hold"></div></div>
         <div class="step-hint">Hold still at the bottom</div>
       </div>
 
@@ -1100,7 +1096,7 @@ function _demoTick() {
 
   // ── Card 1 → Card 2: idle → first bite ─────────────────────────────────────
   if (_demoState === 'idle') {
-    if (gut > gutMax * 0.55) {
+    if (gut > gutMax * 0.70) {
       _demoState = 'eating';
       _fadeOut('card-eat');
       _showCard('card-digest');
