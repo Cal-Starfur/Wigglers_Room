@@ -5849,7 +5849,13 @@ function draw() {
 
   }
 
-  // Tunnel paths
+  // Tunnel paths — NPC trails first (behind), then the player's path on top
+  if (window._demoMode) {
+    for (var _npd = 0; _npd < otherPlayers.length; _npd++) {
+      var _nopp = otherPlayers[_npd];
+      if (_nopp.sim && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
+    }
+  }
   drawPath(pPath);
 
   // Clog deposits — stroked line clipped to its own tunnel segment so it can never
@@ -8057,6 +8063,7 @@ function updateNPCSims() {
     if (!sim.segs || !sim.segs.length) {
       sim.segs = [];
       sim.hist = [];
+      sim.path = [];   // this NPC's own tunnel trail — never shares pPath
       for (var _si = 0; _si < sim.nSeg; _si++) {
         sim.segs.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
         sim.hist.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
@@ -8174,22 +8181,32 @@ function updateNPCSims() {
     }
 
     // ── Carve tunnel as NPC moves through compost ────────────────────────
+    // Each NPC carves into its OWN path array (sim.path), never pPath. This keeps
+    // NPC trails purely cosmetic and fully isolated from the player's tunnel
+    // mechanics (junctions, drains, drop attachment, sump connectivity, pruning).
     var _nHx = sim.segs[0].x, _nHy = sim.segs[0].y;
     var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
     var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
     if (_nmoved > 0.1) {
-      // Insert a null separator if this NPC jumped far (new segment) or is just starting
-      var _nJump = (sim._pathLastX != null) &&
-                   (Math.abs(_nHx - sim._pathLastX) > sim.sr * 6 ||
-                    Math.abs(_nHy - sim._pathLastY) > sim.sr * 6);
-      if (!sim._pathLastX || _nJump) pPath.push(null);
-      // Use addPoint() — handles min-distance, tier check, bucket index, null-on-jump, pruning
-      var _carved = addPoint(pPath, _nHx, _nHy, sim.sr * 0.85,
+      // addPoint() handles min-distance, the tier-2 gate, null-on-jump and the MAX cap.
+      var _carved = addPoint(sim.path, _nHx, _nHy, sim.sr * 0.85,
                              sim._pathLastX != null ? sim._pathLastX : _nHx - _nmx,
                              sim._pathLastY != null ? sim._pathLastY : _nHy - _nmy);
       if (_carved) { sim._pathLastX = _nHx; sim._pathLastY = _nHy; }
     }
     sim._lastX = _nHx; sim._lastY = _nHy;
+
+    // ── Cosmetic trail fade — NPC tunnels fill back in over ~5 min ────────
+    // Simple time-based decay (no sump-connectivity needed). drawPath() skips any
+    // point whose alpha reaches 0 and breaks the tunnel segment there.
+    if (frame % 10 === 0 && sim.path.length) {
+      for (var _ntd = 0; _ntd < sim.path.length; _ntd++) {
+        var _ntp = sim.path[_ntd];
+        if (!_ntp || _ntp.ti !== 2) continue;
+        if (_ntp.alpha == null) _ntp.alpha = 1;
+        _ntp.alpha = Math.max(0, _ntp.alpha - TUNNEL_DECAY_UNCONNECTED * 10);
+      }
+    }
 
     // ── Sync back to otherPlayers ─────────────────────────────────────────
     opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
