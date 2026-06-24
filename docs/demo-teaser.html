@@ -955,11 +955,12 @@ var _demoUpDrainDone = false;   // true after window._upDrainBonusFired fires
 function _injectNPCs() {
   // Build fake setPresence message using actual game coords
   // W and H are game globals — available after setup()
+  // yr values are in world-H units (0..4) — world height is 4H, so y = yr * H
   var players = _DEMO_NPCS.map(function(n) {
     return {
       username: n.username,
       x:        (n.xr * W),
-      y:        (n.yr * 4 * H),  // world Y: 0..4H
+      y:        (n.yr * H),  // world Y: yr is already in H units (e.g. 1.45 → 1.45H)
       sleeping: n.sleeping,
       size:     n.size,
       avatarUrl: null
@@ -981,11 +982,11 @@ function _updateNPCPositions() {
   var players = [];
   _DEMO_NPCS.forEach(function(n) {
     if (n.sleeping) {
-      players.push({ username: n.username, x: n.xr*W, y: n.yr*4*H, sleeping: true, size: n.size });
+      players.push({ username: n.username, x: n.xr*W, y: n.yr*H, sleeping: true, size: n.size });
       return;
     }
     var wpts = _DEMO_WAYPOINTS[n.username];
-    if (!wpts) { players.push({ username: n.username, x: n.xr*W, y: n.yr*4*H, sleeping: false, size: n.size }); return; }
+    if (!wpts) { players.push({ username: n.username, x: n.xr*W, y: n.yr*H, sleeping: false, size: n.size }); return; }
     if (!_demoNpcIdx[n.username]) _demoNpcIdx[n.username] = 0;
     if (!_demoNpcTimers[n.username]) _demoNpcTimers[n.username] = now + 60 + Math.random()*120;
     if (now >= _demoNpcTimers[n.username]) {
@@ -993,7 +994,7 @@ function _updateNPCPositions() {
       _demoNpcTimers[n.username] = now + 120 + Math.random()*180;
     }
     var wp = wpts[_demoNpcIdx[n.username]];
-    players.push({ username: n.username, x: wp[0]*W, y: wp[1]*4*H, sleeping: false, size: n.size });
+    players.push({ username: n.username, x: wp[0]*W, y: wp[1]*H, sleeping: false, size: n.size });
   });
   window.dispatchEvent(new MessageEvent('message', {
     data: { type: 'devvit-message', data: { message: { type: 'setPresence', players: players } } }
