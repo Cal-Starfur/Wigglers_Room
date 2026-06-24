@@ -697,7 +697,7 @@ function _pPathBucketRebuild() {
 
 // ── Cocoon system ─────────────────────────────────────────────────────────
 var cocoons = [];
-var COCOON_KARMA_REQ  = 2800;
+var COCOON_KARMA_REQ  = 90;
 var COCOON_MATURE_MS  = 7 * 24 * 60 * 60 * 1000;
 var COCOON_WEEK_MS    = WEEK_DRAIN_MS; // same duration — one week
 var COCOON_MAX        = 3;
