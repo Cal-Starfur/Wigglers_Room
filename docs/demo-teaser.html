@@ -1158,15 +1158,14 @@ function _demoTick() {
     return;
   }
 
-  // ── Card 6 → Card 7: holding → drain connected ─────────────────────────────
+  // ── Card 6 → Card 7: holding → down drain connected ────────────────────────
   if (_demoState === 'holding') {
     var moved = Math.abs(headY - _demoLastHeadY);
     if (moved < 1.5) { _demoHeldFrames++; } else { _demoHeldFrames = 0; }
 
-    var drainDone = window._sumpHadDown || window._upDrainBonusFired || _demoHeldFrames >= 300;
+    // Advance when down-drain connects (or fallback: 5s of stillness)
+    var drainDone = window._sumpHadDown || _demoHeldFrames >= 300;
     if (drainDone) {
-      // Grant worm a cocoon so card-7 can trigger
-      if (typeof cocoons !== 'undefined') cocoons = Math.max(1, cocoons);
       _demoState = 'cocoon';
       _fadeOut('card-hold');
       _showCard('card-cocoon');
