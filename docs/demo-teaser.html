@@ -598,9 +598,11 @@ body::before {
 .food-tooltip {
   display: none;
   position: absolute;
+  top: 100%;
   left: 0;
   right: 0;
-  z-index: 10;
+  margin-top: 6px;
+  z-index: 20;
   background: var(--surface);
   border: 1px solid var(--pink);
   border-radius: 8px;
@@ -908,7 +910,7 @@ body::before {
       <h2>What I eat?</h2>
       <p>Whatever I can reach — but some things do damage.</p>
 
-      <div style="position:relative;">
+      <div style="position:relative;overflow:visible;width:100%;padding-bottom:90px;">
       <div class="carousel-wrap">
         <div class="carousel-rows" id="food-carousel">
         <div class="fc-row" id="fc-row-1" style="animation-delay:0s">
