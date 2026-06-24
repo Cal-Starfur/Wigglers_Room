@@ -6768,56 +6768,68 @@ function draw() {
   var wormCol = getGenColor(generation);
   drawWorm(pSegs, pSR, wormCol, pSleeping, pAcid, pHP);
 
-  // ── Ghost worms — other players received via Realtime presence ───────────
-  // Lerp positions toward targetX/Y each frame for smooth movement.
-  // Rendered at 55% opacity so the local player's worm always reads first.
+  // ── Ghost worms — real players (lerp) or NPC sims (full seg chain) ────────
   if (otherPlayers.length) {
     ctx.save();
     var nowOP = Date.now();
     for (var op = 0; op < otherPlayers.length; op++) {
       var opp = otherPlayers[op];
+      var sim = opp.sim || null;
+      var oppSR = opp.size || 5;
 
-      // Lerp toward target position (host sends updates ~every 2s)
-      var _oppPrevX = opp.x, _oppPrevY = opp.y;
-      opp.x = opp.x + (opp.targetX - opp.x) * 0.08;
-      opp.y = opp.y + (opp.targetY - opp.y) * 0.08;
-
-      // Push movement into history ring buffer (10 entries) for segment trail
-      if (!opp.hist) {
-        opp.hist = [];
-        for (var _hi = 0; _hi < 10; _hi++) opp.hist.push({x: opp.x, y: opp.y});
-      }
-      opp.hist.push({x: opp.x, y: opp.y});
-      if (opp.hist.length > 10) opp.hist.shift();
-
-      var osy = opp.y - camY;
-      if (osy < -opp.size * 4 || osy > H + opp.size * 4) continue;
-
-      // Build segments from history so worm faces its direction of travel
-      var _nSeg = Math.max(4, opp.size - 1);
-      var ghostSegs = [];
-      for (var _gi = 0; _gi < _nSeg; _gi++) {
-        var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
-        ghostSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
-      }
-
-      // Stale fade — ghosts dim as they age toward the 90s prune limit
-      var _staleSec = (nowOP - opp.lastSeen) / 1000;
-      var _staleAlpha = _staleSec > 30 ? Math.max(0.1, 1 - (_staleSec - 30) / 60) : 1;
-      ctx.globalAlpha = 0.55 * _staleAlpha;
-
-      drawWorm(ghostSegs, opp.size, '#7ab8f5', opp.sleeping, 0);
-
-      // Avatar or username above head
-      ctx.globalAlpha = 0.80 * _staleAlpha;
-      if (opp.avatarImg && opp.avatarImg.complete) {
-        var _asz = opp.size * 5;
-        ctx.drawImage(opp.avatarImg, opp.x - _asz/2, osy - opp.size - _asz - 2, _asz, _asz);
+      // ── Build segment list ────────────────────────────────────────────────
+      var ghostSegs;
+      if (sim && sim.segs && sim.segs.length) {
+        ghostSegs = sim.segs; // NPC: use real sim segment chain
       } else {
-        ctx.font = 'bold 9px monospace';
-        ctx.fillStyle = '#c0e0ff';
+        // Real player: lerp toward target, build from history ring buffer
+        opp.x = opp.x + ((opp.targetX || opp.x) - opp.x) * 0.08;
+        opp.y = opp.y + ((opp.targetY || opp.y) - opp.y) * 0.08;
+        if (!opp.hist) { opp.hist = []; for (var _hi = 0; _hi < 10; _hi++) opp.hist.push({x: opp.x, y: opp.y}); }
+        opp.hist.push({x: opp.x, y: opp.y});
+        if (opp.hist.length > 10) opp.hist.shift();
+        var _nSeg = Math.max(4, oppSR - 1);
+        ghostSegs = [];
+        for (var _gi = 0; _gi < _nSeg; _gi++) {
+          var _ghi = Math.max(0, opp.hist.length - 1 - Math.floor(_gi * opp.hist.length / _nSeg));
+          ghostSegs.push({x: opp.hist[_ghi].x, y: opp.hist[_ghi].y});
+        }
+      }
+
+      // Cull off-screen
+      var headScreenY = ghostSegs[0].y - camY;
+      if (headScreenY < -oppSR * 4 || headScreenY > H + oppSR * 4) continue;
+
+      // Stale fade — NPCs never stale
+      var _staleSec = sim ? 0 : (nowOP - (opp.lastSeen || nowOP)) / 1000;
+      var _staleAlpha = _staleSec > 30 ? Math.max(0.1, 1 - (_staleSec - 30) / 60) : 1;
+
+      // Gen colour + draw
+      var oppGen = (sim ? sim.gen : 0) || 0;
+      var oppCol = getGenColor(oppGen);
+      var oppSleeping = sim ? sim.sleeping : !!opp.sleeping;
+      var oppAcid = sim ? sim.acid : 0;
+      var oppHP   = sim ? sim.hp   : 1;
+
+      ctx.globalAlpha = 0.65 * _staleAlpha;
+      drawWorm(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
+
+      // Username + gen badge
+      ctx.globalAlpha = 0.85 * _staleAlpha;
+      ctx.font = 'bold 9px monospace';
+      ctx.fillStyle = oppCol;
+      ctx.textAlign = 'center';
+      ctx.fillText(opp.username, ghostSegs[0].x, headScreenY - oppSR - 6);
+      if (oppGen > 0) drawGenBadge(ghostSegs[0].x, headScreenY - oppSR - 6, oppGen);
+
+      // Poop flash for NPC sims
+      if (sim && sim.poopFlash > 0) {
+        sim.poopFlash--;
+        ctx.globalAlpha = 0.8 * _staleAlpha;
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#f0d050';
         ctx.textAlign = 'center';
-        ctx.fillText(opp.username, opp.x, osy - opp.size - 6);
+        ctx.fillText('💩', ghostSegs[0].x, headScreenY - oppSR - 22);
       }
     }
     ctx.restore();
@@ -8024,6 +8036,140 @@ function updatePendingWorms() {
   }
 }
 
+// ── NPC Simulation (demo-only) — drives otherPlayers entries that have a .sim ──
+// Each NPC gets a mini worm: segments, gut, HP, acid, sleep cycle, waypoint roam.
+// NPCs eat nearby scraps, poop castings, sleep, wake — all using the same systems
+// the real player uses. They never die; HP floors at 0.1.
+function updateNPCSims() {
+  if (!window._demoMode) return;
+  var b2 = getBinCached();
+  for (var _oi = 0; _oi < otherPlayers.length; _oi++) {
+    var opp = otherPlayers[_oi];
+    var sim = opp.sim;
+    if (!sim) continue; // real player — skip
+
+    // ── Init segments on first tick ────────────────────────────────────────
+    if (!sim.segs || !sim.segs.length) {
+      sim.segs = [];
+      sim.hist = [];
+      for (var _si = 0; _si < sim.nSeg; _si++) {
+        sim.segs.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
+        sim.hist.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
+      }
+    }
+
+    // ── Sleep cycle ────────────────────────────────────────────────────────
+    sim.sleepTimer = (sim.sleepTimer || 0) - 1;
+    sim.wakeTimer  = (sim.wakeTimer  || 0) - 1;
+    if (sim.sleeping) {
+      sim.sleepCurl = Math.min(1, (sim.sleepCurl || 0) + 0.03);
+      var _scx = sim.segs[0].x, _scy = sim.segs[0].y;
+      for (var _sc = 0; _sc < sim.segs.length; _sc++) {
+        var _ca = (_sc / sim.segs.length) * Math.PI * 2 * 1.5 * sim.sleepCurl;
+        var _cr = sim.sr * 1.2 * sim.sleepCurl * Math.min(1, _sc / 3);
+        sim.segs[_sc].x += (_scx + Math.cos(_ca) * _cr - sim.segs[_sc].x) * 0.14;
+        sim.segs[_sc].y += (_scy + Math.sin(_ca) * _cr * 0.6 - sim.segs[_sc].y) * 0.14;
+      }
+      if (inCompost(sim.segs[0].y)) sim.hp = Math.min(1, sim.hp + 0.00002);
+      if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; sim.sleepTimer = 1800 + Math.random() * 3600; }
+      opp.sleeping = true;
+      opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
+      continue;
+    }
+    opp.sleeping = false;
+    sim.sleepCurl = Math.max(0, (sim.sleepCurl || 0) - 0.05);
+    // Trigger sleep only in compost layer
+    if (sim.sleepTimer <= 0 && inCompost(sim.segs[0].y)) {
+      sim.sleeping = true; sim.wakeTimer = 900 + Math.random() * 1800; continue;
+    }
+
+    // ── Waypoint navigation — default target ──────────────────────────────
+    sim.wpTimer = (sim.wpTimer || 0) - 1;
+    var _wp = sim.waypoints[sim.wpIdx];
+    var _wx = _wp[0] * W, _wy = _wp[1] * H;
+    var _wdx = _wx - sim.segs[0].x, _wdy = _wy - sim.segs[0].y;
+    var _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
+    if (_wd < sim.sr * 3 || sim.wpTimer <= 0) {
+      sim.wpIdx   = (sim.wpIdx + 1) % sim.waypoints.length;
+      sim.wpTimer = 120 + Math.random() * 180;
+    }
+
+    // ── Eat nearby scraps — steer toward them too ─────────────────────────
+    sim.gutMax = 4 + Math.floor((sim.sr - 4) / 3 * 4);
+    if (sim.gut < sim.gutMax) {
+      for (var _sci = 0; _sci < scraps.length; _sci++) {
+        var _s = scraps[_sci];
+        if (_s.eaten || _s.ti !== 1) continue;
+        var _sdx = sim.segs[0].x - _s.x, _sdy = sim.segs[0].y - _s.y;
+        if (Math.sqrt(_sdx * _sdx + _sdy * _sdy) < sim.sr * 3) {
+          _s.hp -= 0.04;
+          if (_s.hp <= 0) {
+            _s.eaten = true;
+            sim.gut = Math.min(sim.gutMax, sim.gut + 0.5);
+            if (_s.t && _s.t.name === 'egg_shell') sim.acid = Math.max(0, sim.acid - 0.15);
+            else if (_s.t && _s.t.acid) sim.acid = Math.min(1, sim.acid + _s.t.acid * 0.01);
+          }
+          _wx = _s.x; _wy = _s.y;
+          _wdx = _wx - sim.segs[0].x; _wdy = _wy - sim.segs[0].y;
+          _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
+          break;
+        }
+      }
+    }
+
+    // ── Poop when gut >80% in compost ────────────────────────────────────
+    sim.poopTimer = (sim.poopTimer || 0) - 1;
+    if (sim.gut >= sim.gutMax * 0.8 && sim.poopTimer <= 0 && inCompost(sim.segs[0].y)) {
+      castings.push({
+        x: sim.segs[0].x + (Math.random() - 0.5) * sim.sr * 2,
+        y: sim.segs[0].y,
+        vy: 0.3 + Math.random() * 0.3,
+        sz: sim.sr * (0.5 + Math.random() * 0.4),
+        rest: false, restY: 0, alpha: 1
+      });
+      sim.gut = Math.max(0, sim.gut - sim.gutMax * 0.6);
+      sim.poopTimer = 300 + Math.random() * 600;
+      sim.poopFlash = 30;
+    }
+
+    // ── HP/acid bleed (NPCs never die) ───────────────────────────────────
+    sim.acid = Math.max(0, sim.acid - 0.0001);
+    if (sim.acid > 0.3) sim.hp = Math.max(0.1, sim.hp - 0.0001);
+    if (sim.gut <= 0)   sim.hp = Math.max(0.1, sim.hp - 0.0001);
+
+    // ── Move head toward target ──────────────────────────────────────────
+    if (_wd > 2) {
+      var _dn = _wd || 1;
+      var _fx = _wdx / _dn, _fy = _wdy / _dn;
+      var _px = -_fy, _py = _fx;
+      var _sa = Math.sin(frame * 0.07 + _oi * 1.3) * 0.08;
+      sim.segs[0].x += _fx * 0.35 + _px * _sa;
+      sim.segs[0].y += _fy * 0.35 + _py * _sa;
+    }
+    sim.segs[0].x = Math.max(b2.cx - b2.bw2 + sim.sr, Math.min(b2.cx + b2.bw2 - sim.sr, sim.segs[0].x));
+    sim.segs[0].y = Math.max(H * 0.8, Math.min(3 * H - sim.sr, sim.segs[0].y));
+
+    // ── Segment chain — history ring buffer ──────────────────────────────
+    sim.hist.push({ x: sim.segs[0].x, y: sim.segs[0].y });
+    var _spacing = sim.sr * 1.4;
+    var _needed  = sim.nSeg * Math.ceil(_spacing) + 100;
+    while (sim.hist.length > _needed) sim.hist.shift();
+    for (var _i = 1; _i < sim.segs.length; _i++) {
+      var _tgt = _i * _spacing, _cum = 0, _placed = false;
+      for (var _j = sim.hist.length - 1; _j > 0; _j--) {
+        var _ddx = sim.hist[_j].x - sim.hist[_j-1].x, _ddy = sim.hist[_j].y - sim.hist[_j-1].y;
+        _cum += Math.sqrt(_ddx * _ddx + _ddy * _ddy);
+        if (_cum >= _tgt) { sim.segs[_i].x = sim.hist[_j].x; sim.segs[_i].y = sim.hist[_j].y; _placed = true; break; }
+      }
+      if (!_placed && sim.hist.length) { sim.segs[_i].x = sim.hist[0].x; sim.segs[_i].y = sim.hist[0].y; }
+    }
+
+    // ── Sync back to otherPlayers ─────────────────────────────────────────
+    opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
+    opp.targetX = sim.segs[0].x; opp.targetY = sim.segs[0].y;
+  }
+}
+
 function loop() {
   window._loopRunning = true;
   if (!W || !H) { requestAnimationFrame(loop); return; }
@@ -8041,6 +8187,7 @@ function loop() {
   if (emergencyCooldown > 0) emergencyCooldown--;
   if (!snooGamePaused) {
     try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
+    try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
     try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
   }
   // ── View mode camera — lerps camY toward viewCamY when free-scrolling ──
