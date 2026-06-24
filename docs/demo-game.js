@@ -6822,7 +6822,7 @@ function draw() {
       var oppAcid = sim ? sim.acid : 0;
       var oppHP   = sim ? sim.hp   : 1;
 
-      ctx.globalAlpha = 0.65 * _staleAlpha;
+      ctx.globalAlpha = 0.92 * _staleAlpha;
       drawWorm(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
 
       // Poop flash for NPC sims
