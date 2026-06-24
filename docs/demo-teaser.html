@@ -8,17 +8,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
 <title>Wigglers Room — Try the Bin</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#0a1020;}
-#root{width:100vw;height:100vh;position:relative;overflow:hidden;cursor:none;}
-#c{position:absolute;top:0;left:0;transform-origin:top left;}
-
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── Tokens ── */
 :root {
-  --amber:#d4880a;--amber-glow:#f5a623;
-  --soil-dark:#1a0e06;--text:#f0e8d8;--text-dim:#9a8868;
-  --leaf:#5a9e28;--bg-deep:#0a1020;
+  --amber: #d4880a; --amber-glow: #f5a623;
+  --soil-dark: #1a0e06; --soil-mid: #2d1a0a; --soil-brown: #4a2c10;
+  --compost: #7a5535; --worm-pink: #e8728a; --tea-gold: #c8a832;
+  --text: #f0e8d8; --text-dim: #9a8868;
+  --leaf: #5a9e28; --bg-deep: #0a1020;
+  --card-bg: rgba(42,22,8,0.85);
+  --border: rgba(212,136,10,0.25);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -28,347 +29,907 @@ body{background:#0a1020;}
   }
 }
 
-/* Lock cursor back to normal for demo */
-#root { cursor: crosshair; }
+/* ── Page ── */
+body {
+  background: var(--soil-dark);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-/* Step overlay cards */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(90,60,20,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(212,136,10,0.08) 0%, transparent 50%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── Layout: game left, guide right ── */
+.layout {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 0;
+  max-width: 1300px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .game-panel { height: 60vw; min-height: 300px; position: relative; }
+}
+
+/* ── Game panel (left) ── */
+.game-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  border-right: 1px solid var(--border);
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The canvas lives inside #root inside .game-panel */
+#root {
+  width: 100%; flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+}
+#c { position: absolute; top: 0; left: 0; transform-origin: top left; }
+
+/* ── Guide panel (right) ── */
+.guide-panel {
+  padding: 0;
+  overflow-y: auto;
+  position: relative; z-index: 1;
+}
+
+/* ── Guide sections ── */
+.section {
+  padding: 28px 28px 0;
+  border-bottom: 1px solid var(--border);
+}
+.section:last-child { border-bottom: none; padding-bottom: 28px; }
+
+.section-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  margin-bottom: 6px;
+}
+
+.section h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  line-height: 1.3;
+}
+
+.section p {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+
+/* ── Control cards ── */
+.controls-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ctrl {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+.ctrl:hover { border-color: rgba(212,136,10,0.5); }
+
+.ctrl-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.ctrl-action {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.ctrl-desc {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+/* ── Stat bars ── */
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  width: 80px;
+  flex-shrink: 0;
+}
+.stat-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.stat-bar { height: 100%; border-radius: 4px; }
+.stat-val {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Food grid ── */
+.food-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.food-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.food-card .food-icon { font-size: 1.1rem; flex-shrink: 0; }
+.food-card .food-name { font-size: 0.72rem; font-weight: 700; color: var(--text); }
+.food-card .food-note { font-size: 0.68rem; color: var(--text-dim); }
+.food-card.acid { border-color: rgba(220,50,50,0.35); }
+.food-card.acid .food-name { color: #e87070; }
+.food-card.antidote { border-color: rgba(90,158,40,0.4); }
+.food-card.antidote .food-name { color: var(--leaf); }
+
+/* ── Mechanic cards ── */
+.mech-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.mech-card h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--amber-glow);
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+.mech-card p {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+/* ── Layer diagram ── */
+.layer-diagram {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.layer {
+  padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.layer-num {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.layer-name { font-size: 0.8rem; font-weight: 700; color: var(--text); }
+.layer-desc { font-size: 0.7rem; color: var(--text-dim); margin-top: 1px; }
+
+/* ── Death card ── */
+.death-card {
+  background: rgba(80,10,10,0.6);
+  border: 1px solid rgba(200,50,50,0.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.death-card h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e87070;
+  margin-bottom: 6px;
+}
+.death-card p {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Tips ── */
+.tip-list {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 12px;
+}
+.tip-list li {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 8px 12px 8px 32px;
+  background: var(--card-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  position: relative;
+}
+.tip-list li::before {
+  content: attr(data-icon);
+  position: absolute; left: 10px; top: 8px;
+  font-size: 0.9rem;
+}
+
+/* ── Demo overlay (step cards + HUD) ── */
 #demo-overlay {
-  position:fixed;inset:0;pointer-events:none;z-index:500;
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 500;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .step-card {
-  position:absolute;
-  bottom:20px;
-  left:16px;
-  background:rgba(14,8,3,0.90);
-  border:1px solid rgba(212,136,10,0.4);
-  border-radius:10px;
-  padding:14px 18px;
-  max-width:260px;
-  text-align:left;
-  backdrop-filter:blur(10px);
-  opacity:0;
-  transition:opacity 0.3s;
-  pointer-events:none;
+  position: absolute;
+  bottom: 20px; left: 16px;
+  background: rgba(14,8,3,0.90);
+  border: 1px solid rgba(212,136,10,0.4);
+  border-radius: 10px;
+  padding: 14px 18px;
+  max-width: 240px;
+  text-align: left;
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
 }
-.step-card.show { opacity:1; pointer-events:all; }
+.step-card.show { opacity: 1; pointer-events: all; }
 .step-card h2 {
-  font-size:0.92rem;font-weight:700;
-  color:var(--text);margin-bottom:6px;line-height:1.3;
+  font-size: 0.88rem; font-weight: 700;
+  color: var(--text); margin-bottom: 6px; line-height: 1.3;
 }
 .step-card p {
-  font-size:0.76rem;color:var(--text-dim);
-  line-height:1.55;margin-bottom:10px;
+  font-size: 0.74rem; color: var(--text-dim);
+  line-height: 1.55; margin-bottom: 10px;
 }
 .step-hint {
-  display:inline-flex;align-items:center;gap:6px;
-  background:rgba(212,136,10,0.15);
-  border:1px solid rgba(212,136,10,0.35);
-  border-radius:20px;padding:5px 12px;
-  font-size:0.73rem;font-weight:700;color:var(--amber-glow);
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(212,136,10,0.15);
+  border: 1px solid rgba(212,136,10,0.35);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 0.71rem; font-weight: 700; color: var(--amber-glow);
 }
 
-/* HUD bar — top of screen */
+/* ── HUD bar ── */
 #demo-hud {
-  position:fixed;top:0;left:0;right:0;
-  background:rgba(10,5,2,0.82);
-  border-bottom:1px solid rgba(212,136,10,0.2);
-  padding:8px 16px;
-  display:flex;align-items:center;gap:12px;
-  z-index:501;backdrop-filter:blur(6px);
+  position: absolute; top: 0; left: 0; right: 0;
+  background: rgba(10,5,2,0.82);
+  border-bottom: 1px solid rgba(212,136,10,0.2);
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 12px;
+  z-index: 501; backdrop-filter: blur(6px);
 }
-#demo-hud img{width:28px;height:28px;object-fit:contain}
-#demo-hud .title{font-size:0.85rem;font-weight:700;color:var(--text);flex:1}
-#demo-hud .title span{color:var(--amber-glow)}
+#demo-hud img { width: 28px; height: 28px; object-fit: contain; }
+#demo-hud .title { font-size: 0.85rem; font-weight: 700; color: var(--text); flex: 1; }
+#demo-hud .title span { color: var(--amber-glow); }
 
-/* Progress dots — right side */
+/* ── Progress dots ── */
 #progress-dots {
-  position:fixed;right:12px;top:50%;
-  transform:translateY(-50%);
-  display:flex;flex-direction:column;gap:8px;
-  z-index:502;pointer-events:none;
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 502; pointer-events: none;
 }
 .pdot {
-  width:8px;height:8px;border-radius:50%;
-  background:rgba(255,255,255,0.15);
-  transition:background 0.3s,transform 0.3s;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  transition: background 0.3s, transform 0.3s;
 }
-.pdot.active{background:var(--amber-glow);transform:scale(1.4)}
-.pdot.done{background:var(--leaf)}
+.pdot.active { background: var(--amber-glow); transform: scale(1.4); }
+.pdot.done { background: var(--leaf); }
 
-/* Layer toast */
+/* ── Layer toast ── */
 #layer-toast {
-  position:fixed;top:52px;left:50%;transform:translateX(-50%);
-  background:rgba(14,8,3,0.9);
-  border:1px solid rgba(212,136,10,0.3);
-  border-radius:30px;padding:6px 18px;
-  font-size:0.78rem;font-weight:700;color:var(--amber-glow);
-  z-index:502;opacity:0;transition:opacity 0.3s;
-  pointer-events:none;white-space:nowrap;
+  position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+  background: rgba(14,8,3,0.9);
+  border: 1px solid rgba(212,136,10,0.3);
+  border-radius: 30px; padding: 6px 18px;
+  font-size: 0.78rem; font-weight: 700; color: var(--amber-glow);
+  z-index: 502; opacity: 0; transition: opacity 0.3s;
+  pointer-events: none; white-space: nowrap;
 }
-#layer-toast.show{opacity:1}
+#layer-toast.show { opacity: 1; }
 
-/* ── Gesture diagram CSS (CSS-only, no images) ── */
+/* ── Gesture diagrams ── */
 @keyframes zone-pulse {
-  0%,100% { opacity:0.6; transform:translateY(0); }
-  50%      { opacity:1;   transform:translateY(-3px); }
+  0%,100% { opacity: 0.6; transform: translateY(0); }
+  50%      { opacity: 1;   transform: translateY(-3px); }
 }
-/* Drag arrow */
-.gest-drag {
-  width:44px;height:32px;position:relative;
-}
+.gest-drag { width: 44px; height: 32px; position: relative; }
 .gest-drag::before {
-  content:'';position:absolute;
-  left:50%;top:50%;transform:translate(-50%,-50%);
-  width:14px;height:28px;
-  border:2px solid var(--amber-glow);border-radius:7px;
-  animation:drag-bob 1s ease-in-out infinite;
+  content: ''; position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 14px; height: 28px;
+  border: 2px solid var(--amber-glow); border-radius: 7px;
+  animation: drag-bob 1s ease-in-out infinite;
 }
 .gest-drag::after {
-  content:'↕';position:absolute;
-  left:50%;top:50%;transform:translate(-50%,-50%);
-  font-size:1rem;color:var(--amber-glow);
-  animation:drag-bob 1s ease-in-out infinite;
+  content: '↕'; position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  font-size: 1rem; color: var(--amber-glow);
+  animation: drag-bob 1s ease-in-out infinite;
 }
 @keyframes drag-bob {
-  0%,100% { transform:translate(-50%,-58%); }
-  50%      { transform:translate(-50%,-42%); }
+  0%,100% { transform: translate(-50%,-58%); }
+  50%      { transform: translate(-50%,-42%); }
 }
-/* Tap ripple */
 .gest-tap {
-  width:36px;height:36px;position:relative;
-  border-radius:50%;
-  border:2px solid var(--amber-glow);
-  animation:tap-ring 1.1s ease-out infinite;
+  width: 36px; height: 36px; position: relative;
+  border-radius: 50%;
+  border: 2px solid var(--amber-glow);
+  animation: tap-ring 1.1s ease-out infinite;
 }
 .gest-tap::after {
-  content:'';position:absolute;
-  inset:5px;border-radius:50%;
-  background:var(--amber-glow);opacity:0.5;
-  animation:tap-core 1.1s ease-out infinite;
+  content: ''; position: absolute;
+  inset: 5px; border-radius: 50%;
+  background: var(--amber-glow); opacity: 0.5;
+  animation: tap-core 1.1s ease-out infinite;
 }
 @keyframes tap-ring {
-  0%   { transform:scale(0.7); opacity:0.9; }
-  100% { transform:scale(1.4); opacity:0; }
+  0%   { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.4); opacity: 0; }
 }
 @keyframes tap-core {
-  0%   { opacity:0.5; }
-  100% { opacity:0; }
+  0%   { opacity: 0.5; }
+  100% { opacity: 0; }
 }
-/* Hold-still dot */
 .gest-hold {
-  width:16px;height:16px;border-radius:50%;
-  background:var(--amber-glow);
-  box-shadow:0 0 0 0 rgba(245,166,35,0.6);
-  animation:hold-pulse 1.4s ease-in-out infinite;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--amber-glow);
+  box-shadow: 0 0 0 0 rgba(245,166,35,0.6);
+  animation: hold-pulse 1.4s ease-in-out infinite;
 }
 @keyframes hold-pulse {
-  0%,100% { box-shadow:0 0 0 0 rgba(245,166,35,0.6); }
-  50%      { box-shadow:0 0 0 10px rgba(245,166,35,0); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.6); }
+  50%      { box-shadow: 0 0 0 10px rgba(245,166,35,0); }
 }
 
-/* Keyboard hint strip — bottom during steering */
+/* ── Keyboard hint ── */
 #kb-hint {
-  position:fixed;bottom:12px;left:50%;transform:translateX(-50%);
-  display:flex;gap:10px;align-items:center;
-  background:rgba(14,8,3,0.75);
-  border:1px solid rgba(255,255,255,0.1);
-  border-radius:30px;padding:6px 16px;
-  z-index:502;opacity:0;transition:opacity 0.4s;
-  font-size:0.72rem;color:var(--text-dim);
-  pointer-events:none;white-space:nowrap;
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center;
+  background: rgba(14,8,3,0.75);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 30px; padding: 6px 16px;
+  z-index: 502; opacity: 0; transition: opacity 0.4s;
+  font-size: 0.72rem; color: var(--text-dim);
+  pointer-events: none; white-space: nowrap;
 }
-#kb-hint.show{opacity:0.85}
+#kb-hint.show { opacity: 0.85; }
 .kb {
-  display:inline-block;
-  background:rgba(255,255,255,0.22);
-  border:1px solid rgba(255,255,255,0.30);
-  border-bottom-width:2px;
-  border-radius:4px;padding:1px 7px;
-  font-family:monospace;font-size:0.72rem;
-  color:var(--text);
+  display: inline-block;
+  background: rgba(255,255,255,0.22);
+  border: 1px solid rgba(255,255,255,0.30);
+  border-bottom-width: 2px;
+  border-radius: 4px; padding: 1px 7px;
+  font-family: monospace; font-size: 0.72rem;
+  color: var(--text);
 }
 
-/* End screen */
-#end-screen {
-  position:fixed;inset:0;
-  background:rgba(8,4,1,0.97);
-  z-index:600;display:none;
-  flex-direction:column;align-items:center;
-  justify-content:center;text-align:center;
-  padding:24px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-#end-screen.show{display:flex}
-
-/* Intro screen — mirrors end screen exactly */
+/* ── Intro screen ── */
 #intro-screen {
-  position:fixed;inset:0;
-  background:rgba(8,4,1,0.97);
-  z-index:700;
-  flex-direction:column;align-items:center;
-  justify-content:center;text-align:center;
-  padding:24px;
+  position: absolute; inset: 0;
+  background: rgba(8,4,1,0.97);
+  z-index: 700;
+  flex-direction: column; align-items: center;
+  justify-content: center; text-align: center;
+  padding: 24px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  display:flex;
+  display: flex;
 }
-#intro-screen.hidden{display:none}
-#end-screen img{
-  width:140px;height:140px;margin-bottom:18px;
-  filter:drop-shadow(0 0 32px rgba(212,136,10,0.9)) drop-shadow(0 0 12px rgba(212,136,10,0.7));
-  animation:wfloat 3s ease-in-out infinite;
+#intro-screen.hidden { display: none; }
+
+/* ── End screen ── */
+#end-screen {
+  position: absolute; inset: 0;
+  background: rgba(8,4,1,0.97);
+  z-index: 600; display: none;
+  flex-direction: column; align-items: center;
+  justify-content: center; text-align: center;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
-@keyframes wfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
-#end-screen h2{
-  font-size:clamp(1.6rem,5vw,2.2rem);font-weight:700;
-  color:var(--text);margin-bottom:10px;line-height:1.2;
+#end-screen.show { display: flex; }
+
+#end-screen img {
+  width: 140px; height: 140px; margin-bottom: 18px;
+  filter: drop-shadow(0 0 32px rgba(212,136,10,0.9)) drop-shadow(0 0 12px rgba(212,136,10,0.7));
+  animation: wfloat 3s ease-in-out infinite;
 }
-#end-screen h2 span{color:var(--amber-glow)}
-#end-screen .sub{
-  font-size:0.92rem;color:var(--text-dim);
-  line-height:1.7;max-width:380px;margin-bottom:26px;
+@keyframes wfloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-9px)} }
+@keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+#end-screen h2 {
+  font-size: clamp(1.6rem,5vw,2.2rem); font-weight: 700;
+  color: var(--text); margin-bottom: 10px; line-height: 1.2;
 }
-.end-btns{display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px}
-.btn-p{
-  background:var(--amber);color:var(--soil-dark);
-  font-size:0.95rem;font-weight:700;padding:13px 20px;
-  border:none;border-radius:40px;cursor:pointer;
-  text-decoration:none;display:block;text-align:center;
-  transition:background 0.18s,transform 0.12s;
+#end-screen h2 span { color: var(--amber-glow); }
+#end-screen .sub {
+  font-size: 0.92rem; color: var(--text-dim);
+  line-height: 1.7; max-width: 380px; margin-bottom: 26px;
 }
-.btn-p:hover{background:var(--amber-glow);transform:translateY(-2px)}
-.btn-s{
-  background:transparent;color:var(--text-dim);
-  font-size:0.82rem;padding:12px 20px;min-height:44px;
-  border:1px solid rgba(255,255,255,0.12);
-  border-radius:40px;cursor:pointer;
-  text-decoration:none;display:block;text-align:center;
-  transition:border-color 0.18s,color 0.18s;
+.end-btns { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 260px; }
+.btn-p {
+  background: var(--amber); color: var(--soil-dark);
+  font-size: 0.95rem; font-weight: 700; padding: 13px 20px;
+  border: none; border-radius: 40px; cursor: pointer;
+  text-decoration: none; display: block; text-align: center;
+  transition: background 0.18s, transform 0.12s;
 }
-.btn-s:hover{border-color:var(--amber);color:var(--text)}
+.btn-p:hover { background: var(--amber-glow); transform: translateY(-2px); }
+.btn-s {
+  background: transparent; color: var(--text-dim);
+  font-size: 0.82rem; padding: 12px 20px; min-height: 44px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 40px; cursor: pointer;
+  text-decoration: none; display: block; text-align: center;
+  transition: border-color 0.18s, color 0.18s;
+}
+.btn-s:hover { border-color: var(--amber); color: var(--text); }
 </style>
 </head>
 <body>
 
-<!-- HUD -->
-<div id="demo-hud">
-  <img id="hud-bg" src="" data-bg-img="1" alt="worm">
-  <div class="title">wiggler<span>s</span>room <span style="font-weight:400;color:var(--text-dim);font-size:.75rem">· demo</span></div>
-</div>
+<div class="layout">
 
-<!-- Layer toast -->
-<div id="layer-toast"></div>
+  <!-- LEFT: game canvas panel -->
+  <div class="game-panel">
 
-<!-- Progress dots -->
-<div id="progress-dots">
-  <div class="pdot active" id="pd0"></div>
-  <div class="pdot" id="pd1"></div>
-  <div class="pdot" id="pd2"></div>
-  <div class="pdot" id="pd3"></div>
-  <div class="pdot" id="pd4"></div>
-</div>
-
-
-<!-- Demo overlay -->
-<div id="demo-overlay">
-
-  <!-- Dot 1: First eat -->
-  <div class="step-card" id="card-eat">
-    <h2>Find a scrap to eat</h2>
-    <!-- Zone arrow: food is UP -->
-    <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↑ food zone</div>
-    <p>Steer Wiggler into the food chunks at the top of the bin to start eating.</p>
-    <!-- Gesture diagram: drag arrow -->
-    <div style="display:flex;justify-content:center;margin-bottom:8px;">
-      <div class="gest-drag"></div>
+    <!-- HUD -->
+    <div id="demo-hud">
+      <img id="hud-bg" src="" data-bg-img="1" alt="worm">
+      <div class="title">wiggler<span>s</span>room <span style="font-weight:400;color:var(--text-dim);font-size:.75rem">· demo</span></div>
     </div>
-    <div class="step-hint">Drag or mouse to steer</div>
-  </div>
 
-  <!-- Dot 1→2: Fill gut then poop -->
-  <div class="step-card" id="card-poop">
-    <h2>Fill up, then poop</h2>
-    <p>Keep eating until your gut is full — then Space or long-press to poop.</p>
-    <!-- Gesture diagram: press ripple -->
-    <div style="display:flex;justify-content:center;margin-bottom:8px;">
-      <div class="gest-tap"></div>
+    <!-- Layer toast -->
+    <div id="layer-toast"></div>
+
+    <!-- Progress dots -->
+    <div id="progress-dots">
+      <div class="pdot active" id="pd0"></div>
+      <div class="pdot" id="pd1"></div>
+      <div class="pdot" id="pd2"></div>
+      <div class="pdot" id="pd3"></div>
+      <div class="pdot" id="pd4"></div>
     </div>
-    <div class="step-hint">Space · or two-finger tap to poop</div>
-  </div>
 
-  <!-- Dot 2→3: Go back up and refill -->
-  <div class="step-card" id="card-refill">
-    <h2>Back up and refill</h2>
-    <p>Steer back up to the scraps and fill your gut again before heading deep.</p>
-    <div class="step-hint">Back up to the food</div>
-  </div>
+    <!-- Demo overlay (step cards) -->
+    <div id="demo-overlay">
 
-  <!-- Dot 3→4: Dive to sump and connect drains -->
-  <div class="step-card" id="card-sump">
-    <h2>Dive to the sump</h2>
-    <!-- Zone arrow: sump is DOWN -->
-    <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↓ sump zone</div>
-    <p>Steer all the way down to the bottom. Hold still to connect a down-drain, then an up-drain.</p>
-    <!-- Gesture diagram: hold-still dot -->
-    <div style="display:flex;justify-content:center;margin-bottom:8px;">
-      <div class="gest-hold"></div>
+      <div class="step-card" id="card-eat">
+        <h2>Find a scrap to eat</h2>
+        <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↑ food zone</div>
+        <p>Steer Wiggler into the food chunks at the top of the bin to start eating.</p>
+        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-drag"></div></div>
+        <div class="step-hint">Drag or mouse to steer</div>
+      </div>
+
+      <div class="step-card" id="card-poop">
+        <h2>Fill up, then poop</h2>
+        <p>Keep eating until your gut is full — then Space or long-press to poop.</p>
+        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-tap"></div></div>
+        <div class="step-hint">Space · or two-finger tap to poop</div>
+      </div>
+
+      <div class="step-card" id="card-refill">
+        <h2>Back up and refill</h2>
+        <p>Steer back up to the scraps and fill your gut again before heading deep.</p>
+        <div class="step-hint">Back up to the food</div>
+      </div>
+
+      <div class="step-card" id="card-sump">
+        <h2>Dive to the sump</h2>
+        <div style="font-size:1.4rem;color:var(--amber-glow);text-align:center;margin-bottom:4px;animation:zone-pulse 1.2s ease-in-out infinite;">↓ sump zone</div>
+        <p>Steer all the way down to the bottom. Hold still to connect a down-drain, then an up-drain.</p>
+        <div style="display:flex;justify-content:center;margin-bottom:8px;"><div class="gest-hold"></div></div>
+        <div class="step-hint">Go deep · hold still</div>
+      </div>
+
+      <div class="step-card" id="card-sleep">
+        <h2>Time to sleep</h2>
+        <p>Drains connected — the bin is alive. Press S or long press to put Wiggler to sleep.</p>
+        <div class="step-hint">S key · or long press to sleep</div>
+      </div>
+
+    </div><!-- /demo-overlay -->
+
+    <!-- Keyboard hint -->
+    <div id="kb-hint">
+      Mouse/drag to steer &nbsp;·&nbsp;
+      <span class="kb">Space</span> poop &nbsp;·&nbsp;
+      <span class="kb">S</span> sleep &nbsp;·&nbsp;
+      <span class="kb">E</span> cocoon
     </div>
-    <div class="step-hint">Go deep · hold still</div>
-  </div>
 
-  <!-- Dot 4→5: Sleep -->
-  <div class="step-card" id="card-sleep">
-    <h2>Time to sleep</h2>
-    <p>Drains connected — the bin is alive. Press S or long press to put Wiggler to sleep.</p>
-    <div class="step-hint">S key · or long press to sleep</div>
-  </div>
+    <!-- Game canvas -->
+    <div id="root"><canvas id="c"></canvas></div>
 
-</div>
-
-<!-- Game canvas (game.js writes to #root > #c) -->
-<div id="root"><canvas id="c"></canvas></div>
-
-<!-- Intro screen -->
-<div id="intro-screen" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-desc">
-  <div style="filter:drop-shadow(0 4px 28px rgba(212,136,10,0.6));margin:0 0 10px;">
-    <h2 id="intro-title" style="font-family:'Fredoka One',sans-serif;font-size:clamp(1.8rem,5vw,2.4rem);font-weight:400;
-               background:radial-gradient(ellipse at center,#d09090 0%,#b06070 55%,#a05060 100%);
-               -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-               background-clip:text;
-               line-height:1.2;text-wrap:balance;">
-      u/Wigglers_Room
-    </h2>
-  </div>
-  <p id="intro-desc" style="font-size:0.92rem;color:var(--text-dim);line-height:1.7;
-            max-width:320px;margin-bottom:24px;text-wrap:balance;">
-    The compost bin that never stops
-  </p>
-  <img id="intro-worm"
-    src="" data-bg-img="1"
-    alt="Enter the bin"
-    onclick="_enterBin()"
-    style="width:140px;height:140px;object-fit:contain;
-           cursor:pointer;
-           filter:drop-shadow(0 4px 28px rgba(212,136,10,0.6));
-           animation:wfloat 3s ease-in-out infinite;
-           -webkit-tap-highlight-color:transparent;">
-</div>
-
-<!-- End screen -->
-<div id="end-screen" role="dialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-desc">
-  <img id="end-bg" src="" data-bg-img="1" alt="Wigglers Room">
-  <h2 id="end-title">You're in the <span>bin</span></h2>
-  <div class="end-btns">
-    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;">
-      <a class="btn-s" href="demo.html">Full controls guide</a>
-      <button class="btn-s" onclick="_restartDemo()" style="font-family:inherit;cursor:pointer;background:transparent;">↺ Play again</button>
+    <!-- Intro screen (locked — do not change) -->
+    <div id="intro-screen" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-desc">
+      <div style="filter:drop-shadow(0 0 32px rgba(212,136,10,0.9)) drop-shadow(0 0 12px rgba(212,136,10,0.7));margin:0 0 10px;">
+        <h2 id="intro-title" style="font-family:'Fredoka One',sans-serif;font-size:clamp(1.8rem,5vw,2.4rem);font-weight:400;
+                   background:radial-gradient(ellipse at center,#d09090 0%,#b06070 55%,#a05060 100%);
+                   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                   background-clip:text;
+                   line-height:1.2;text-wrap:balance;">
+          u/Wigglers_Room
+        </h2>
+      </div>
+      <p id="intro-desc" style="font-size:0.92rem;color:var(--text-dim);line-height:1.7;
+                max-width:320px;margin-bottom:24px;text-wrap:balance;">
+        The compost bin that never stops
+      </p>
+      <img id="intro-worm"
+        src="" data-bg-img="1"
+        alt="Enter the bin"
+        onclick="_enterBin()"
+        style="width:140px;height:140px;object-fit:contain;
+               cursor:pointer;
+               filter:drop-shadow(0 4px 28px rgba(212,136,10,0.6));
+               animation:wfloat 3s ease-in-out infinite;
+               -webkit-tap-highlight-color:transparent;">
     </div>
-  </div>
-</div>
 
-<!-- ── Inline game.js ───────────────────────────────────────────────────── -->
+    <!-- End screen -->
+    <div id="end-screen" role="dialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-desc">
+      <img id="end-bg" src="" data-bg-img="1" alt="Wigglers Room">
+      <h2 id="end-title">You're in the <span>bin</span></h2>
+      <div class="end-btns">
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px;">
+          <a class="btn-s" href="demo.html">Full guide</a>
+          <button class="btn-s" onclick="_restartDemo()" style="font-family:inherit;cursor:pointer;background:transparent;">↺ Play again</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /game-panel -->
+
+  <!-- RIGHT: guide panel -->
+  <div class="guide-panel">
+
+    <div class="section">
+      <div class="section-eyebrow">The game</div>
+      <h2>What is Wigglers Room?</h2>
+      <p>Your earthworm lives in a shared compost bin with other Reddit users. Eat food scraps, dig tunnel networks, deposit castings to enrich the soil, and manage the weekly tea drain — together.</p>
+      <p>No download. No app. Your Reddit account is your identity. The bin runs continuously whether you're there or not.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Controls — Mobile (Touch)</div>
+      <h2>Touch gestures</h2>
+      <div class="controls-grid">
+        <div class="ctrl">
+          <div class="ctrl-icon">👆</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Single finger drag</div>
+            <div class="ctrl-desc">Steers your worm toward your finger. Drag slowly through food to eat it.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">✌️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Two-finger tap — Poop</div>
+            <div class="ctrl-desc">Deposits castings where your worm is. Poop deep in the compost for maximum enrichment bonus.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">⏱️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Long press 600ms — Sleep / Wake</div>
+            <div class="ctrl-desc">Hold still for 0.6 seconds to toggle sleep mode. Must be in the compost layer, not the scraps zone.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">☝️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Swipe up — Lay cocoon</div>
+            <div class="ctrl-desc">Flick upward quickly (60px+, under 400ms) to lay a cocoon. Earns karma. Only when alive and active.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">🤟</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Three-finger tap — Cycle avatar</div>
+            <div class="ctrl-desc">Switches between your worm's three display modes. Cosmetic only.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">🚰</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Tap valve button — Drain control</div>
+            <div class="ctrl-desc">When tea is high or flooding, a valve button appears. Saving the bin earns Drain Hero karma.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">📜</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Drag (while sleeping) — Scroll bin</div>
+            <div class="ctrl-desc">When sleeping, drag to scroll the camera and explore the full bin.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Controls — Desktop (Keyboard)</div>
+      <h2>Keyboard shortcuts</h2>
+      <div class="controls-grid">
+        <div class="ctrl">
+          <div class="ctrl-icon">🖱️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action">Mouse move — Steer</div>
+            <div class="ctrl-desc">Your worm follows the cursor. Move slowly through food to eat it.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">⌨️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action"><kbd class="kbd">Space</kbd> — Poop</div>
+            <div class="ctrl-desc">Deposits castings at your position. Same as two-finger tap on mobile.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">⌨️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action"><kbd class="kbd">S</kbd> — Sleep / Wake</div>
+            <div class="ctrl-desc">Toggle sleep mode. Must be in the compost layer.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">⌨️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action"><kbd class="kbd">E</kbd> — Lay cocoon</div>
+            <div class="ctrl-desc">Same as swipe-up on mobile. Earns karma.</div>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-icon">⌨️</div>
+          <div class="ctrl-body">
+            <div class="ctrl-action"><kbd class="kbd">N</kbd> — Cycle avatar</div>
+            <div class="ctrl-desc">Switches between your three worm display modes.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Your worm</div>
+      <h2>Stats to watch</h2>
+      <div class="stat-row">
+        <div class="stat-label">Health (HP)</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:75%;background:#e87070"></div></div>
+        <div class="stat-val">75%</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">Gut (hunger)</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:55%;background:#d4880a"></div></div>
+        <div class="stat-val">55%</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">Acid level</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:30%;background:#c84030"></div></div>
+        <div class="stat-val">30%</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">Moisture</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:40%;background:#4a9fd4"></div></div>
+        <div class="stat-val">40%</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">Tea reservoir</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:68%;background:var(--tea-gold)"></div></div>
+        <div class="stat-val">68%</div>
+      </div>
+      <p style="margin-top:12px">Your gut drains slowly while offline — but stops at 85% so you can never die from inactivity alone. Come back hungry, not dead.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Food</div>
+      <h2>What to eat — and what to avoid</h2>
+      <p>Snoo (the Reddit mascot) tips new scraps into the bin. Eat everything you can reach, but watch your acid level.</p>
+      <div class="food-grid">
+        <div class="food-card acid">
+          <div class="food-icon">☕</div>
+          <div><div class="food-name">Coffee grounds</div><div class="food-note">High acid — drains HP over time</div></div>
+        </div>
+        <div class="food-card acid">
+          <div class="food-icon">🍊</div>
+          <div><div class="food-name">Orange peel</div><div class="food-note">Very acidic — avoid when HP is low</div></div>
+        </div>
+        <div class="food-card acid">
+          <div class="food-icon">🍎</div>
+          <div><div class="food-name">Apple core</div><div class="food-note">Mildly acidic</div></div>
+        </div>
+        <div class="food-card acid">
+          <div class="food-icon">🍇</div>
+          <div><div class="food-name">Overripe fruit</div><div class="food-note">Most acidic food in the bin</div></div>
+        </div>
+        <div class="food-card antidote">
+          <div class="food-icon">🥚</div>
+          <div><div class="food-name">Eggshell ✓</div><div class="food-note">Neutralizes acid — eat immediately</div></div>
+        </div>
+        <div class="food-card antidote">
+          <div class="food-icon">📰</div>
+          <div><div class="food-name">Newspaper ✓</div><div class="food-note">Carbon — safe, good gut fill</div></div>
+        </div>
+        <div class="food-card">
+          <div class="food-icon">🍕</div>
+          <div><div class="food-name">Pizza</div><div class="food-note">Big chunk, lots of gut fill</div></div>
+        </div>
+        <div class="food-card">
+          <div class="food-icon">🥬</div>
+          <div><div class="food-name">Lettuce</div><div class="food-note">Fast to eat, safe</div></div>
+        </div>
+      </div>
+      <p>The eggshell is the most important item in the bin. One eggshell clears significant acid buildup. Prioritise it over everything else when your acid is high.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">The bin</div>
+      <h2>Four layers — know where you are</h2>
+      <div class="layer-diagram">
+        <div class="layer" style="background:#3a4a6a">
+          <div class="layer-num">↑</div>
+          <div class="layer-text">
+            <div class="layer-name">Scraps &amp; blanket</div>
+            <div class="layer-desc">Top layer — food arrives here. You can't sleep in this zone.</div>
+          </div>
+        </div>
+        <div class="layer" style="background:#8b6340">
+          <div class="layer-num">2</div>
+          <div class="layer-text">
+            <div class="layer-name">Active worms</div>
+            <div class="layer-desc">Main living zone. Sleep allowed here. Most worms spend their time here.</div>
+          </div>
+        </div>
+        <div class="layer" style="background:#7a5535">
+          <div class="layer-num">3</div>
+          <div class="layer-text">
+            <div class="layer-name">Castings &amp; compost (upper)</div>
+            <div class="layer-desc">Poop here for the depth bonus — builds soil enrichment for the whole bin.</div>
+          </div>
+        </div>
+        <div class="layer" style="background:#4a2c10">
+          <div class="layer-num">↓</div>
+          <div class="layer-text">
+            <div class="layer-name">Castings &amp; compost (lower) + Sump</div>
+            <div class="layer-desc">Tea collects here. Hold still at the sump to create a drain point (+25 to +100 karma).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Advanced mechanics</div>
+      <h2>Tunnels, drains &amp; junctions</h2>
+      <div class="mech-card">
+        <h3>🌿 Tunnels</h3>
+        <p>Your movement carves a tunnel network through the compost. Tea drops and poop follow your tunnel paths down to the sump. The better your network, the more efficiently the bin drains.</p>
+      </div>
+      <div class="mech-card">
+        <h3>🕳️ Creating a drain point</h3>
+        <p>Navigate to the sump (bottom layer) and hold completely still for ~1.5 seconds. A glowing ring appears. When it completes you create a down-drain — tea can now flow out. Earns +25 to +100 karma.</p>
+      </div>
+      <div class="mech-card">
+        <h3>🔀 Junctions</h3>
+        <p>Hold still over an existing tunnel segment (not at the sump) for ~1.5 seconds to create a junction — connecting separate tunnel branches into a more efficient network. Earns karma and improves drainage for everyone.</p>
+      </div>
+      <div class="mech-card">
+        <h3>💩 Strategic pooping</h3>
+        <p>The deeper you poop in the compost zone, the more casting enrichment you add to the shared soil. High enrichment means faster food spawns and healthier tunnels — for every worm in the bin, not just you.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Community</div>
+      <h2>The weekly tea cycle</h2>
+      <div class="mech-card">
+        <h3>☕ Tea reservoir</h3>
+        <p>Everyone's poop deposits contribute to the tea reservoir all week. After 7 real days the cycle resets — top contributors earn karma bonuses. If the reservoir hits 90% before the reset, the bin floods and every active worm takes damage simultaneously.</p>
+      </div>
+      <div class="mech-card">
+        <h3>🚨 Flood warning</h3>
+        <p>Watch the tea level in the HUD. Above 80% you'll see a flood warning. Tap the valve button to trigger an emergency drain before it hits 90%. The player who saves the bin earns the Drain Hero bonus.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Life &amp; death</div>
+      <h2>When your worm dies</h2>
+      <div class="death-card">
+        <h3>Causes of death</h3>
+        <p>Acid poisoning (eating too much citrus or coffee without eggshell antidote) · Starvation (gut fully drained) · Flood damage (bin overflows while you're active) · Constipation (gut completely full, can't move)</p>
+      </div>
+      <div class="mech-card">
+        <h3>🥚 The cocoon</h3>
+        <p>When you die, a Reddit comment is automatically posted to the thread — your username, cause of death, how long you lived, your generation, and total karma. A cocoon appears at the death site. After 7 real days it hatches and you return as your own offspring with some karma carried forward.</p>
+      </div>
+      <div class="mech-card">
+        <h3>🌱 Generations</h3>
+        <p>Gen 1 is your first worm. Gen 2 is their child. Each generation starts a little ahead of the last — karma compounds across generations. Some players in the bin are already Gen 4 or Gen 5.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-eyebrow">Quick tips</div>
+      <h2>Things I wish I knew</h2>
+      <ul class="tip-list">
+        <li data-icon="🥚">Eggshell first, everything else second. Always. It's the most important item in the bin.</li>
+        <li data-icon="💩">Poop deep. Surface deposits barely do anything. The compost layer depth bonus is huge.</li>
+        <li data-icon="🌿">Build drainage tunnels before you poop. Poop without a path just clogs the system.</li>
+        <li data-icon="🚰">Check the tea level before you log off. If it's above 75% and the weekly reset is days away, drain the valve.</li>
+        <li data-icon="😴">Sleep in the compost zone, not the scraps layer. You get a warning if you try in the wrong zone.</li>
+        <li data-icon="💀">Death is a chapter break, not a failure. Your Gen 2 worm starts with karma. Don't stress it.</li>
+        <li data-icon="🔀">Hold still over existing tunnels to create junctions — they earn karma and help the whole bin drain faster.</li>
+      </ul>
+    </div>
+
+  </div><!-- /guide-panel -->
+
+</div><!-- /layout -->
+
+
 <script>
 // ── Demo interceptors — run BEFORE game.js so we can hook in ──────────────
 
@@ -675,5 +1236,6 @@ setInterval(function() {
   });
 })();
 </script>
+
 </body>
 </html>
