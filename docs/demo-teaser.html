@@ -452,27 +452,7 @@ body::before {
   50%      { box-shadow: 0 0 0 10px rgba(245,166,35,0); }
 }
 
-/* ── Keyboard hint ── */
-#kb-hint {
-  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 10px; align-items: center;
-  background: rgba(14,8,3,0.75);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 30px; padding: 6px 16px;
-  z-index: 502; opacity: 0; transition: opacity 0.4s;
-  font-size: 0.72rem; color: var(--text-dim);
-  pointer-events: none; white-space: nowrap;
-}
-#kb-hint.show { opacity: 0.85; }
-.kb {
-  display: inline-block;
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(255,255,255,0.60);
-  border-bottom-width: 2px;
-  border-radius: 4px; padding: 1px 7px;
-  font-family: monospace; font-size: 0.72rem;
-  color: #1a0e06;
-}
+
 
 /* ── Intro screen ── */
 #intro-screen {
@@ -751,14 +731,6 @@ body::before {
       </div>
 
     </div><!-- /demo-overlay -->
-
-    <!-- Keyboard hint -->
-    <div id="kb-hint">
-      Mouse/drag to steer &nbsp;·&nbsp;
-      <span class="kb">Space</span> poop &nbsp;·&nbsp;
-      <span class="kb">S</span> sleep &nbsp;·&nbsp;
-      <span class="kb">E</span> cocoon
-    </div>
 
     <!-- Game canvas -->
     <div id="root"><canvas id="c"></canvas></div>
@@ -1269,7 +1241,7 @@ function _enterBin() {
     // Show step 1 card — steer to a scrap to eat
     _showCard('card-eat');
     // Show keyboard hint immediately so users know controls from the start
-    document.getElementById('kb-hint').classList.add('show');
+
   }, 520);
 }
 
