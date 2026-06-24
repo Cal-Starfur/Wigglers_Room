@@ -444,7 +444,7 @@ body::before {
 /* ── Intro screen ── */
 #intro-screen {
   position: absolute; inset: 0;
-  background: rgba(8,4,1,0.97);
+  background: rgba(8,4,1,0.55);
   z-index: 700;
   flex-direction: column; align-items: center;
   justify-content: center; text-align: center;
@@ -1293,6 +1293,13 @@ setInterval(function() {
     var el = document.getElementById(id);
     if (el) el.src = BG;
   });
+  // Set preview-bg as the intro screen background
+  var introEl = document.getElementById('intro-screen');
+  if (introEl) {
+    introEl.style.backgroundImage = 'url(' + BG + ')';
+    introEl.style.backgroundSize = 'cover';
+    introEl.style.backgroundPosition = 'center';
+  }
 })();
 </script>
 
