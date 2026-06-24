@@ -20,6 +20,9 @@
   --leaf: #5a9e28; --bg-deep: #0a1020;
   --card-bg: rgba(42,22,8,0.85);
   --border: rgba(212,136,10,0.25);
+  --surface: rgba(26,14,6,0.97);
+  --pink: #b06070;
+  --pink-hi: #d09090;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -51,7 +54,7 @@ body::before {
 .layout {
   position: relative; z-index: 1;
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr minmax(0, 400px);
   gap: 0;
   max-width: 1300px;
   margin: 0 auto;
@@ -1140,6 +1143,13 @@ function _wrapRAF() {
 var _demoFrame = 0;
 function _demoTick() {
   _demoFrame++;
+  // Freeze simulation while intro screen is showing
+  if (!_introDismissed) {
+    if (typeof pHP !== 'undefined') pHP = 1.0;
+    if (typeof pGut !== 'undefined' && typeof pGutMax !== 'undefined') pGut = pGutMax * 0.5;
+    if (typeof pAcid !== 'undefined') pAcid = 0;
+    return;
+  }
   if (_demoState === 'done') return;
   if (typeof pSegs === 'undefined' || !pSegs.length) return;
 
