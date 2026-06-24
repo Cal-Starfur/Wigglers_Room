@@ -1,5 +1,5 @@
 # Impeccable Critique — `docs/demo-teaser.html`
-**Updated · Session 25 · 2026-06-23**
+**Updated · Session 26 · 2026-06-24**
 **Target:** `docs/demo-teaser.html`
 
 ---
@@ -23,22 +23,9 @@ The intro screen (`#intro-screen`) is **finished and signed off**. Do not propos
 
 ---
 
-## Remaining Open Issues (demo flow only — not start screen)
+## Remaining Open Issues
 
-### [P1] Keyboard controls — RESOLVED
-`#kb-hint` now shows immediately when `_enterBin()` fires. ✅
-
-### [P1] `.btn-s` touch target too small
-9px padding on end-screen buttons is below 44px minimum touch target. Not yet fixed.
-
-### [P1] `user-scalable=no` breaks accessibility
-WCAG 1.4.4 violation in viewport meta. Not yet fixed.
-
-### [P2] `<kbd>` contrast failure
-`<kbd>` labels inside `#kb-hint` are 1.22:1 — invisible. Not yet fixed.
-
-### [P0] Step cards — gesture diagrams added ✅
-Zone arrows and CSS gesture animations added to `card-eat`, `card-poop`, `card-sump`. ✅
+*All previously flagged issues are now resolved. See table below.*
 
 ---
 
@@ -54,6 +41,9 @@ Zone arrows and CSS gesture animations added to `card-eat`, `card-poop`, `card-s
 | Title colour gradient (worm pink) | ✅ Locked |
 | Title glow | ✅ Locked |
 | Subtitle copy | ✅ Locked |
+| `.btn-s` touch target | ✅ `min-height: 44px` + `padding: 12px 20px` already in place |
+| `user-scalable=no` viewport | ✅ Never present — viewport is `initial-scale=1.0` only |
+| `<kbd>` contrast in `#kb-hint` | ✅ Fixed S26 — `.kb` now uses `color: #1a0e06` on `rgba(255,255,255,0.85)` background |
 
 ---
 
@@ -66,4 +56,4 @@ Zone arrows and CSS gesture animations added to `card-eat`, `card-poop`, `card-s
 
 ---
 
-*Updated by Claude · Session 25 · start screen locked per Cal's instruction*
+*Updated by Claude · Session 26 · all open issues resolved*
