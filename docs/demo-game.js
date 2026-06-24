@@ -8079,6 +8079,10 @@ function updateNPCSims() {
       if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; sim.sleepTimer = 1800 + Math.random() * 3600; }
       opp.sleeping = true;
       opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
+      // ZZZ particles for sleeping NPCs
+      if (frame % 90 === 0) {
+        pZzz.push({ x: sim.segs[0].x + (Math.random()-0.5)*sim.sr*2, wy: sim.segs[0].y - sim.sr*2, vy: -0.5, alpha: 1, size: 6 + Math.random()*5, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
+      }
       continue;
     }
     opp.sleeping = false;
@@ -8173,7 +8177,7 @@ function updateNPCSims() {
     var _nHx = sim.segs[0].x, _nHy = sim.segs[0].y;
     var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
     var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
-    if (_nmoved > 1.5 && _nHy > H * 1.2) {
+    if (_nmoved > 0.2 && _nHy > H * 1.2) {
       // Only carve in compost zone (below tier 1 scraps)
       if (!sim._pathLastX || Math.abs(_nHx - sim._pathLastX) > sim.sr * 1.8 || Math.abs(_nHy - sim._pathLastY) > sim.sr * 1.8) {
         pPath.push({ x: _nHx, y: _nHy, r: sim.sr * 0.85, ti: 2 });
@@ -8182,11 +8186,6 @@ function updateNPCSims() {
       }
     }
     sim._lastX = _nHx; sim._lastY = _nHy;
-
-    // ── ZZZ particles when sleeping ───────────────────────────────────────
-    if (opp.sleeping && frame % 90 === 0) {
-      pZzz.push({ x: sim.segs[0].x + (Math.random()-0.5)*sim.sr*2, wy: sim.segs[0].y - sim.sr*2, vy: -0.5, alpha: 1, size: 6 + Math.random()*5, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
-    }
 
     // ── Sync back to otherPlayers ─────────────────────────────────────────
     opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
