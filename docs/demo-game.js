@@ -5882,8 +5882,11 @@ function draw() {
   //   3. Draw the clog stroke — same lineWidth, growing length — inside that clip.
   ctx.lineCap  = 'round';
   ctx.lineJoin = 'round';
-  for (var _ci = 0; _ci < pPath.length; _ci++) {
-    var _cp = pPath[_ci];
+  // Clog deposits render for EVERY registered path (player + NPC tubes).
+  for (var _crpi = 0; _crpi < pathRegistry.length; _crpi++) {
+    var _CP = pathRegistry[_crpi];
+  for (var _ci = 0; _ci < _CP.length; _ci++) {
+    var _cp = _CP[_ci];
     if (!_cp || !_cp.clog || _cp.clog <= 0) continue;
     var _csy = _cp.y - camY;
     if (_csy < -20 || _csy > H + 20) continue;
@@ -5892,9 +5895,9 @@ function draw() {
 
     // ── 1. Find segment boundaries (walk to null or array edge) ──────────────
     var _segS = _ci;
-    while (_segS > 0 && pPath[_segS - 1]) _segS--;
+    while (_segS > 0 && _CP[_segS - 1]) _segS--;
     var _segE = _ci;
-    while (_segE < pPath.length - 1 && pPath[_segE + 1]) _segE++;
+    while (_segE < _CP.length - 1 && _CP[_segE + 1]) _segE++;
 
     // ── 2. Build clip path from the full segment polyline ────────────────────
     ctx.save();
@@ -5905,7 +5908,7 @@ function draw() {
     ctx.beginPath();
     var _firstSeg = true;
     for (var _si = _segS; _si <= _segE; _si++) {
-      var _sp = pPath[_si];
+      var _sp = _CP[_si];
       if (!_sp) break;
       var _spy = _sp.y - camY;
       if (_firstSeg) { ctx.moveTo(_sp.x, _spy); _firstSeg = false; }
@@ -5919,7 +5922,7 @@ function draw() {
     var _segPts = _segPtsScratch;
     _segPts.length = 0; // clear without deallocation
     for (var _si2 = _segS; _si2 <= _segE; _si2++) {
-      var _sp2 = pPath[_si2];
+      var _sp2 = _CP[_si2];
       if (!_sp2) break;
       _segPts.push({ x: _sp2.x, y: _sp2.y - camY });
     }
@@ -5964,8 +5967,8 @@ function draw() {
     }
 
     // ── 3. Find tunnel direction and draw the clog stroke inside the clip ────
-    var _prevP = _ci > _segS ? pPath[_ci - 1] : null;
-    var _nextP = _ci < _segE ? pPath[_ci + 1] : null;
+    var _prevP = _ci > _segS ? _CP[_ci - 1] : null;
+    var _nextP = _ci < _segE ? _CP[_ci + 1] : null;
     var _angle = Math.PI / 2;
     if (_prevP || _nextP) {
       var _dx = (_nextP ? _nextP.x : _cp.x) - (_prevP ? _prevP.x : _cp.x);
@@ -5995,6 +5998,7 @@ function draw() {
 
     ctx.restore(); // removes clip
     ctx.globalAlpha = 1;
+  }
   }
 
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
@@ -8079,9 +8083,47 @@ function updateNPCSims() {
       sim.segs = [];
       sim.hist = [];
       sim.path = [];   // this NPC's own tunnel trail — never shares pPath
+      if (pathRegistry.indexOf(sim.path) < 0) pathRegistry.push(sim.path); // routable: drops/clog/junctions
       for (var _si = 0; _si < sim.nSeg; _si++) {
         sim.segs.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
         sim.hist.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
+      }
+    }
+
+    // ── Tube fade + clog lifecycle (mirrors the player's tubes) ──────────────
+    // NPC tunnels fill back in over time. When a CLOGGED point fades to alpha 0 it
+    // bursts its clog back into poop drops — exactly like the player's tubes. Runs
+    // for awake AND sleeping NPCs so tubes always progress toward closing.
+    if (frame % 10 === 0 && sim.path && sim.path.length) {
+      for (var _ntd = 0; _ntd < sim.path.length; _ntd++) {
+        var _ntp = sim.path[_ntd];
+        if (!_ntp || _ntp.ti !== 2) continue;
+        if (_ntp.alpha == null) _ntp.alpha = 1;
+        var _ntPrev = _ntp.alpha;
+        _ntp.alpha = Math.max(0, _ntp.alpha - TUNNEL_DECAY_UNCONNECTED * 10);
+        // Clog self-clears once no fresh poop has landed for ~30s (same gate as player).
+        if (_ntp.clog && (frame - (_ntp.clogTs || 0)) > 1800) {
+          var _ntClogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
+          _ntp.clog = Math.max(0, _ntp.clog - _ntClogDecay);
+        }
+        // Tube faded with clog still present — burst it back into poop drops.
+        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0) {
+          var _ntStrength = _ntp.clog;
+          var _ntNum = 1 + Math.floor(_ntStrength * 3); // 1–4 drops by clog density
+          for (var _ntb = 0; _ntb < _ntNum; _ntb++) {
+            dropsPush({
+              x:              _ntp.x + (Math.random() - 0.5) * (_ntp.r || sim.sr) * 2,
+              y:              _ntp.y,
+              vy:             0.4 + Math.random() * 0.5,
+              sz:             (_ntp.r || sim.sr) * (0.5 + Math.random() * 0.5),
+              active:         true,
+              isPoop:         true,
+              clogAmt:        0.08 + (_ntStrength / _ntNum) * 0.12,
+              enteredCompost: inCompost(_ntp.y)
+            });
+          }
+          _ntp.clog = 0; // clear so no double-burst next frame
+        }
       }
     }
 
@@ -8210,18 +8252,6 @@ function updateNPCSims() {
       if (_carved) { sim._pathLastX = _nHx; sim._pathLastY = _nHy; }
     }
     sim._lastX = _nHx; sim._lastY = _nHy;
-
-    // ── Cosmetic trail fade — NPC tunnels fill back in over ~5 min ────────
-    // Simple time-based decay (no sump-connectivity needed). drawPath() skips any
-    // point whose alpha reaches 0 and breaks the tunnel segment there.
-    if (frame % 10 === 0 && sim.path.length) {
-      for (var _ntd = 0; _ntd < sim.path.length; _ntd++) {
-        var _ntp = sim.path[_ntd];
-        if (!_ntp || _ntp.ti !== 2) continue;
-        if (_ntp.alpha == null) _ntp.alpha = 1;
-        _ntp.alpha = Math.max(0, _ntp.alpha - TUNNEL_DECAY_UNCONNECTED * 10);
-      }
-    }
 
     // ── Sync back to otherPlayers ─────────────────────────────────────────
     opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
