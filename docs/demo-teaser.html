@@ -576,7 +576,7 @@ body::before {
 .fc-card.acid { border-color: rgba(220,50,50,0.3); }
 .fc-card.acid:hover { border-color: rgba(220,80,60,0.7); }
 
-.fc-canvas { flex-shrink: 0; }
+.fc-canvas { flex-shrink: 0; pointer-events: none; }
 
 .fc-name {
   font-family: 'Fredoka One', sans-serif;
@@ -2395,7 +2395,7 @@ function renderChunkCanvas(name, sz) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('[data-chunk]').forEach(function(el) {
+  document.querySelectorAll('.food-icon[data-chunk]').forEach(function(el) {
     var name = el.getAttribute('data-chunk');
     var sz = parseInt(el.getAttribute('data-sz') || '22');
     el.innerHTML = '';
