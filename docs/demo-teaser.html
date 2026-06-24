@@ -2140,15 +2140,20 @@ document.addEventListener('DOMContentLoaded', function() {
         carousel.classList.remove('paused');
         tooltip.classList.remove('visible');
         hideTimer = null;
-      }, 120);
+      }, 300);
     }
 
-    // Per-card hover — use event delegation on carousel
-    carousel.addEventListener('mouseover', function(e) {
+    // Per-card hover — mousemove is more reliable than mouseover when paused
+    var _lastCard = null;
+    carousel.addEventListener('mousemove', function(e) {
       var card = e.target.closest('.fc-card');
-      if (card) showTooltip(card);
+      if (card && card !== _lastCard) {
+        _lastCard = card;
+        showTooltip(card);
+      }
     });
     carousel.addEventListener('mouseleave', function() {
+      _lastCard = null;
       scheduleHide();
     });
 
