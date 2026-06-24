@@ -547,20 +547,18 @@ body::before {
 }
 
 .carousel-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0;
+  display: block;
   width: 100%;
   overflow: hidden;
+  padding: 4px 0;
 }
 
 .fc-row {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   gap: 6px;
-  width: max-content;
   animation: carousel-scroll 32s linear infinite;
+  vertical-align: top;
 }
 
 .carousel-rows.paused .fc-row {
