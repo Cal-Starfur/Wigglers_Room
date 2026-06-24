@@ -973,6 +973,45 @@ function _injectNPCs() {
       players: players
     }}}
   }));
+
+  // ── Attach .sim objects so updateNPCSims() can drive each NPC ────────────
+  // Small delay so the setPresence handler finishes populating otherPlayers.
+  setTimeout(function() {
+    _DEMO_NPCS.forEach(function(n) {
+      var entry = null;
+      for (var _i = 0; _i < otherPlayers.length; _i++) {
+        if (otherPlayers[_i].username === n.username) { entry = otherPlayers[_i]; break; }
+      }
+      if (!entry) return;
+      var sr  = Math.max(4, Math.min(7, n.size));
+      var nSeg = Math.max(4, Math.round(sr));
+      // Waypoints: _DEMO_WAYPOINTS[name] = [[xr,yr], ...] — xr=fraction of W, yr=H-multiple
+      var rawWps = _DEMO_WAYPOINTS[n.username];
+      var waypoints = (rawWps && rawWps.length) ? rawWps
+        : [[n.xr, n.yr], [n.xr + 0.1, n.yr + 0.2], [n.xr - 0.1, n.yr + 0.1]];
+      entry.sim = {
+        segs:       [],
+        hist:       [],
+        sr:         sr,
+        nSeg:       nSeg,
+        gen:        n.gen || 0,
+        gut:        n.sleeping ? sr * 0.5 : 0,
+        gutMax:     4 + Math.floor((sr - 4) / 3 * 4),
+        hp:         0.8 + Math.random() * 0.2,
+        acid:       Math.random() * 0.15,
+        sleeping:   !!n.sleeping,
+        sleepCurl:  n.sleeping ? 0.8 : 0,
+        sleepTimer: n.sleeping ? 0 : (1800 + Math.random() * 3600),
+        wakeTimer:  n.sleeping ? (600 + Math.random() * 1200) : 0,
+        poopTimer:  Math.floor(Math.random() * 600),
+        poopFlash:  0,
+        waypoints:  waypoints,
+        wpIdx:      Math.floor(Math.random() * waypoints.length),
+        wpTimer:    Math.floor(Math.random() * 120)
+      };
+    });
+    console.log('[demo] NPC sims attached:', otherPlayers.filter(function(p){return !!p.sim;}).length);
+  }, 50);
 }
 
 // 5. Move NPCs by re-injecting presence on a timer
@@ -1018,7 +1057,6 @@ function _wrapRAF() {
 var _demoFrame = 0;
 function _demoTick() {
   _demoFrame++;
-  if (_demoFrame % 120 === 0) _updateNPCPositions();
   if (_demoState === 'done') return;
   if (typeof pSegs === 'undefined' || !pSegs.length) return;
 
