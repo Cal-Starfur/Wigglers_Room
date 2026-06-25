@@ -1263,7 +1263,18 @@ document.getElementById('root').style.paddingTop = '44px';
 </script>
 
 <!-- ── The actual game ──────────────────────────────────────────────────── -->
-<script src="demo-game.js"></script>
+<!-- Cache-bust loader: mirror the page's own ?v= onto demo-game.js so versioning
+     the HTML URL also forces a fresh game fetch (the bare <script src> would
+     otherwise serve stale cached JS — no hard-refresh available on mobile Safari).
+     document.write keeps the script synchronous + in load order with the post-boot
+     block below. No ?v= present -> loads bare, normal caching for production. -->
+<script>
+(function () {
+  var m = (location.search || '').match(/[?&]v=([^&]+)/);
+  var v = m ? '?v=' + encodeURIComponent(m[1]) : '';
+  document.write('<script src="demo-game.js' + v + '"><\/script>');
+})();
+</script>
 
 <!-- ── Post-boot: inject NPCs and wrap RAF ─────────────────────────────── -->
 <script>
