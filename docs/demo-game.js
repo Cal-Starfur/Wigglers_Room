@@ -210,6 +210,20 @@ function drawTutorialHighlight() {
     ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+
+    // Precise aim point — a crisp dot at the exact target centre so the player
+    // knows where to place their steering point (critical for the sump drain holds:
+    // put your point on the dot at the floor and the hold connects).
+    if (tgt._tutBeacon) {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(255,176,48,0.95)';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 3.5 + 0.6 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   // Worm-anchored arrow — just ahead of the head, pointing at the target.
@@ -3190,9 +3204,14 @@ function spawnTutorialScene() {
   // in the dark soil (tier 2) so the worm is guided down to where pooping pays off.
   var _poopSpot = { x: b.cx, y: 2 * H + H * 0.45, sz: 16, eaten: false, gone: false, _tutBeacon: true };
 
-  // Sump-floor beacon — both drain beats happen in the same spot at the sump boundary
-  // (the worm clamps at 3H - pSR, so it holds still here rather than digging deeper).
-  var _sumpSpot = { x: b.cx, y: 3 * H - 16, sz: 16, eaten: false, gone: false, _tutBeacon: true };
+  // Two sump-floor beacons ON the sump border (y = 3H - 2). The worm head clamps at
+  // 3H - pSR, so steering the point onto a beacon parks the head in the _atSump zone
+  // (head.y >= 3H - pSR - 2) and the hold actually connects. Down drain and up drain
+  // sit at SEPARATE x so the second beat reads as "now steer over to the new dot",
+  // not an invisible re-hold in place. Both stay on the floor so _sumpHadDown persists
+  // while the worm traverses between them.
+  var _downSpot = { x: b.cx - _span * 0.16, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
+  var _upSpot   = { x: b.cx + _span * 0.16, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
 
   // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
@@ -3206,8 +3225,8 @@ function spawnTutorialScene() {
     { target: _ac,      kind: 'acid', panel: { title: 'Overripe Fruit', lines: ['From the pile: worth more,', 'but acidic — it builds up', 'and turns you green.'], karma: '+45 karma', tint: '#e89060' } },
     { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } },
     { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } },
-    { target: _sumpSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Dive to the sump floor and', 'hold still — carve a drain so', 'tea drains down and out.'],       karma: '+100 karma', tint: '#7fc8e0' } },
-    { target: _sumpSpot, kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Hold still at the sump once', 'more to arm an up drain — it', 'pumps tea back up to harvest.'],   karma: '+100 karma', tint: '#7fc8e0' } },
+    { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
+    { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now steer to the next dot and', 'hold to arm an up drain — it', 'pumps tea back up to harvest.'],   karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } }
   ];
   tutorial.stepIndex = 0;
