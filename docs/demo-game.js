@@ -197,15 +197,27 @@ function drawTutorialHighlight() {
   var baseR = tgt.sz || 10;
   var onScreen = ty > -baseR && ty < H + baseR;
   var pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
+  var ringR = baseR * (1.7 + 0.35 * pulse);
 
-  // Pulsing amber glow ring on the target (amber = glow only — design token).
+  // Head proximity (0 far -> 1 arrived) drives BOTH the arrow's arrival dismiss and the
+  // ring thickening, so reaching a target reads as a payoff rather than a nagging arrow.
+  var _hx, _hy, _ad = Infinity, _prox = 0;
+  if (pSegs && pSegs.length) {
+    _hx = pSegs[0].x; _hy = pSegs[0].y - camY;
+    var _adx = tx - _hx, _ady = ty - _hy;
+    _ad = Math.sqrt(_adx * _adx + _ady * _ady);
+    var _far = ringR * 1.9, _near = ringR * 0.85;   // fade band, in ring radii
+    _prox = Math.max(0, Math.min(1, (_far - _ad) / (_far - _near)));
+  }
+
+  // Pulsing amber glow ring (amber = glow only — design token). Thickens + brightens as
+  // the worm arrives (_prox), locking the target in as the arrow leaves.
   if (onScreen) {
-    var ringR = baseR * (1.7 + 0.35 * pulse);
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,176,48,' + (0.55 + 0.4 * pulse) + ')';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
+    ctx.lineWidth = 2.5 + 5 * _prox;
     ctx.shadowColor = 'rgba(255,176,48,0.9)';
-    ctx.shadowBlur = 10 + 8 * pulse;
+    ctx.shadowBlur = 10 + 8 * pulse + 6 * _prox;
     ctx.beginPath();
     ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
     ctx.stroke();
@@ -218,37 +230,40 @@ function drawTutorialHighlight() {
       ctx.save();
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(255,176,48,0.95)';
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 8 + 4 * _prox;
       ctx.beginPath();
-      ctx.arc(tx, ty, 3.5 + 0.6 * pulse, 0, Math.PI * 2);
+      ctx.arc(tx, ty, 3.5 + 0.6 * pulse + 1.5 * _prox, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   }
 
-  // Worm-anchored arrow — just ahead of the head, pointing at the target.
-  if (pSegs && pSegs.length) {
-    var hx = pSegs[0].x, hy = pSegs[0].y - camY;
-    var adx = tx - hx, ady = ty - hy;
-    var ad = Math.sqrt(adx * adx + ady * ady);
-    if (ad > 1) {
-      var ux = adx / ad, uy = ady / ad;
-      var off = (pSR || 6) + 20;          // distance ahead of the head
-      var aSize = 9 + 2 * pulse;
-      ctx.save();
-      ctx.translate(hx + ux * off, hy + uy * off);
-      ctx.rotate(Math.atan2(uy, ux));      // tip (+x) rotates toward the target
-      ctx.fillStyle = 'rgba(255,176,48,' + (0.75 + 0.25 * pulse) + ')';
-      ctx.shadowColor = 'rgba(255,176,48,0.85)';
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.moveTo(aSize, 0);
-      ctx.lineTo(-aSize * 0.7, aSize * 0.7);
-      ctx.lineTo(-aSize * 0.7, -aSize * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
+  // Worm-anchored arrow — sits just ahead of the head pointing at the target, then on
+  // arrival glides into the ring while shrinking + fading out (a clean "delivered you
+  // here" dismiss) instead of hovering and pointing forever.
+  if (pSegs && pSegs.length && _ad > 1 && _prox < 0.999) {
+    var ux = (tx - _hx) / _ad, uy = (ty - _hy) / _ad;
+    var off = (pSR || 6) + 20;                          // resting distance ahead of head
+    var ax0 = _hx + ux * off, ay0 = _hy + uy * off;
+    var glide = _prox * 0.9;                            // slide toward the ring on arrival
+    var ax = ax0 + (tx - ax0) * glide, ay = ay0 + (ty - ay0) * glide;
+    var scale = 1 - 0.55 * _prox;                       // shrink in
+    var alpha = (0.75 + 0.25 * pulse) * Math.pow(1 - _prox, 1.6); // fade, accelerating
+    var aSize = (9 + 2 * pulse) * scale;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(Math.atan2(uy, ux));                     // tip (+x) toward the target
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(255,176,48,1)';
+    ctx.shadowColor = 'rgba(255,176,48,0.85)';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(aSize, 0);
+    ctx.lineTo(-aSize * 0.7, aSize * 0.7);
+    ctx.lineTo(-aSize * 0.7, -aSize * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 }
 var frame = 0;
