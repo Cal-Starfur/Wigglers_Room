@@ -3154,7 +3154,7 @@ function spawnTutorialScene() {
   //   lettuce (left) → watermelon (mid) → acid pile chunk (centre top) → eggshell (centre low)
   var _lettuce = _tutFood('lettuce',          _xL + _span * 0.22, H + H * 0.55);
   var _melon   = _tutFood('watermelon_chunk', _xL + _span * 0.55, H + H * 0.50);
-  var _egg     = _tutFood('egg_shell',        _xL + _span * 0.45, H + H * 0.80);
+  var _egg     = _tutFood('egg_shell',        _xL + _span * 0.593, H + H * 0.459);  // original 3rd-scrap spot (mid-right tier 1)
 
   // Acid item in the tier-0 pile — climb up, nibble, pAcid rises, worm tints green.
   var _ac = null;
