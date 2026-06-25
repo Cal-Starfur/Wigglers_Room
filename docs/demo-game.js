@@ -67,7 +67,8 @@ var tutorial = {
   target: null,    // the scrap/trash this step is about (later commits)
   scene:  false,   // true = load the authored staged scene + freeze ambient refill
   foodScraps: [],  // staged tier-1 food scraps (eat/fill steps) — set by spawnTutorialScene
-  acidChunk:  null // staged tier-0 acid pile item (acid step)    — set by spawnTutorialScene
+  acidChunk:  null, // staged tier-0 acid pile item (acid step)   — set by spawnTutorialScene
+  targetIndex: 0   // ordered progression cursor: foodScraps[0..n] then acidChunk
 };
 try {
   var _tutSearch = window.location.search || '';
@@ -99,25 +100,42 @@ function tutorialClampTarget(tx, ty) {
 // staged scene is loaded, a TEMPORARY picker targets the first uneaten food scrap
 // then the acid chunk, so the highlight can be tested end to end. Drawn in the
 // world-translated space (x direct, y - camY) — same convention as the cursor.
-function _tutPickTestTarget() {
-  if (tutorial.foodScraps) {
-    for (var i = 0; i < tutorial.foodScraps.length; i++) {
-      var f = tutorial.foodScraps[i];
-      if (f && !f.eaten) return f;
-    }
+// ── Tutorial ordered progression ─────────────────────────────────────────────
+// Advances through the staged food scraps in sequence, then the acid item, and
+// drives BOTH the highlight target and a soft leash around the active item — so
+// the worm is guided to the current target and can't reach later ones out of
+// order. Called once per frame from updatePlayer, before the move-target clamp.
+function tutorialStep() {
+  if (!tutorial.active || !tutorial.scene) return;
+  var food = tutorial.foodScraps || [];
+  var idx = tutorial.targetIndex || 0;
+  while (idx < food.length && food[idx] && food[idx].eaten) idx++;  // skip eaten
+  tutorial.targetIndex = idx;
+
+  var active = null;
+  if (idx < food.length) active = food[idx];
+  else if (tutorial.acidChunk && !tutorial.acidChunk.gone) active = tutorial.acidChunk;
+
+  tutorial.target = active;
+  if (active) {
+    // Soft radius leash around the active item — tight enough to exclude neighbours.
+    tutorial.leash = { type: 'radius', x: active.x, y: active.y, r: 150 };
+  } else {
+    tutorial.leash = null;  // food + acid done — release to free roam
   }
-  if (tutorial.acidChunk && !tutorial.acidChunk.gone) return tutorial.acidChunk;
-  return null;
+  // Acid lesson ends once the worm has clearly turned green — release.
+  if (active === tutorial.acidChunk && pAcid > 0.3) {
+    tutorial.target = null; tutorial.leash = null;
+  }
 }
 
+// ── Tutorial highlight ───────────────────────────────────────────────────────
+// Commit 3 (revised): no dimming. A pulsing amber glow ring marks the target, and
+// a worm-anchored arrow sits just ahead of the head pointing at it — so guidance
+// reads from where the player is, on-screen or off. Drawn in the world-translated
+// space (x direct, y - camY) — same convention as the cursor.
 function drawTutorialHighlight() {
   if (!tutorial.active) return;
-  // TEMP test driver — replaced by the step machine in commit 4.
-  if (tutorial.scene) {
-    if (!tutorial.target || tutorial.target.eaten || tutorial.target.gone) {
-      tutorial.target = _tutPickTestTarget();
-    }
-  }
   var tgt = tutorial.target;
   if (!tgt || tgt.eaten || tgt.gone) return;
 
@@ -126,25 +144,9 @@ function drawTutorialHighlight() {
   var baseR = tgt.sz || 10;
   var onScreen = ty > -baseR && ty < H + baseR;
   var pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
-  var leftX = camX - centreOffsetX;   // screen x=0 in the translated world space
 
-  // Dim the scene — radial spotlight hole around the target when it is visible.
-  ctx.save();
+  // Pulsing amber glow ring on the target (amber = glow only — design token).
   if (onScreen) {
-    var inR  = baseR * 2.4;
-    var outR = Math.max(W, H) * 0.6;
-    var g = ctx.createRadialGradient(tx, ty, inR, tx, ty, outR);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.42)');
-    ctx.fillStyle = g;
-  } else {
-    ctx.fillStyle = 'rgba(0,0,0,0.42)';
-  }
-  ctx.fillRect(leftX, 0, W, H);
-  ctx.restore();
-
-  if (onScreen) {
-    // Pulsing amber glow ring on the target (amber = glow only — design token).
     var ringR = baseR * (1.7 + 0.35 * pulse);
     ctx.save();
     ctx.strokeStyle = 'rgba(255,176,48,' + (0.55 + 0.4 * pulse) + ')';
@@ -155,22 +157,31 @@ function drawTutorialHighlight() {
     ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
-  } else {
-    // Edge arrow toward an off-screen target (bin keeps x in view → vertical arrow).
-    var ax = Math.max(leftX + 30, Math.min(leftX + W - 30, tx));
-    var dir = ty < 0 ? -1 : 1;
-    var ayEdge = ty < 0 ? 50 : H - 50;
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,176,48,' + (0.7 + 0.3 * pulse) + ')';
-    ctx.shadowColor = 'rgba(255,176,48,0.85)';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.moveTo(ax, ayEdge + dir * 15);
-    ctx.lineTo(ax - 11, ayEdge - dir * 9);
-    ctx.lineTo(ax + 11, ayEdge - dir * 9);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+  }
+
+  // Worm-anchored arrow — just ahead of the head, pointing at the target.
+  if (pSegs && pSegs.length) {
+    var hx = pSegs[0].x, hy = pSegs[0].y - camY;
+    var adx = tx - hx, ady = ty - hy;
+    var ad = Math.sqrt(adx * adx + ady * ady);
+    if (ad > 1) {
+      var ux = adx / ad, uy = ady / ad;
+      var off = (pSR || 6) + 20;          // distance ahead of the head
+      var aSize = 9 + 2 * pulse;
+      ctx.save();
+      ctx.translate(hx + ux * off, hy + uy * off);
+      ctx.rotate(Math.atan2(uy, ux));      // tip (+x) rotates toward the target
+      ctx.fillStyle = 'rgba(255,176,48,' + (0.75 + 0.25 * pulse) + ')';
+      ctx.shadowColor = 'rgba(255,176,48,0.85)';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(aSize, 0);
+      ctx.lineTo(-aSize * 0.7, aSize * 0.7);
+      ctx.lineTo(-aSize * 0.7, -aSize * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 }
 var frame = 0;
@@ -3706,6 +3717,7 @@ function updatePlayer() {
   var lowestScrapY = getLowestScrapY();
   var wormCeiling = Math.max(4, lowestScrapY - pSR);
 
+  tutorialStep();   // advance ordered target + leash before the worm reads its goal
   // ── Tutorial move-target clamp — the ONE place the worm reads its steering goal ─
   // Debug proof: lazily anchor a fixed radius leash around the worm the first
   // controlled frame, so ?leash=1 visibly bounds free movement.
@@ -3982,6 +3994,7 @@ function updatePlayer() {
   for (var i = 0; i < scraps.length; i++) {
     var s = scraps[i];
     if (s.eaten || s.ti !== 1) continue;
+    if (tutorial.scene && s.tutProtected && s !== tutorial.target) continue;  // only the active target, in order
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
