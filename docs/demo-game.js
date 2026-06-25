@@ -6223,7 +6223,7 @@ function draw() {
   if (window._demoMode) {
     for (var _npd = 0; _npd < otherPlayers.length; _npd++) {
       var _nopp = otherPlayers[_npd];
-      if (_nopp.sim && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
+      if (_nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
     }
   }
   drawPath(pPath);
@@ -7163,11 +7163,12 @@ function draw() {
 
   // ── DEBUG (demo only) — NPC visibility readout at a fixed screen position ──
   if (window._demoMode) {
-    var _dbgN = 0, _dbgPts = 0, _dbgVis = 0;
+    var _dbgN = 0, _dbgPts = 0, _dbgVis = 0, _dbgAct = 0;
     for (var _dbi = 0; _dbi < otherPlayers.length; _dbi++) {
       var _dbo = otherPlayers[_dbi];
       if (_dbo.sim) {
         _dbgN++;
+        if (!_dbo._dormant) _dbgAct++;
         if (_dbo.sim.path) _dbgPts += _dbo.sim.path.length;
         if (_dbo.sim.segs && _dbo.sim.segs.length) {
           var _dy = _dbo.sim.segs[0].y - camY;
@@ -7178,7 +7179,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = 1; ctx.fillStyle = '#00ff88';
     ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
-    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 8, 20);
+    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' active=' + _dbgAct + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 8, 20);
     if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 8, 34);
     ctx.restore();
   }
@@ -7190,6 +7191,10 @@ function draw() {
     for (var op = 0; op < otherPlayers.length; op++) {
      try {
       var opp = otherPlayers[op];
+      // Demo: only draw active simulated worms. Dormant (over-cap) or presence-only
+      // entries have no live sim segments — drawing them hits the ghost/else branch,
+      // so skip them outright. (No real human players exist in the demo.)
+      if (window._demoMode && (!opp.sim || opp._dormant || !opp.sim.segs || !opp.sim.segs.length)) continue;
       var sim = opp.sim || null;
       var oppSR = opp.size || 5;
 
@@ -8486,33 +8491,20 @@ function updateNPCSims() {
   var b2 = getBinCached();
 
   // ── Thin the herd ──────────────────────────────────────────────────────
-  // A single page can't carry a whole server's worth of worms. Cap how many NPCs we
-  // actually simulate/draw to NPC_SIM_CAP, culling the extras (and unregistering their
-  // tunnels from the routable index) so sim cost, draw cost, AND the shared drop / clog /
-  // junction scans all scale to the cap rather than the full presence list. Keeps the
-  // first CAP entries (already a spread of sizes, positions, and sleepers). Demo-only —
-  // this whole function is _demoMode-gated, so real multiplayer presence is untouched.
-  if (otherPlayers.length) {
-    var _seen = 0;
-    for (var _cc = 0; _cc < otherPlayers.length; _cc++) {
-      if (otherPlayers[_cc].sim) { _seen++; otherPlayers[_cc]._overCap = (_seen > NPC_SIM_CAP); }
-    }
-    if (_seen > NPC_SIM_CAP) {
-      for (var _cd = otherPlayers.length - 1; _cd >= 0; _cd--) {
-        if (otherPlayers[_cd]._overCap) {
-          var _cpath = otherPlayers[_cd].sim && otherPlayers[_cd].sim.path;
-          if (_cpath) { var _cri = pathRegistry.indexOf(_cpath); if (_cri >= 0) pathRegistry.splice(_cri, 1); }
-          otherPlayers.splice(_cd, 1);
-        }
-      }
-      _pPathBucketsDirty = true; // routable index changed — rebuild next frame
-    }
-  }
-
+  // A single page can't carry a whole server's worth of worms. We SIMULATE (and draw)
+  // at most NPC_SIM_CAP of them; the rest are marked dormant and skipped here AND in the
+  // draw loops, so sim cost + the shared drop/clog/junction scans scale to the cap.
+  // We do NOT remove dormant entries: the teaser re-sends presence for every NPC ~every
+  // 2s, so a removed one would be re-added without a .sim and render as a GHOST worm.
+  // Demo-only (this whole function is _demoMode-gated); real presence is untouched.
+  var _simActive = 0;
   for (var _oi = 0; _oi < otherPlayers.length; _oi++) {
     var opp = otherPlayers[_oi];
     var sim = opp.sim;
-    if (!sim) continue; // real player — skip
+    if (!sim) continue; // real player / presence-only — skip
+    _simActive++;
+    if (_simActive > NPC_SIM_CAP) { opp._dormant = true; continue; } // over cap — don't simulate or draw
+    opp._dormant = false;
 
     // ── Init segments on first tick ────────────────────────────────────────
     if (!sim.segs || !sim.segs.length) {
