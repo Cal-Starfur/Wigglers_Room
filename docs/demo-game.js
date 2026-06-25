@@ -68,7 +68,10 @@ var tutorial = {
   scene:  false,   // true = load the authored staged scene + freeze ambient refill
   foodScraps: [],  // staged tier-1 food scraps (eat/fill steps) — set by spawnTutorialScene
   acidChunk:  null, // staged tier-0 acid pile item (acid step)   — set by spawnTutorialScene
-  targetIndex: 0   // ordered progression cursor: foodScraps[0..n] then acidChunk
+  targetIndex: 0,  // (legacy) superseded by stepIndex
+  steps:      [],  // ordered tutorial steps — built by spawnTutorialScene
+  stepIndex:  0,   // current step cursor
+  panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
   var _tutSearch = window.location.search || '';
@@ -101,32 +104,78 @@ function tutorialClampTarget(tx, ty) {
 // then the acid chunk, so the highlight can be tested end to end. Drawn in the
 // world-translated space (x direct, y - camY) — same convention as the cursor.
 // ── Tutorial ordered progression ─────────────────────────────────────────────
-// Advances through the staged food scraps in sequence, then the acid item, and
-// drives BOTH the highlight target and a soft leash around the active item — so
-// the worm is guided to the current target and can't reach later ones out of
-// order. Called once per frame from updatePlayer, before the move-target clamp.
+// Walks an explicit ordered step list (lettuce → watermelon → acid → eggshell),
+// built by spawnTutorialScene. Each step drives the highlight target, a soft leash
+// around the active item, and the instruction panel. A step completes via its own
+// predicate. Called once per frame from updatePlayer, before the move-target clamp.
+function _tutStepDone(step) {
+  if (!step) return true;
+  if (step.kind === 'acid') return pAcid > 0.35;   // green, but below the HP-damage threshold (~0.5)
+  return step.target && (step.target.eaten || step.target.gone);   // 'eat'
+}
 function tutorialStep() {
   if (!tutorial.active || !tutorial.scene) return;
-  var food = tutorial.foodScraps || [];
-  var idx = tutorial.targetIndex || 0;
-  while (idx < food.length && food[idx] && food[idx].eaten) idx++;  // skip eaten
-  tutorial.targetIndex = idx;
+  var steps = tutorial.steps || [];
+  var si = tutorial.stepIndex || 0;
+  while (si < steps.length && _tutStepDone(steps[si])) si++;   // skip completed steps
+  tutorial.stepIndex = si;
 
-  var active = null;
-  if (idx < food.length) active = food[idx];
-  else if (tutorial.acidChunk && !tutorial.acidChunk.gone) active = tutorial.acidChunk;
-
-  tutorial.target = active;
-  if (active) {
-    // Soft radius leash around the active item — tight enough to exclude neighbours.
-    tutorial.leash = { type: 'radius', x: active.x, y: active.y, r: 150 };
+  if (si >= steps.length) {            // sequence complete — release to free roam
+    tutorial.target = null; tutorial.leash = null; tutorial.panel = null;
+    return;
+  }
+  var step = steps[si];
+  tutorial.target = step.target;
+  tutorial.panel  = step.panel;
+  if (step.target && !(step.target.eaten || step.target.gone)) {
+    tutorial.leash = { type: 'radius', x: step.target.x, y: step.target.y, r: 150 };
   } else {
-    tutorial.leash = null;  // food + acid done — release to free roam
+    tutorial.leash = null;
   }
-  // Acid lesson ends once the worm has clearly turned green — release.
-  if (active === tutorial.acidChunk && pAcid > 0.3) {
-    tutorial.target = null; tutorial.leash = null;
+}
+
+// Instruction panel for the current step — name + effect + karma. Screen-space card
+// positioned via leftX (camX - centreOffsetX = screen x=0 in the translated world).
+// No emoji; amber is glow-only (border/shadow); text fills are neutral / tinted.
+function drawTutorialPanel() {
+  if (!tutorial.active || !tutorial.panel) return;
+  var pnl = tutorial.panel;
+  var lines = pnl.lines || [];
+  var leftX = camX - centreOffsetX;
+  var cardW = Math.min(W - 24, 320);
+  var cardX = leftX + (W - cardW) / 2;
+  var cardH = 30 + lines.length * 16 + 20;
+  var cardY = H - cardH - 18;
+  var cx2 = cardX + cardW / 2;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(12,28,12,0.92)';
+  ctx.strokeStyle = 'rgba(255,176,48,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = 'rgba(255,176,48,0.35)';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 10);
+  else ctx.rect(cardX, cardY, cardW, cardH);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#eaf2dc';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(pnl.title || '', cx2, cardY + 21);
+
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = pnl.tint || '#bcd0a8';
+  for (var _pli = 0; _pli < lines.length; _pli++) {
+    ctx.fillText(lines[_pli], cx2, cardY + 40 + _pli * 16);
   }
+
+  ctx.fillStyle = '#9fd84a';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillText(pnl.karma || '', cx2, cardY + cardH - 9);
+  ctx.restore();
 }
 
 // ── Tutorial highlight ───────────────────────────────────────────────────────
@@ -3086,35 +3135,36 @@ function spawnTutorialScene() {
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
   var _span = _xR - _xL;
 
-  // Four tier-1 food scraps (non-acid) along the food layer — the eat + fill steps
-  // walk these in order.
-  var _foodTypes = ['lettuce', 'pasta', 'bread_crust', 'grass_clippings'];
-  for (var _fi = 0; _fi < _foodTypes.length; _fi++) {
-    var _ft = TRASH_TYPES.filter(function (t) { return t.name === _foodTypes[_fi]; })[0] || TRASH_TYPES[0];
-    var _fx = _xL + _span * (0.18 + 0.62 * (_fi / (_foodTypes.length - 1)));
-    var _fy = H + H * (0.55 - 0.10 * Math.sin(_fi));   // gentle arc through mid tier 1
-    var _fhp = 5;
-    var _fs = {
-      x: _fx, y: _fy,
-      t: _ft, hp: _fhp, maxHp: _fhp,
+  // Tier-1 food helper — a small fragment of a given type, reserved for the player.
+  function _tutFood(typeName, x, y) {
+    var t = TRASH_TYPES.filter(function (z) { return z.name === typeName; })[0] || TRASH_TYPES[0];
+    var sc = {
+      x: x, y: y, t: t, hp: 5, maxHp: 5,
       sz: 9, rot: 0, rotSpd: 0,
       ti: 1, eaten: false, eating: false,
-      tutProtected: true,   // NPCs skip the player's staged food; the player can still eat it
-      col: _ft.debrisCol, col2: _ft.debrisCol2
+      tutProtected: true,   // NPCs skip it; only the active target is player-eatable
+      col: t.debrisCol, col2: t.debrisCol2
     };
-    scrapsPush(_fs);
-    tutorial.foodScraps.push(_fs);
+    scrapsPush(sc);
+    tutorial.foodScraps.push(sc);
+    return sc;
   }
 
-  // One acid item in the tier-0 pile — worm climbs up, eats it, pAcid rises and the
-  // worm tints green. overripe_fruit carries acid 0.7. Unlocked, no weather shed.
+  // Curated curriculum, placed to make a sensible path:
+  //   lettuce (left) → watermelon (mid) → acid pile chunk (centre top) → eggshell (centre low)
+  var _lettuce = _tutFood('lettuce',          _xL + _span * 0.22, H + H * 0.55);
+  var _melon   = _tutFood('watermelon_chunk', _xL + _span * 0.55, H + H * 0.50);
+  var _egg     = _tutFood('egg_shell',        _xL + _span * 0.45, H + H * 0.80);
+
+  // Acid item in the tier-0 pile — climb up, nibble, pAcid rises, worm tints green.
+  var _ac = null;
   var _acidT = TRASH_TYPES.filter(function (t) { return t.name === 'overripe_fruit'; })[0];
   if (_acidT) {
     var _acz = 1.0;
     var _acsz = _acidT.sz * 0.8 * _acz;
     var _acx = b.cx;
     var _acy = (H * 0.97 + 50) - _acsz * 0.25;
-    var _ac = {
+    _ac = {
       x: _acx, y: _acy,
       t: _acidT, hp: _acidT.hp, maxHp: _acidT.hp, hpFrac: 1.0,
       sz: _acsz, baseSz: _acsz / _acz, zScale: _acz,
@@ -3128,6 +3178,17 @@ function spawnTutorialScene() {
     _prerenderTrashChunk(_ac);
     tutorial.acidChunk = _ac;
   }
+
+  // Ordered step list — each beat teaches one distinct thing. Karma matches the
+  // engine: tier-1 scraps pay a flat +3; a finished pile chunk pays pts*5.
+  tutorial.steps = [
+    { target: _lettuce, kind: 'eat',  panel: { title: 'Lettuce',        lines: ['Food fills your gut.', 'Eat it to grow.'],                                        karma: '+3 karma',  tint: '#c0d4a8' } },
+    { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
+    { target: _ac,      kind: 'acid', panel: { title: 'Overripe Fruit', lines: ['From the pile: worth more,', 'but acidic — it builds up', 'and turns you green.'], karma: '+45 karma', tint: '#e89060' } },
+    { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } }
+  ];
+  tutorial.stepIndex = 0;
+  tutorial.panel = tutorial.steps[0].panel;
 
   // Freeze the food-supply bookkeeping so nothing refills or unlocks mid-tutorial.
   scrapsLevel = 1.0; scrapsEmpty = false;
@@ -7192,6 +7253,7 @@ function draw() {
   ctx.fill();
 
   drawTutorialHighlight();
+  drawTutorialPanel();
 
   // Tutorial leash boundary — debug proof only (?leash=1). Same coord convention
   // as the cursor dot above: world-X direct, Y offset by camY.
