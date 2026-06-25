@@ -872,6 +872,9 @@ var pLastX = -999, pLastY = -999;
 var MAX_PPATH = 2000;
 var MAX_NPC_PATH = 280;          // NPC tunnels capped far below the player's so the shared
                                  // spatial index stays small and cheap to rebuild/scan.
+var NPC_SIM_CAP = 10;            // max NPCs simulated/drawn at once (demo mode). Thins the
+                                 // ~25-strong presence list so a single page stays smooth;
+                                 // the real game would cap concurrent sims the same way.
 
 // ── PERF-2: pPath Y-bucket spatial index ─────────────────────────────────
 // Divides pPath into 8px-tall Y slabs so nearestPathIdx() and the drop-attachment
@@ -8481,6 +8484,31 @@ function _npcPersonality(name, idx) {
 function updateNPCSims() {
   if (!window._demoMode) return;
   var b2 = getBinCached();
+
+  // ── Thin the herd ──────────────────────────────────────────────────────
+  // A single page can't carry a whole server's worth of worms. Cap how many NPCs we
+  // actually simulate/draw to NPC_SIM_CAP, culling the extras (and unregistering their
+  // tunnels from the routable index) so sim cost, draw cost, AND the shared drop / clog /
+  // junction scans all scale to the cap rather than the full presence list. Keeps the
+  // first CAP entries (already a spread of sizes, positions, and sleepers). Demo-only —
+  // this whole function is _demoMode-gated, so real multiplayer presence is untouched.
+  if (otherPlayers.length) {
+    var _seen = 0;
+    for (var _cc = 0; _cc < otherPlayers.length; _cc++) {
+      if (otherPlayers[_cc].sim) { _seen++; otherPlayers[_cc]._overCap = (_seen > NPC_SIM_CAP); }
+    }
+    if (_seen > NPC_SIM_CAP) {
+      for (var _cd = otherPlayers.length - 1; _cd >= 0; _cd--) {
+        if (otherPlayers[_cd]._overCap) {
+          var _cpath = otherPlayers[_cd].sim && otherPlayers[_cd].sim.path;
+          if (_cpath) { var _cri = pathRegistry.indexOf(_cpath); if (_cri >= 0) pathRegistry.splice(_cri, 1); }
+          otherPlayers.splice(_cd, 1);
+        }
+      }
+      _pPathBucketsDirty = true; // routable index changed — rebuild next frame
+    }
+  }
+
   for (var _oi = 0; _oi < otherPlayers.length; _oi++) {
     var opp = otherPlayers[_oi];
     var sim = opp.sim;
@@ -8527,7 +8555,7 @@ function updateNPCSims() {
           _ntp.clog = Math.max(0, _ntp.clog - _ntClogDecay);
         }
         // Tube faded with clog still present — burst it back into poop drops.
-        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0) {
+        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0 && drops.length < MAX_DROPS * 0.85) {
           var _ntStrength = _ntp.clog;
           var _ntNum = 1 + Math.floor(_ntStrength * 3); // 1–4 drops by clog density
           for (var _ntb = 0; _ntb < _ntNum; _ntb++) {
@@ -8676,7 +8704,7 @@ function updateNPCSims() {
 
     // ── Poop when gut >80% in compost ────────────────────────────────────
     sim.poopTimer = (sim.poopTimer || 0) - 1;
-    if (sim.gut >= sim.gutMax * 0.8 && sim.poopTimer <= 0 && inCompost(sim.segs[0].y)) {
+    if (sim.gut >= sim.gutMax * 0.8 && sim.poopTimer <= 0 && inCompost(sim.segs[0].y) && drops.length < MAX_DROPS * 0.8) {
       // Poop as a tube-routing isPoop drop (like the player) so NPC waste flows into
       // whichever tube is nearest — its own, another NPC's, or the player's tunnels.
       var _npGutFrac = sim.gutMax > 0 ? sim.gut / sim.gutMax : 0;
