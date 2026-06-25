@@ -3895,11 +3895,17 @@ function updatePlayer() {
       // path (NPC tubes) all points are fair game.
       var _jFoundArr = null, _jFoundIdx = -1, _jBestD = Infinity;
       var _jProx = pSR * 2;
-      for (var _jpi = 0; _jpi < pathRegistry.length; _jpi++) {
-        var _jArrS = pathRegistry[_jpi];
-        var _jLimit = (_jArrS === pPath) ? _activeSegStart : _jArrS.length;
-        for (var _ji = 0; _ji < _jLimit; _ji++) {
-          var _jp = _jArrS[_ji];
+      // Spatial lookup over the overlapping Y-buckets only — O(local), not O(all tunnel points).
+      var _jkMin = _pPathBucketKey(head.y - _jProx), _jkMax = _pPathBucketKey(head.y + _jProx);
+      for (var _jk = _jkMin; _jk <= _jkMax; _jk++) {
+        var _jBkt = _pPathBuckets[_jk];
+        if (!_jBkt) continue;
+        for (var _jbi = 0; _jbi < _jBkt.length; _jbi++) {
+          var _jEnt = _jBkt[_jbi];
+          var _jArrS = _jEnt.arr;
+          // On the player's OWN path only points before the active segment are eligible.
+          if (_jArrS === pPath && _jEnt.idx >= _activeSegStart) continue;
+          var _jp = _jArrS[_jEnt.idx];
           if (!_jp) continue;
           var _ja = _jp.alpha != null ? _jp.alpha : 1;
           if (_ja <= 0) continue;
@@ -3913,7 +3919,7 @@ function updatePlayer() {
           }
           if (_jUsed) continue;
           var _jdSum = _jdxA + _jdyA;
-          if (_jdSum < _jBestD) { _jBestD = _jdSum; _jFoundArr = _jArrS; _jFoundIdx = _ji; }
+          if (_jdSum < _jBestD) { _jBestD = _jdSum; _jFoundArr = _jArrS; _jFoundIdx = _jEnt.idx; }
         }
       }
       if (_jFoundArr) {
@@ -8377,11 +8383,17 @@ function updateNPCSims() {
         if (sim._jcool <= 0) {
           var _naProx = sim.sr * 2;
           var _naFoundArr = null, _naFoundIdx = -1, _naBestD = Infinity;
-          for (var _napi = 0; _napi < pathRegistry.length; _napi++) {
-            var _naArr = pathRegistry[_napi];
-            if (_naArr === sim.path) continue; // never junction into own tube
-            for (var _naj = 0; _naj < _naArr.length; _naj++) {
-              var _nap = _naArr[_naj];
+          // Spatial lookup: scan only the Y-buckets overlapping the proximity box instead of
+          // every point in every path. This keeps the search O(local) so it can't ramp with
+          // total tunnel length — the all-points version here was the main lag-over-time cause.
+          var _najkMin = _pPathBucketKey(_nHy - _naProx), _najkMax = _pPathBucketKey(_nHy + _naProx);
+          for (var _najk = _najkMin; _najk <= _najkMax; _najk++) {
+            var _najBkt = _pPathBuckets[_najk];
+            if (!_najBkt) continue;
+            for (var _najbi = 0; _najbi < _najBkt.length; _najbi++) {
+              var _naEnt = _najBkt[_najbi];
+              if (_naEnt.arr === sim.path) continue; // never junction into own tube
+              var _nap = _naEnt.arr[_naEnt.idx];
               if (!_nap) continue;
               var _naa = _nap.alpha != null ? _nap.alpha : 1;
               if (_naa <= 0) continue;
@@ -8394,7 +8406,7 @@ function updateNPCSims() {
               }
               if (_naUsed) continue;
               var _nad = _nadx + _nady;
-              if (_nad < _naBestD) { _naBestD = _nad; _naFoundArr = _naArr; _naFoundIdx = _naj; }
+              if (_nad < _naBestD) { _naBestD = _nad; _naFoundArr = _naEnt.arr; _naFoundIdx = _naEnt.idx; }
             }
           }
           if (_naFoundArr) {
@@ -8406,6 +8418,11 @@ function updateNPCSims() {
             junctionUsedPoints.push({ x: _nHx, y: _nHy });
             if (junctionUsedPoints.length > 200) junctionUsedPoints.shift(); // bound growth
             sim._jcool = 240 + Math.floor(Math.random() * 240); // ~4-8s before the next auto-junction
+          } else {
+            // MISS: still set a cooldown so this scan can't run on every single carve. Without
+            // this, a worm digging in open compost (no foreign tube nearby) left _jcool <= 0 and
+            // re-scanned every carve — the frequency multiplier behind the lag-over-time.
+            sim._jcool = 45 + Math.floor(Math.random() * 45);
           }
         }
       }
