@@ -8182,13 +8182,17 @@ function updateNPCSims() {
     // NPC tunnels fill back in over time. When a CLOGGED point fades to alpha 0 it
     // bursts its clog back into poop drops — exactly like the player's tubes. Runs
     // for awake AND sleeping NPCs so tubes always progress toward closing.
-    if (frame % 10 === 0 && sim.path && sim.path.length) {
+    // While ASLEEP the tunnel fills in fast (0.003/frame, every frame) so it visibly
+    // closes behind a sleeping worm — exactly like the player's sleep fade. Awake, it
+    // decays at the slow background rate, throttled to every 10th frame.
+    var _npcFade = sim.sleeping ? 0.003 : (TUNNEL_DECAY_UNCONNECTED * 10);
+    if (sim.path && sim.path.length && (sim.sleeping || frame % 10 === 0)) {
       for (var _ntd = 0; _ntd < sim.path.length; _ntd++) {
         var _ntp = sim.path[_ntd];
         if (!_ntp || _ntp.ti !== 2) continue;
         if (_ntp.alpha == null) _ntp.alpha = 1;
         var _ntPrev = _ntp.alpha;
-        _ntp.alpha = Math.max(0, _ntp.alpha - TUNNEL_DECAY_UNCONNECTED * 10);
+        _ntp.alpha = Math.max(0, _ntp.alpha - _npcFade);
         // Clog self-clears once no fresh poop has landed for ~30s (same gate as player).
         if (_ntp.clog && (frame - (_ntp.clogTs || 0)) > 1800) {
           var _ntClogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
