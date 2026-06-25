@@ -72,6 +72,8 @@ var tutorial = {
   steps:      [],  // ordered tutorial steps — built by spawnTutorialScene
   stepIndex:  0,   // current step cursor
   _compostPooped: false, // poop beat — latched true on first tier-2 (compost) poop
+  _downDrainDone: false, // down-drain beat — latched when a down drain connects at the sump
+  _upDrainArmed:  false, // up-drain beat — latched when an up drain is armed ("Up drain ready!")
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
@@ -113,6 +115,8 @@ function _tutStepDone(step) {
   if (!step) return true;
   if (step.kind === 'acid') return pAcid > 0.35;   // green, but below the HP-damage threshold (~0.5)
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
+  if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
+  if (step.kind === 'updrain')   return !!tutorial._upDrainArmed;  // up drain armed ("Up drain ready!")
   return step.target && (step.target.eaten || step.target.gone);   // 'eat'
 }
 function tutorialStep() {
@@ -3132,6 +3136,8 @@ function spawnTutorialScene() {
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
+  tutorial._downDrainDone = false;
+  tutorial._upDrainArmed  = false;
 
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
   var _span = _xR - _xL;
@@ -3184,6 +3190,14 @@ function spawnTutorialScene() {
   // in the dark soil (tier 2) so the worm is guided down to where pooping pays off.
   var _poopSpot = { x: b.cx, y: 2 * H + H * 0.45, sz: 16, eaten: false, gone: false, _tutBeacon: true };
 
+  // Sump-floor beacon — both drain beats happen in the same spot at the sump boundary
+  // (the worm clamps at 3H - pSR, so it holds still here rather than digging deeper).
+  var _sumpSpot = { x: b.cx, y: 3 * H - 16, sz: 16, eaten: false, gone: false, _tutBeacon: true };
+
+  // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
+  // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
+  var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.28);
+
   // Ordered step list — each beat teaches one distinct thing. Karma matches the
   // engine: tier-1 scraps pay a flat +3; a finished pile chunk pays pts*5.
   tutorial.steps = [
@@ -3191,7 +3205,10 @@ function spawnTutorialScene() {
     { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _ac,      kind: 'acid', panel: { title: 'Overripe Fruit', lines: ['From the pile: worth more,', 'but acidic — it builds up', 'and turns you green.'], karma: '+45 karma', tint: '#e89060' } },
     { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } },
-    { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } }
+    { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } },
+    { target: _sumpSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Dive to the sump floor and', 'hold still — carve a drain so', 'tea drains down and out.'],       karma: '+100 karma', tint: '#7fc8e0' } },
+    { target: _sumpSpot, kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Hold still at the sump once', 'more to arm an up drain — it', 'pumps tea back up to harvest.'],   karma: '+100 karma', tint: '#7fc8e0' } },
+    { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } }
   ];
   tutorial.stepIndex = 0;
   tutorial.panel = tutorial.steps[0].panel;
@@ -4256,6 +4273,7 @@ function updatePlayer() {
           drainUpTimer = 0;
           drainDownCooldown = JUNCTION_HOLD_FRAMES;
           window._sumpHadDown = true;
+          if (tutorial.scene) tutorial._downDrainDone = true;   // down-drain beat satisfied
           karma += 100;
           drainBonusPopups.push({ text: 'Down drain connected! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
           pPath.push({x: head.x, y: 3*H, r: pSR, ti: 2, sumpExit: true});
@@ -4294,6 +4312,7 @@ function updatePlayer() {
             pLastX = head.x; pLastY = 3*H;
             window._upDrainBonusFired = false;
             drainBonusPopups.push({ text: '🌿 Up drain ready!', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
+            if (tutorial.scene) tutorial._upDrainArmed = true;   // up-drain beat satisfied (the +100 completes on the climb up)
           }
         } else {
           // Moving or in cooldown — reset so the full hold is required from a standstill
