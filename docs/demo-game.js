@@ -6821,11 +6821,34 @@ function draw() {
   var wormCol = getGenColor(generation);
   drawWorm(pSegs, pSR, wormCol, pSleeping, pAcid, pHP);
 
+  // ── DEBUG (demo only) — NPC visibility readout at a fixed screen position ──
+  if (window._demoMode) {
+    var _dbgN = 0, _dbgPts = 0, _dbgVis = 0;
+    for (var _dbi = 0; _dbi < otherPlayers.length; _dbi++) {
+      var _dbo = otherPlayers[_dbi];
+      if (_dbo.sim) {
+        _dbgN++;
+        if (_dbo.sim.path) _dbgPts += _dbo.sim.path.length;
+        if (_dbo.sim.segs && _dbo.sim.segs.length) {
+          var _dy = _dbo.sim.segs[0].y - camY;
+          if (_dy >= -40 && _dy <= H + 40) _dbgVis++;
+        }
+      }
+    }
+    ctx.save();
+    ctx.globalAlpha = 1; ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 8, 20);
+    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 8, 34);
+    ctx.restore();
+  }
+
   // ── Ghost worms — real players (lerp) or NPC sims (full seg chain) ────────
   if (otherPlayers.length) {
     ctx.save();
     var nowOP = Date.now();
     for (var op = 0; op < otherPlayers.length; op++) {
+     try {
       var opp = otherPlayers[op];
       var sim = opp.sim || null;
       var oppSR = opp.size || 5;
@@ -6876,6 +6899,7 @@ function draw() {
         ctx.textAlign = 'center';
         ctx.fillText('💩', ghostSegs[0].x, headScreenY - oppSR - 22);
       }
+     } catch(_ge) { window._ghostErr = _ge.message; }
     }
     ctx.restore();
   }
