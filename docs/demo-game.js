@@ -8267,10 +8267,14 @@ function updateNPCSims() {
     var _nmx = _nHx - (sim._lastX || _nHx), _nmy = _nHy - (sim._lastY || _nHy);
     var _nmoved = Math.sqrt(_nmx*_nmx + _nmy*_nmy);
     if (_nmoved > 0.1) {
-      // addPoint() handles min-distance, the tier-2 gate, null-on-jump and the MAX cap.
-      var _carved = addPoint(sim.path, _nHx, _nHy, sim.sr * 0.85,
-                             sim._pathLastX != null ? sim._pathLastX : _nHx - _nmx,
-                             sim._pathLastY != null ? sim._pathLastY : _nHy - _nmy);
+      // Seed the carve anchor ONCE, then keep it stable (mirrors the player's pLastX).
+      // The old code passed last-FRAME position as the anchor every frame, so dd was
+      // always ~one frame of movement — below addPoint's min-distance — and the anchor
+      // (only advanced on a successful carve) was deadlocked. NPCs never carved at all.
+      // With a stable anchor, dd accumulates each frame until a point lands, then the
+      // anchor advances to it — exactly how the player's tube carves.
+      if (sim._pathLastX == null) { sim._pathLastX = _nHx; sim._pathLastY = _nHy; }
+      var _carved = addPoint(sim.path, _nHx, _nHy, sim.sr * 0.85, sim._pathLastX, sim._pathLastY);
       if (_carved) {
         sim._pathLastX = _nHx; sim._pathLastY = _nHy;
         // ── NPC auto-junction — link this tube into a nearby tube on ANY other
