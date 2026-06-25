@@ -3006,6 +3006,7 @@ function spawnTutorialScene() {
       t: _ft, hp: _fhp, maxHp: _fhp,
       sz: 9, rot: 0, rotSpd: 0,
       ti: 1, eaten: false, eating: false,
+      tutProtected: true,   // NPCs skip the player's staged food; the player can still eat it
       col: _ft.debrisCol, col2: _ft.debrisCol2
     };
     scrapsPush(_fs);
@@ -8394,7 +8395,7 @@ function updateNPCSims() {
       var _bfx = null, _bfy = null, _bfd = Infinity;
       for (var _fsi = 0; _fsi < scraps.length; _fsi++) {
         var _fs = scraps[_fsi];
-        if (_fs.eaten || _fs.ti !== 1) continue;
+        if (_fs.eaten || _fs.ti !== 1 || _fs.tutProtected) continue;  // leave the player's staged food
         var _fdx = _fs.x - sim.segs[0].x, _fdy = _fs.y - sim.segs[0].y;
         var _fd2 = _fdx * _fdx + _fdy * _fdy;
         if (_fd2 < _bfd) { _bfd = _fd2; _bfx = _fs.x; _bfy = _fs.y; }
@@ -8450,7 +8451,7 @@ function updateNPCSims() {
     if (sim.gut < sim.gutMax) {
       for (var _sci = 0; _sci < scraps.length; _sci++) {
         var _s = scraps[_sci];
-        if (_s.eaten || _s.ti !== 1) continue;
+        if (_s.eaten || _s.ti !== 1 || _s.tutProtected) continue;  // leave the player's staged food
         var _sdx = sim.segs[0].x - _s.x, _sdy = sim.segs[0].y - _s.y;
         if (Math.sqrt(_sdx * _sdx + _sdy * _sdy) < sim.sr * 3) {
           _s.hp -= 0.04;
