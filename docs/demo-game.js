@@ -8195,16 +8195,45 @@ function updateNPCSims() {
       sim.sleeping = true; sim.wakeTimer = 900 + Math.random() * 1800; continue;
     }
 
-    // ── Waypoint navigation — default target ──────────────────────────────
-    sim.wpTimer = (sim.wpTimer || 0) - 1;
-    var _wp = sim.waypoints[sim.wpIdx];
-    var _wx = _wp[0] * W, _wy = _wp[1] * H;
+    // ── Goal-directed AI — forage near top, dig DOWN to the sump, drain, return ──
+    // Replaces random waypoint wandering. Mirrors the player's gameplay loop so NPC
+    // tunnels read as purposeful vertical drainage channels instead of compost doodles.
+    var _binL = b2.cx - b2.bw2 + sim.sr, _binR = b2.cx + b2.bw2 - sim.sr;
+    var _cTop  = 2 * H + sim.sr;            // top of the compost layer (tier 2)
+    var _fgBot = 2 * H + H * 0.32;          // forage band = upper third of compost
+    var _sumpY = 3 * H - sim.sr - 4;        // just above the sump floor
+    if (!sim.aiState) { sim.aiState = 'forage'; sim.aiTimer = 0; }
+    sim.aiTimer = (sim.aiTimer || 0) + 1;
+    sim.gutMax  = 4 + Math.floor((sim.sr - 4) / 3 * 4);
+    var _wx, _wy;
+    if (sim.aiState === 'forage') {
+      // Roam the upper compost; refresh a roam target periodically while eating.
+      if (sim._fgx == null || sim.aiTimer % 140 === 0) {
+        sim._fgx = _binL + Math.random() * (_binR - _binL);
+        sim._fgy = _cTop + Math.random() * (_fgBot - _cTop);
+      }
+      _wx = sim._fgx; _wy = sim._fgy;
+      // Gut full enough (or foraged long enough) → commit a dig column and head down.
+      if (sim.gut >= sim.gutMax * 0.55 || sim.aiTimer > 540) {
+        sim.aiState = 'dig'; sim.aiTimer = 0;
+        sim._digX = Math.max(_binL, Math.min(_binR, sim.segs[0].x + (Math.random() - 0.5) * sim.sr * 3));
+      }
+    } else if (sim.aiState === 'dig') {
+      // Drive straight down a fixed column toward the sump → carves a vertical channel.
+      _wx = sim._digX; _wy = _sumpY;
+      if (sim.segs[0].y >= _sumpY - sim.sr) { sim.aiState = 'drain'; sim.aiTimer = 0; }
+      else if (sim.aiTimer > 1100) { sim.aiState = 'return'; sim.aiTimer = 0; } // safety
+    } else if (sim.aiState === 'drain') {
+      // Hold at the sump briefly — lets poop/tea drain and tubes junction in.
+      _wx = sim._digX; _wy = _sumpY;
+      if (sim.aiTimer > 80) { sim.aiState = 'return'; sim.aiTimer = 0; }
+    } else { // 'return'
+      // Climb back up to the top of the compost, then forage again.
+      _wx = sim._digX + (Math.random() - 0.5) * sim.sr; _wy = _cTop;
+      if (sim.segs[0].y <= _fgBot) { sim.aiState = 'forage'; sim.aiTimer = 0; sim._fgx = null; }
+    }
     var _wdx = _wx - sim.segs[0].x, _wdy = _wy - sim.segs[0].y;
     var _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
-    if (_wd < sim.sr * 3 || sim.wpTimer <= 0) {
-      sim.wpIdx   = (sim.wpIdx + 1) % sim.waypoints.length;
-      sim.wpTimer = 120 + Math.random() * 180;
-    }
 
     // ── Eat nearby scraps — steer toward them too ─────────────────────────
     sim.gutMax = 4 + Math.floor((sim.sr - 4) / 3 * 4);
@@ -8221,9 +8250,11 @@ function updateNPCSims() {
             if (_s.t && _s.t.name === 'egg_shell') sim.acid = Math.max(0, sim.acid - 0.15);
             else if (_s.t && _s.t.acid) sim.acid = Math.min(1, sim.acid + _s.t.acid * 0.01);
           }
-          _wx = _s.x; _wy = _s.y;
-          _wdx = _wx - sim.segs[0].x; _wdy = _wy - sim.segs[0].y;
-          _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
+          if (sim.aiState === 'forage') {
+            _wx = _s.x; _wy = _s.y;
+            _wdx = _wx - sim.segs[0].x; _wdy = _wy - sim.segs[0].y;
+            _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
+          }
           break;
         }
       }
@@ -8261,7 +8292,7 @@ function updateNPCSims() {
       var _dn = _wd || 1;
       var _fx = _wdx / _dn, _fy = _wdy / _dn;
       var _px = -_fy, _py = _fx;
-      var _sa = Math.sin(frame * 0.07 + _oi * 1.3) * 0.08;
+      var _sa = Math.sin(frame * 0.07 + _oi * 1.3) * (sim.aiState === 'dig' ? 0.025 : 0.08);
       sim.segs[0].x += _fx * 0.35 + _px * _sa;
       sim.segs[0].y += _fy * 0.35 + _py * _sa;
     }
