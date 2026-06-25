@@ -64,12 +64,15 @@ var tutorial = {
   debug:  false,   // set from URL param; drives the hardcoded proof leash + ring
   step:   0,       // current tutorial step (later commits)
   leash:  null,    // null = free; { type:'radius', x, y, r } projects the target
-  target: null     // the scrap/trash this step is about (later commits)
+  target: null,    // the scrap/trash this step is about (later commits)
+  scene:  false,   // true = load the authored staged scene + freeze ambient refill
+  foodScraps: [],  // staged tier-1 food scraps (eat/fill steps) — set by spawnTutorialScene
+  acidChunk:  null // staged tier-0 acid pile item (acid step)    — set by spawnTutorialScene
 };
 try {
-  if (/[?&](leash|tutdbg)=1/.test(window.location.search || '')) {
-    tutorial.debug = true; tutorial.active = true;
-  }
+  var _tutSearch = window.location.search || '';
+  if (/[?&](leash|tutdbg)=1/.test(_tutSearch)) { tutorial.debug = true; tutorial.active = true; }
+  if (/[?&]tut=1/.test(_tutSearch))            { tutorial.scene = true; tutorial.active = true; }
 } catch (e) {}
 
 // Soft radius leash — project the requested steering target onto the allowed
@@ -2974,7 +2977,71 @@ function spawnScraps() {
   updateScrapsLevel();
 }
 
+// ── Tutorial staged scene ────────────────────────────────────────────────────
+// Commit 2: replaces the random scrap field with a deterministic authored layout
+// so the guided steps always have the same targets in the same places. Builds a
+// few tier-1 FOOD scraps (non-acid — eat / fill-the-gut steps) plus ONE acid item
+// in the tier-0 pile (the "climb up and learn acid" step). Refs are stashed on
+// `tutorial` for the highlight + step-gating commits. NPCs are untouched.
+// Positions are intentionally simple and meant to be tuned.
+function spawnTutorialScene() {
+  var b = getBin();
+  scraps = []; trashChunks = []; debris = []; bugs = [];
+  tutorial.foodScraps = [];
+  tutorial.acidChunk  = null;
+
+  var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
+  var _span = _xR - _xL;
+
+  // Four tier-1 food scraps (non-acid) along the food layer — the eat + fill steps
+  // walk these in order.
+  var _foodTypes = ['lettuce', 'pasta', 'bread_crust', 'grass_clippings'];
+  for (var _fi = 0; _fi < _foodTypes.length; _fi++) {
+    var _ft = TRASH_TYPES.filter(function (t) { return t.name === _foodTypes[_fi]; })[0] || TRASH_TYPES[0];
+    var _fx = _xL + _span * (0.18 + 0.62 * (_fi / (_foodTypes.length - 1)));
+    var _fy = H + H * (0.55 - 0.10 * Math.sin(_fi));   // gentle arc through mid tier 1
+    var _fhp = 5;
+    var _fs = {
+      x: _fx, y: _fy,
+      t: _ft, hp: _fhp, maxHp: _fhp,
+      sz: 9, rot: 0, rotSpd: 0,
+      ti: 1, eaten: false, eating: false,
+      col: _ft.debrisCol, col2: _ft.debrisCol2
+    };
+    scrapsPush(_fs);
+    tutorial.foodScraps.push(_fs);
+  }
+
+  // One acid item in the tier-0 pile — worm climbs up, eats it, pAcid rises and the
+  // worm tints green. overripe_fruit carries acid 0.7. Unlocked, no weather shed.
+  var _acidT = TRASH_TYPES.filter(function (t) { return t.name === 'overripe_fruit'; })[0];
+  if (_acidT) {
+    var _acz = 1.0;
+    var _acsz = _acidT.sz * 0.8 * _acz;
+    var _acx = b.cx;
+    var _acy = (H * 0.97 + 50) - _acsz * 0.25;
+    var _ac = {
+      x: _acx, y: _acy,
+      t: _acidT, hp: _acidT.hp, maxHp: _acidT.hp, hpFrac: 1.0,
+      sz: _acsz, baseSz: _acsz / _acz, zScale: _acz,
+      rot: 0, rotSpd: 0,
+      being_eaten: false, gone: false, nibbleCooldown: 0,
+      layer: 0, depth: 0, locked: false,
+      nextWeatherFrame: frame + 99999,
+      dropY: _acy, dropX: _acx, dropVy: 0, dropVx: 0, dropping: false
+    };
+    trashChunks.push(_ac);
+    _prerenderTrashChunk(_ac);
+    tutorial.acidChunk = _ac;
+  }
+
+  // Freeze the food-supply bookkeeping so nothing refills or unlocks mid-tutorial.
+  scrapsLevel = 1.0; scrapsEmpty = false;
+}
+
 function updateScrapsLevel() {
+  // Tutorial freeze — staged scene never refills or unlocks reserve layers.
+  if (tutorial.scene) { scrapsLevel = 1.0; scrapsEmpty = false; return; }
   // Count alive chunks per layer (0-5)
   var layerTotal = [0,0,0,0,0,0];
   var layerAlive = [0,0,0,0,0,0];
@@ -3429,7 +3496,7 @@ function setup() {
 
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
-  spawnScraps();
+  if (tutorial.scene) { spawnTutorialScene(); } else { spawnScraps(); }
   // ISS-18: Prime KV_WORLD immediately after setup so any joining device gets
   // current bin state. Without this, KV_WORLD stays empty until the first
   // food drop / valve fill / drain — which may be many minutes away.
