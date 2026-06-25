@@ -3497,13 +3497,7 @@ function updatePlayer() {
     if (frame % 90 === 0) {
       pZzz.push({ x: pSleepX + (Math.random()-0.5)*pSR*2, wy: pSleepY - pSR*2, vy: -0.5, alpha: 1, size: 8 + Math.random()*6, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
     }
-    // Drift ZZZ particles
-    for (var zi = pZzz.length-1; zi >= 0; zi--) {
-      pZzz[zi].wy += pZzz[zi].vy;
-      pZzz[zi].alpha -= 0.004;
-      pZzz[zi].x += Math.sin(frame * 0.05 + zi) * 0.3;
-      if (pZzz[zi].alpha <= 0) pZzz.splice(zi, 1);
-    }
+    // (ZZZ particles drift + fade once per frame in loop() — covers player AND NPC sleepers)
     // Camera still follows sleep spot — unless player has scrolled away in viewMode
     if (!viewMode) {
       var tc3 = pSleepY - H/2;
@@ -8183,8 +8177,8 @@ function updateNPCSims() {
       opp.sleeping = true;
       opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
       // ZZZ particles for sleeping NPCs
-      if (frame % 90 === 0) {
-        pZzz.push({ x: sim.segs[0].x + (Math.random()-0.5)*sim.sr*2, wy: sim.segs[0].y - sim.sr*2, vy: -0.5, alpha: 1, size: 6 + Math.random()*5, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
+      if ((frame + _oi * 23) % 90 === 0) {
+        pZzz.push({ x: sim.segs[0].x + (Math.random()-0.5)*sim.sr*2, wy: sim.segs[0].y - sim.sr*2, vy: -0.5, alpha: 1, size: 8 + Math.random()*6, char: ['z','z','Z'][Math.floor(Math.random()*3)] });
       }
       continue;
     }
@@ -8195,31 +8189,57 @@ function updateNPCSims() {
       sim.sleeping = true; sim.wakeTimer = 900 + Math.random() * 1800; continue;
     }
 
-    // ── Goal-directed AI — forage near top, dig DOWN to the sump, drain, return ──
-    // Replaces random waypoint wandering. Mirrors the player's gameplay loop so NPC
-    // tunnels read as purposeful vertical drainage channels instead of compost doodles.
+    // ── Goal-directed AI — eat in the food layer, dig DOWN to drain, climb back, repeat ──
+    // Mirrors how a player tends the bin: forage for scraps up in tier 1, then dig a
+    // vertical channel down through the compost to the sump to drain, then climb back up
+    // to feed again. Each worm gets a ROLE and a DESYNCED timer so the bin always shows a
+    // believable mix — several feeding up top, one or two digging, one draining — instead
+    // of every worm marching to the sump at once.
     var _binL = b2.cx - b2.bw2 + sim.sr, _binR = b2.cx + b2.bw2 - sim.sr;
-    var _cTop  = 2 * H + sim.sr;            // top of the compost layer (tier 2)
-    var _fgBot = 2 * H + H * 0.32;          // forage band = upper third of compost
+    var _fTop  = H + H * 0.22;              // food layer (tier 1) — where ti:1 scraps live
+    var _fBot  = 2 * H - sim.sr - 6;        // just above the compost boundary
     var _sumpY = 3 * H - sim.sr - 4;        // just above the sump floor
-    if (!sim.aiState) { sim.aiState = 'forage'; sim.aiTimer = 0; }
+    if (!sim.aiState) {
+      // One-time per worm: stagger the cycle and assign a role (most are tenders/feeders).
+      sim.aiState = 'forage';
+      sim.aiTimer = Math.floor(Math.random() * 500);
+      sim.role    = Math.random() < 0.3 ? 'driller' : 'tender';
+    }
     sim.aiTimer = (sim.aiTimer || 0) + 1;
     sim.gutMax  = 4 + Math.floor((sim.sr - 4) / 3 * 4);
+    var _tender = sim.role !== 'driller';
     var _wx, _wy;
     if (sim.aiState === 'forage') {
-      // Roam the upper compost; refresh a roam target periodically while eating.
-      if (sim._fgx == null || sim.aiTimer % 140 === 0) {
-        sim._fgx = _binL + Math.random() * (_binR - _binL);
-        sim._fgy = _cTop + Math.random() * (_fgBot - _cTop);
+      // Head for the nearest uneaten food scrap (tier 1); else roam the food layer.
+      var _bfx = null, _bfy = null, _bfd = Infinity;
+      for (var _fsi = 0; _fsi < scraps.length; _fsi++) {
+        var _fs = scraps[_fsi];
+        if (_fs.eaten || _fs.ti !== 1) continue;
+        var _fdx = _fs.x - sim.segs[0].x, _fdy = _fs.y - sim.segs[0].y;
+        var _fd2 = _fdx * _fdx + _fdy * _fdy;
+        if (_fd2 < _bfd) { _bfd = _fd2; _bfx = _fs.x; _bfy = _fs.y; }
       }
-      _wx = sim._fgx; _wy = sim._fgy;
-      // Gut full enough (or foraged long enough) → commit a dig column and head down.
-      if (sim.gut >= sim.gutMax * 0.55 || sim.aiTimer > 540) {
+      if (_bfx != null && _bfd < (H * 1.3) * (H * 1.3)) {
+        _wx = _bfx; _wy = _bfy;                       // go eat
+      } else {
+        if (sim._fgx == null || sim.aiTimer % 160 === 0) {
+          sim._fgx = _binL + Math.random() * (_binR - _binL);
+          sim._fgy = _fTop + Math.random() * (_fBot - _fTop);
+        }
+        _wx = sim._fgx; _wy = sim._fgy;               // roam the food layer
+      }
+      // Decide to drain only occasionally (Poisson-style) so worms stay DESYNCED and most are
+      // feeding at any given moment — tenders dig rarely, drillers more often. A hard cap makes
+      // a worm that can't find food still drain eventually so nobody loiters forever.
+      var _minForage = _tender ? 1400 : 400;
+      var _digProb   = _tender ? 0.0014 : 0.004;
+      var _fed       = sim.gut >= sim.gutMax * (_tender ? 0.6 : 0.4);
+      if ((sim.aiTimer > _minForage && _fed && Math.random() < _digProb) || sim.aiTimer > (_tender ? 3200 : 1300)) {
         sim.aiState = 'dig'; sim.aiTimer = 0;
         sim._digX = Math.max(_binL, Math.min(_binR, sim.segs[0].x + (Math.random() - 0.5) * sim.sr * 3));
       }
     } else if (sim.aiState === 'dig') {
-      // Drive straight down a fixed column toward the sump → carves a vertical channel.
+      // Drive straight down a fixed column to the sump → carves a vertical drainage channel.
       _wx = sim._digX; _wy = _sumpY;
       if (sim.segs[0].y >= _sumpY - sim.sr) { sim.aiState = 'drain'; sim.aiTimer = 0; }
       else if (sim.aiTimer > 1100) { sim.aiState = 'return'; sim.aiTimer = 0; } // safety
@@ -8228,9 +8248,11 @@ function updateNPCSims() {
       _wx = sim._digX; _wy = _sumpY;
       if (sim.aiTimer > 80) { sim.aiState = 'return'; sim.aiTimer = 0; }
     } else { // 'return'
-      // Climb back up to the top of the compost, then forage again.
-      _wx = sim._digX + (Math.random() - 0.5) * sim.sr; _wy = _cTop;
-      if (sim.segs[0].y <= _fgBot) { sim.aiState = 'forage'; sim.aiTimer = 0; sim._fgx = null; }
+      // Climb back up into the food layer, then forage again with a fresh desynced duration.
+      _wx = sim._digX + (Math.random() - 0.5) * sim.sr; _wy = _fBot;
+      if (sim.segs[0].y <= _fBot) {
+        sim.aiState = 'forage'; sim.aiTimer = 0; sim._fgx = null;
+      }
     }
     var _wdx = _wx - sim.segs[0].x, _wdy = _wy - sim.segs[0].y;
     var _wd  = Math.sqrt(_wdx * _wdx + _wdy * _wdy);
@@ -8398,6 +8420,16 @@ function loop() {
     try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
     try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
     try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
+  }
+  // ── Drift + fade ALL ZZZ particles every frame (player AND NPC sleepers) ──
+  // This used to live inside the player-sleep block, so NPC z's spawned while the player
+  // was awake never faded and piled up forever. Running it here makes every z drift up and
+  // fade at the same rate the player's always have.
+  for (var _zzi = pZzz.length - 1; _zzi >= 0; _zzi--) {
+    pZzz[_zzi].wy += pZzz[_zzi].vy;
+    pZzz[_zzi].alpha -= 0.004;
+    pZzz[_zzi].x += Math.sin(frame * 0.05 + _zzi) * 0.3;
+    if (pZzz[_zzi].alpha <= 0) pZzz.splice(_zzi, 1);
   }
   // ── View mode camera — lerps camY toward viewCamY when free-scrolling ──
   if (viewMode) {
