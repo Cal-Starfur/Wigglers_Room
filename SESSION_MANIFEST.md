@@ -1,9 +1,25 @@
 # Session Manifest — Wigglers Room
-Session: 28 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
+Session: 29 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-25
 
 ## Blocked
 - ISS-19 (localStorage race condition) — P1, code freeze until shipped
 - No game.js / main.tsx changes this sprint (demo-game.js / demo-teaser.html only)
+
+## Session 29 — In-canvas tutorial (the demo intro). Tutorial code in docs/demo-game.js; activation + cache-bust loader in docs/demo-teaser.html
+- 7e265bf — NPC sleep tunnel fade fix (sleeping NPC tubes now fill in fast like the player's)
+- 25100dc — Commit 1: Director skeleton + single move-target clamp hook (tutorialClampTarget); ?leash=1 proof; default OFF
+- 302650a — Cache-bust loader: demo-teaser.html mirrors page ?v= onto the demo-game.js <script> (busts HTML+JS; mobile Safari has no hard-refresh)
+- 4b13120 — Commit 2: spawnTutorialScene() staged scene + ambient freeze (updateScrapsLevel early-return); ?tut=1
+- 50bcef5 — NPC food protection (tutProtected; both NPC scrap loops skip it) — NPCs were eating the staged food
+- ac99cfa — Commit 3: drawTutorialHighlight() (ring + arrow)
+- 69e6f6d — Commit 4: ordered progression + worm-anchored arrow; removed dim; eat-gate ordering
+- 498d407 — Commit 5: explicit tutorial.steps list + drawTutorialPanel() data cards
+- b8f048c — Eggshell repositioned to original 3rd-scrap spot
+- fef6888 — Removed per-step leash (NO auto-steer; order enforced by eat-gate + ring/arrow/panel)
+- 76c4203 — Removed old #demo-overlay step-cards + gutted _demoTick stage gates (they conflicted w/ tutorial). Pushed by Sir from the mobile app.
+- 924fe1f — Added TUTORIAL_ARCHITECTURE.md (repo root): build log, step-machine architecture, add-a-step recipe, merge plan (§12), function index. Also produced a loadable SKILL.md "Wigglers Room Tutorial Builder" (presented for Save Skill; not committed).
+
+Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> eggshell, end-to-end. Activate ?tut=1 (default OFF; free roam unchanged). Order via eat-gate, guidance via ring/arrow/panel, no auto-steer. Full reference: TUTORIAL_ARCHITECTURE.md.
 
 ## Session 28 — NPC worms feel like real players (all commits to docs/demo-game.js)
 - e750f83 — Dig-to-sump state machine (forage→dig→drain→return) replacing waypoint wandering
@@ -26,6 +42,8 @@ Session: 28 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
             tubes (verified for vertical tubes); per-frame drop cost flat even with tea near cap.
 
 ## OPEN / NEXT SESSION
+- **Tutorial polish backlog:** make the tutorial the DEFAULT (flip tutorial.scene on without ?tut=1; decide if the right-side teaser guide panel stays); "you've got it — explore!" completion beat; optional poop step (add a _tutStepDone kind); free-play windows between beats; tune panel copy/positions/tints on device.
+- **Merge plan (run tutorial OVER the live game)** documented in TUTORIAL_ARCHITECTURE.md §12 — keep spawnScraps() + inject curriculum items additively, tighten eat-gate to ALL scraps, suppress only camera-hijack cinematics during the lesson, add an HP-floor safety, no tutorial->free-roam seam. Medium-sized; ?tut=1-gated.
 - **HUD HP/gut bar bug (REPORTED, NOT YET DIAGNOSED — session ended before fix).** Player HP/gut
   bar in the side-panel "game HUD" has "gotten frozen"; per Sir it "should track with the screen y."
   The only player HP/gut bar found in demo-game.js is the screen-fixed top-left bar at ~line 7315
