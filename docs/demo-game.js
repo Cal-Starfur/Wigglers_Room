@@ -49,6 +49,45 @@ var camX = 0;           // horizontal camera offset — follows worm X on wide w
 var viewMode = false;   // true when sleeping or observing — free-scroll active
 var viewCamY = 0;       // scroll target written by drag/wheel; camY lerps here in viewMode
 var mX = 0, mY = 0;
+
+// ── Tutorial Director ───────────────────────────────────────────────────────
+// Guided intro that gates movement + progression before releasing to free roam.
+// Commit 1 lands the skeleton + the single move-target clamp hook (the ONE place
+// the worm reads its steering goal). Later commits add the staged scene, the
+// highlight/spotlight, the step predicates, and the free-play windows.
+//
+// DEBUG PROOF: append ?leash=1 (or ?tutdbg=1) to the URL — the worm gets a fixed
+// radius leash around wherever it is the first controlled frame, and a faint ring
+// shows the boundary. OFF by default, so normal free-roam play is unchanged.
+var tutorial = {
+  active: false,   // master switch — false in normal free-roam play
+  debug:  false,   // set from URL param; drives the hardcoded proof leash + ring
+  step:   0,       // current tutorial step (later commits)
+  leash:  null,    // null = free; { type:'radius', x, y, r } projects the target
+  target: null     // the scrap/trash this step is about (later commits)
+};
+try {
+  if (/[?&](leash|tutdbg)=1/.test(window.location.search || '')) {
+    tutorial.debug = true; tutorial.active = true;
+  }
+} catch (e) {}
+
+// Soft radius leash — project the requested steering target onto the allowed
+// region. SOFT: we clamp only the TARGET, never the worm's body, so the worm can
+// drift slightly past under its own momentum and then eases back. No-op when the
+// tutorial is inactive or unleashed.
+function tutorialClampTarget(tx, ty) {
+  if (!tutorial.active || !tutorial.leash) return { x: tx, y: ty };
+  var L = tutorial.leash;
+  if (L.type === 'radius') {
+    var ddx = tx - L.x, ddy = ty - L.y;
+    var dd = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (dd <= L.r || dd === 0) return { x: tx, y: ty };
+    var k = L.r / dd;                 // project onto the circle edge
+    return { x: L.x + ddx * k, y: L.y + ddy * k };
+  }
+  return { x: tx, y: ty };            // corridor leash arrives in a later commit
+}
 var frame = 0;
 var username = 'u/You';   // player username — will come from Devvit auth in production
 // dayTime is derived live from the real wall clock each frame — 0=midnight, 0.5=noon, 1=midnight
@@ -3517,7 +3556,14 @@ function updatePlayer() {
   var lowestScrapY = getLowestScrapY();
   var wormCeiling = Math.max(4, lowestScrapY - pSR);
 
-  var dx = mX - head.x, dy = mY - head.y;
+  // ── Tutorial move-target clamp — the ONE place the worm reads its steering goal ─
+  // Debug proof: lazily anchor a fixed radius leash around the worm the first
+  // controlled frame, so ?leash=1 visibly bounds free movement.
+  if (tutorial.debug && tutorial.active && !tutorial.leash) {
+    tutorial.leash = { type: 'radius', x: head.x, y: head.y, r: 180 };
+  }
+  var _mt = tutorialClampTarget(mX, mY);
+  var dx = _mt.x - head.x, dy = _mt.y - head.y;
   var d = Math.sqrt(dx*dx + dy*dy);
 
   // Speed — no gut penalty, just scrap resistance
@@ -6981,6 +7027,17 @@ function draw() {
   ctx.beginPath();
   ctx.arc(mX, mY - camY, 4, 0, Math.PI*2);
   ctx.fill();
+
+  // Tutorial leash boundary — debug proof only (?leash=1). Same coord convention
+  // as the cursor dot above: world-X direct, Y offset by camY.
+  if (tutorial.debug && tutorial.leash && tutorial.leash.type === 'radius') {
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(tutorial.leash.x, tutorial.leash.y - camY, tutorial.leash.r, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
 
   // ── Oversaturation visual — driven by pooled, always active ───────────
   if (pooled > 0.1 && castingEnrichment > 0) {
