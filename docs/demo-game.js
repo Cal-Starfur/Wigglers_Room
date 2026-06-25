@@ -4630,11 +4630,20 @@ function updatePhysics() {
           }
           } // end not-clogged else
         }
-      } else if (!d.clogStalled) {
-        // No path yet — drop is seeping through unpacked compost.
-        // Poop drops skip the stall — they fall straight through until they find a tube.
-        // Clog-stalled drops are frozen at their edge position — never enter this branch.
-        if (!d.isPoop) {
+      } else {
+        // Detached (pathIdx == null) — free percolation, or clog-stalled backpressure.
+        if (d.clogStalled) {
+          // Clog-stalled: pool in place as backpressure, but PERIODICALLY re-test whether the
+          // blockage has cleared — the clog decayed, or the NPC tube it was waiting on dissolved.
+          // Previously clogStalled was only ever cleared inside the scan below, which stalled
+          // drops never reached, so tea stayed frozen forever ("holding the tea") and these
+          // frozen drops piled up toward the cap, dragging the frame rate down over time.
+          // Clearing the flag lets the scan/fall below re-route it; if it's still blocked the
+          // on-path routing simply re-stalls it next frame (it can't leak past a live clog).
+          d.vy = 0;
+          d._stallAge = (d._stallAge || 0) + 1;
+          if (d._stallAge >= 40) { d._stallAge = 0; d.clogStalled = false; }
+        } else if (!d.isPoop) {
           // Assign a random stall depth on first entry so drops pool at varied heights
           // rather than creeping all the way to 3H. Deeper stalls are rarer (percolation
           // gets harder the more compacted the soil is lower down).
@@ -4663,8 +4672,11 @@ function updatePhysics() {
           if (d.vy < 0.003) d.vy = 0.003;
         }
 
-        // Even while stalled, keep scanning for a nearby tunnel that could carry
-        // this drop the rest of the way down.
+        // Even while stalled, keep scanning for a nearby tunnel that could carry this drop the
+        // rest of the way down. Skipped for clog-stalled drops (they pool until their recheck);
+        // RESTING pooled drops only re-scan ~once every 8 frames (staggered by index) instead of
+        // every frame — a falling drop still scans every frame so it attaches promptly.
+        if (!d.clogStalled && (!d.stalled || ((frame + i) & 7) === 0)) {
         var _bestArr = null, _bestIdx = -1, _bestDist = 999999;
         var _scanX = d.x, _scanY = d.y;
         // Poop scans only the current active segment — prevents snapping to distant
@@ -4765,6 +4777,7 @@ function updatePhysics() {
           d.lastSegEnd   = null;
           d.vy           = Math.max(0.05, d.vy);
         }
+        } // end scan wrapper — skipped while clog-stalled
       }
     } else if (d.y >= 3*H && d.y < 3*H + H*0.25) {
       // Entered sump zone
