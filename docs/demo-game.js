@@ -91,6 +91,88 @@ function tutorialClampTarget(tx, ty) {
   }
   return { x: tx, y: ty };            // corridor leash arrives in a later commit
 }
+
+// ── Tutorial highlight / spotlight ───────────────────────────────────────────
+// Commit 3: focuses attention on the current target — dims the scene, draws a
+// pulsing amber glow ring on the target, and an edge arrow when it is off-screen.
+// Reads tutorial.target (set by the step machine in commit 4). For now, when the
+// staged scene is loaded, a TEMPORARY picker targets the first uneaten food scrap
+// then the acid chunk, so the highlight can be tested end to end. Drawn in the
+// world-translated space (x direct, y - camY) — same convention as the cursor.
+function _tutPickTestTarget() {
+  if (tutorial.foodScraps) {
+    for (var i = 0; i < tutorial.foodScraps.length; i++) {
+      var f = tutorial.foodScraps[i];
+      if (f && !f.eaten) return f;
+    }
+  }
+  if (tutorial.acidChunk && !tutorial.acidChunk.gone) return tutorial.acidChunk;
+  return null;
+}
+
+function drawTutorialHighlight() {
+  if (!tutorial.active) return;
+  // TEMP test driver — replaced by the step machine in commit 4.
+  if (tutorial.scene) {
+    if (!tutorial.target || tutorial.target.eaten || tutorial.target.gone) {
+      tutorial.target = _tutPickTestTarget();
+    }
+  }
+  var tgt = tutorial.target;
+  if (!tgt || tgt.eaten || tgt.gone) return;
+
+  var tx = tgt.x;
+  var ty = tgt.y - camY;
+  var baseR = tgt.sz || 10;
+  var onScreen = ty > -baseR && ty < H + baseR;
+  var pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
+  var leftX = camX - centreOffsetX;   // screen x=0 in the translated world space
+
+  // Dim the scene — radial spotlight hole around the target when it is visible.
+  ctx.save();
+  if (onScreen) {
+    var inR  = baseR * 2.4;
+    var outR = Math.max(W, H) * 0.6;
+    var g = ctx.createRadialGradient(tx, ty, inR, tx, ty, outR);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  }
+  ctx.fillRect(leftX, 0, W, H);
+  ctx.restore();
+
+  if (onScreen) {
+    // Pulsing amber glow ring on the target (amber = glow only — design token).
+    var ringR = baseR * (1.7 + 0.35 * pulse);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,176,48,' + (0.55 + 0.4 * pulse) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = 'rgba(255,176,48,0.9)';
+    ctx.shadowBlur = 10 + 8 * pulse;
+    ctx.beginPath();
+    ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    // Edge arrow toward an off-screen target (bin keeps x in view → vertical arrow).
+    var ax = Math.max(leftX + 30, Math.min(leftX + W - 30, tx));
+    var dir = ty < 0 ? -1 : 1;
+    var ayEdge = ty < 0 ? 50 : H - 50;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,176,48,' + (0.7 + 0.3 * pulse) + ')';
+    ctx.shadowColor = 'rgba(255,176,48,0.85)';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(ax, ayEdge + dir * 15);
+    ctx.lineTo(ax - 11, ayEdge - dir * 9);
+    ctx.lineTo(ax + 11, ayEdge - dir * 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
 var frame = 0;
 var username = 'u/You';   // player username — will come from Devvit auth in production
 // dayTime is derived live from the real wall clock each frame — 0=midnight, 0.5=noon, 1=midnight
@@ -7095,6 +7177,8 @@ function draw() {
   ctx.beginPath();
   ctx.arc(mX, mY - camY, 4, 0, Math.PI*2);
   ctx.fill();
+
+  drawTutorialHighlight();
 
   // Tutorial leash boundary — debug proof only (?leash=1). Same coord convention
   // as the cursor dot above: world-X direct, Y offset by camY.
