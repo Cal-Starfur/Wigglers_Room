@@ -668,6 +668,8 @@ var pLastX = -999, pLastY = -999;
 // Hard cap on tunnel path length — prune oldest COMPLETE segments when exceeded.
 // 2000 points ≈ several minutes of digging; keeps O(pPath) work bounded.
 var MAX_PPATH = 2000;
+var MAX_NPC_PATH = 280;          // NPC tunnels capped far below the player's so the shared
+                                 // spatial index stays small and cheap to rebuild/scan.
 
 // ── PERF-2: pPath Y-bucket spatial index ─────────────────────────────────
 // Divides pPath into 8px-tall Y slabs so nearestPathIdx() and the drop-attachment
@@ -675,6 +677,7 @@ var MAX_PPATH = 2000;
 // Each bucket key is Math.floor(y / PPATH_BUCKET_H) → array of pPath indices.
 // The index is maintained incrementally: addPoint() inserts, splice() rebuilds.
 var _pPathBuckets = {};          // { bucketKey: [ {arr, idx} ] } — spatial index across ALL registered paths
+var _pPathBucketsDirty = false;  // set on prune; rebuilt at most once/frame in updatePhysics
 var PPATH_BUCKET_H = 8;          // px — matches worm radius; ~1–3 buckets per scan
 function _pPathBucketKey(y) { return Math.floor(y / PPATH_BUCKET_H); }
 
@@ -847,8 +850,9 @@ function addPoint(path, x, y, r, lastX, lastY) {
   if (pathRegistry.indexOf(path) >= 0) _pPathBucketInsert(path, _newIdx, y);
   // Prune oldest complete segment(s) when over cap — always cut on a null boundary
   // so no segment is left half-orphaned (drops referencing pruned indices detach safely).
-  if (path.length > MAX_PPATH) {
-    var _pruneTarget = path.length - MAX_PPATH; // how many entries to drop
+  var _pathCap = (path === pPath) ? MAX_PPATH : MAX_NPC_PATH;
+  if (path.length > _pathCap) {
+    var _pruneTarget = path.length - _pathCap; // how many entries to drop
     // Walk forward to the first null AT OR AFTER _pruneTarget so we cut cleanly
     var _pruneAt = _pruneTarget;
     while (_pruneAt < path.length && path[_pruneAt] !== null) _pruneAt++;
@@ -856,7 +860,7 @@ function addPoint(path, x, y, r, lastX, lastY) {
     path.splice(0, _pruneAt);
     // PERF-2: rebuild the bucket index after splice — all indices shifted by _pruneAt.
     // O(pPath.length) but only fires when MAX_PPATH is hit, not every frame.
-    if (pathRegistry.indexOf(path) >= 0) _pPathBucketRebuild();
+    if (pathRegistry.indexOf(path) >= 0) _pPathBucketsDirty = true; // debounced — one rebuild/frame
     // Shift all pathIdx references on active drops — they point into the OLD array
     // Drops that referenced pruned entries will have pathIdx < 0 after shift and must detach.
     // (updatePhysics already handles null/missing pPath[d.pathIdx] by detaching the drop.)
@@ -4095,6 +4099,12 @@ var TUNNEL_DECAY = 0.0000167;        // base rate (~16 min for sump-connected)
 var TUNNEL_DECAY_UNCONNECTED = 0.0000535; // ~5 min for tubes with no sump link
 
 function updatePhysics() {
+  // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
+  // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
+  // tunnels saturated their cap the per-carve rebuilds piled up and the game got laggy over
+  // time. Debouncing to one rebuild/frame removes that storm; readers tolerate a 1-frame-stale
+  // index (they already guard against missing points).
+  if (_pPathBucketsDirty) { _pPathBucketRebuild(); _pPathBucketsDirty = false; }
   // Filter eaten scraps — only every 60 frames to avoid allocation pressure
   if (frame % 60 === 0) scraps = scraps.filter(function(s) { return !s.eaten; });
 
