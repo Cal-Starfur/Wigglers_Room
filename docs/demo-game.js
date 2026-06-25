@@ -71,6 +71,7 @@ var tutorial = {
   targetIndex: 0,  // (legacy) superseded by stepIndex
   steps:      [],  // ordered tutorial steps — built by spawnTutorialScene
   stepIndex:  0,   // current step cursor
+  _compostPooped: false, // poop beat — latched true on first tier-2 (compost) poop
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
@@ -111,6 +112,7 @@ function tutorialClampTarget(tx, ty) {
 function _tutStepDone(step) {
   if (!step) return true;
   if (step.kind === 'acid') return pAcid > 0.35;   // green, but below the HP-damage threshold (~0.5)
+  if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   return step.target && (step.target.eaten || step.target.gone);   // 'eat'
 }
 function tutorialStep() {
@@ -3129,6 +3131,7 @@ function spawnTutorialScene() {
   scraps = []; trashChunks = []; debris = []; bugs = [];
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
+  tutorial._compostPooped = false;
 
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
   var _span = _xR - _xL;
@@ -3177,13 +3180,18 @@ function spawnTutorialScene() {
     tutorial.acidChunk = _ac;
   }
 
+  // Compost beacon — a non-edible marker the poop beat aims the ring/arrow at, low
+  // in the dark soil (tier 2) so the worm is guided down to where pooping pays off.
+  var _poopSpot = { x: b.cx, y: 2 * H + H * 0.45, sz: 16, eaten: false, gone: false, _tutBeacon: true };
+
   // Ordered step list — each beat teaches one distinct thing. Karma matches the
   // engine: tier-1 scraps pay a flat +3; a finished pile chunk pays pts*5.
   tutorial.steps = [
     { target: _lettuce, kind: 'eat',  panel: { title: 'Lettuce',        lines: ['Food fills your gut.', 'Eat it to grow.'],                                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _ac,      kind: 'acid', panel: { title: 'Overripe Fruit', lines: ['From the pile: worth more,', 'but acidic — it builds up', 'and turns you green.'], karma: '+45 karma', tint: '#e89060' } },
-    { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } }
+    { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } },
+    { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } }
   ];
   tutorial.stepIndex = 0;
   tutorial.panel = tutorial.steps[0].panel;
@@ -9022,6 +9030,7 @@ function tryPoop() {
     // ── Tier 2 depth bonus — pooping deeper in compost gives extra karma ────
     var headTierP = getTier(pSegs[0].y);
     if (headTierP >= 2) {
+      if (tutorial.scene) tutorial._compostPooped = true;   // poop beat — the rewarding compost poop landed
       var depthT = Math.min(1, (pSegs[0].y - 2*H) / H);
       var depthMult = 0.3 + Math.pow(depthT, 1.8) * 0.7;
       var enrichGain = deposited * 0.008 * depthMult * (1 + sizeFrac);
