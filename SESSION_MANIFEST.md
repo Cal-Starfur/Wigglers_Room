@@ -1,88 +1,46 @@
 # Session Manifest — Wigglers Room
-Session: 27 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
+Session: 28 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-24
 
 ## Blocked
-- ISS-19 (localStorage race condition) — blocked until 2026-07-01
-- No game.js / main.tsx changes this sprint
+- ISS-19 (localStorage race condition) — P1, code freeze until shipped
+- No game.js / main.tsx changes this sprint (demo-game.js / demo-teaser.html only)
 
-## Active work context
-- UX/design work on docs/demo-teaser.html + docs/demo-game.js
-- NPC full simulation (Option B) shipped: gut, eat, poop, sleep, waypoints, gen colour, seg chain
-- NPC username labels and gen badges removed from ghost worm render
-- Guide panel fully rewritten in player voice, stripped to exact approved copy
-- Food section replaced with 27-chunk horizontal carousel (2 rows, seamless loop, hover tooltips)
-- New docs/trash-chunks.html — standalone asset sheet for all 27 in-game scrap chunks
-- Animated HP/Gut stat bars in guide panel with flashing Eat!/Poop! indicators (exact game logic)
-- Animated acid worm canvas (pink→green color cycle, exact game color math)
-- Layout wrap bug fixed — guide-panel locked to 400px, breakpoint lowered to 700px
+## Session 28 — NPC worms feel like real players (all commits to docs/demo-game.js)
+- e750f83 — Dig-to-sump state machine (forage→dig→drain→return) replacing waypoint wandering
+- 6141c75 — Forage in tier-1 food layer + seek nearest scrap; tender/driller roles, Poisson-desynced
+            dig commitment; ZZZ fix (drift/fade moved into loop() so it runs every frame, not only
+            while player sleeps) + NPC z's matched to player style
+- 5a1c672 — Spawn spacing: remap spawn x from viewport fraction (xr*W) to actual bin interior
+            (WORLD_W=1194, centered) so worms spread across the whole bin on narrow screens
+- afcc0f6 — PERF: cap NPC tunnels at MAX_NPC_PATH=280 (player MAX_PPATH=2000) + debounce the shared
+            bucket-index rebuild to once/frame (dirty flag in updatePhysics) — killed rebuild storm
+- ffb0752 — PERF: NPC + player junction scans switched to spatial bucket index (O(local), not
+            O(all tunnel points)); NPC _jcool now resets on MISS too so it can't fire every carve
+- d3728f6 — NPC personalities seeded from username (mulberry32 over string hash) via _npcPersonality():
+            traits speed/dig/appetite/sleepy/wiggle/restless/turf. Replaced binary role; threads through
+            forage range, dig cadence, drain linger, idle pauses, move speed, wiggle, nap rhythm
+- 09a87d6 — Fix stuck tea + drop lag: clogStalled drops were only un-stalled inside a branch they
+            couldn't reach (frozen forever, piled toward cap). Added periodic clog-stall recovery
+            (~every 40 frames) so tea re-routes onto player tube / drains when blockage or NPC tube
+            clears; throttled resting pooled drops to re-scan ~1/8 frames. Tea hands off NPC->player
+            tubes (verified for vertical tubes); per-frame drop cost flat even with tea near cap.
 
-## Session 27 commits (all to main)
-- 91fadd4 docs/demo-teaser.html — Bin layer guide rewrite: My Bin, simplified 1–4 labels and player-facing descriptions
-- 124f0ae docs/demo-teaser.html — Remove "The bin" eyebrow label; sump layer scraps-blue + 50% green tea fill
-- e30eb07 docs/demo-teaser.html — layer-desc text #d09090 pink
-- b810454 docs/demo-teaser.html — section h2 + layer-name Fredoka One #b06070
-- 42f759a docs/trash-chunks.html — NEW: standalone asset sheet, all 27 chunks, size/HP sliders, tooltips
-- 0982a80 docs/demo-teaser.html — Food panel emoji → canvas chunks; strip all guide emojis and checkmarks
-- 532ebe8 docs/demo-teaser.html — Food carousel: 27 chunks, 2 rows × 4 col window, seamless loop, auto-scroll
-- 8eeb5d7 docs/demo-teaser.html — Full guide copy rewrite in approved player voice
-- 7c3916c docs/demo-teaser.html — Strip remaining emojis (peace sign, keyboard icons → text labels)
-- e524d19 docs/demo-teaser.html — Fix carousel tooltip: scope data-chunk handler, pointer-events on canvas
-- f25c6c5 docs/demo-teaser.html — Fix tooltip hide/show on repeat hover (120ms delay, tooltip mouseenter)
-- 37bd7ad docs/demo-teaser.html — Strip guide to exact approved copy; remove stat bars/Community/Generations/Quick tips
-- 694a475 docs/demo-teaser.html — Strip all ctrl-icon placeholder labels
-- 0bb13b5 docs/demo-teaser.html — Fix layout wrap on iPad: guide-panel 400px, breakpoint 700px
-- d2d5260 docs/demo-teaser.html — Animated acid worm canvas (pink→green, exact game color math, glow)
-- 05bd31b docs/demo-teaser.html — Animated HP/Gut bars: exact game colors, flashing Eat!/Poop! indicators
+## OPEN / NEXT SESSION
+- **HUD HP/gut bar bug (REPORTED, NOT YET DIAGNOSED — session ended before fix).** Player HP/gut
+  bar in the side-panel "game HUD" has "gotten frozen"; per Sir it "should track with the screen y."
+  The only player HP/gut bar found in demo-game.js is the screen-fixed top-left bar at ~line 7315
+  (_barX=10,_barY=50, no camY). Did NOT locate a separate side-panel HP/gut bar in demo-game.js —
+  NEXT: check docs/demo-teaser.html for an HTML/DOM side-panel HP/gut readout (or a canvas HUD that
+  uses camY / a world Y) whose update may have stalled. Sir asked to stop before any change.
+- **ghostERR: line still needed.** Per-NPC try/catch guard (commit 81460e4, ~lines 6900s) is masking
+  a ghost-worm render crash; the green NPCdbg overlay (top-left) is also still live. Both stay until
+  Sir reports the `ghostERR:` value from the console — then fix root cause + remove guard + overlay.
+- Possible follow-up if lag persists: add live drops=/clogs= readout to the green debug overlay to
+  confirm whether tea/clog backup is still accumulating in the real game.
 
-## Current file SHAs (as of session 27 end)
-- docs/demo-teaser.html: 05bd31b (GitHub API SHA: TBD)
-- docs/demo-game.js: 2a66e75 (GitHub API SHA: 11046ce6) — unchanged
-- docs/trash-chunks.html: 42f759a — NEW this session
-
-## Key architecture: guide panel
-- guide-panel is a scrollable right column (400px fixed, overflow-x hidden)
-- Food carousel: two .fc-row flex strips, cards duplicated in HTML for seamless -50% loop
-- Tooltip: showTooltip()/scheduleHide() with 120ms delay; tooltip has own mouseenter/leave
-- Stat bars: rAF loop pulling live pHP/pGut/pGutMax/pAcid when available, demo sine waves otherwise
-- Acid worm: standalone canvas, lerpHex() color cycle, 8s sine loop
-
-## Skills — load on demand, not upfront
-
-### Always available (fetch when needed, never at session start)
-- github-sync → skills/github-sync
-  Bootstrap ONLY when ready to push. Not before.
-
-### Load if: design / UX / frontend task
-- impeccable → skills/user/impeccable
-  Load SKILL.md + whichever reference/*.md the task needs. Not the whole folder.
-
-### Load if: game.js / main.tsx / Devvit task
-- lead-dev → skills/lead-dev
-- wigglers-architecture → skills/wigglers-architecture
-- contractor → skills/contractor
-- Pull GAME_ARCHITECTURE.md and WIGGLERS_AUDIT.md fresh from GitHub at that point
-
-### Load if: deploy / upload to Reddit
-- devvit-pipeline → skills/devvit-pipeline
-
-### Load if: marketing / post writing
-- wigglers-marketing → skills/wigglers-marketing
-
-## Files — pull fresh from GitHub only when the task needs them
-- GAME_ARCHITECTURE.md — game.js tasks only
-- WIGGLERS_AUDIT.md — game.js tasks only
-- docs/demo-teaser.html — design tasks
-- docs/demo-game.js — demo tasks
-- docs/.impeccable/critique/demo-teaser-baseline.md — design tasks
-
-## Marketing calendar status (Phase 1 — Warmup, no game links)
-- Day 1 (June 22): r/SoloDev ✓ posted (confirmed upvote)
-- Day 2 (June 23): r/devvit — scheduled
-- Day 3 (June 24): r/gamedev — TODAY
-- Days 4–10: June 25–July 1 — upcoming
-- Days 1–10 = warmup phase, no game links
-
-## Session start checklist (ultra-light)
-1. Fetch this file — one API call, raw Python, no scripts
-2. Read it. Know the context.
-3. That's it. Do not bootstrap anything else until the work requires it.
+## Tooling notes
+- Edits: Python with assert content.count(old)==1, then `node --check demo-game.js`. Working copy /tmp/demo-game.js.
+- Headless harness pattern (/tmp/harness*.js): first 62 lines of harness.js = browser stubs + load;
+  drives updateNPCSims/updatePhysics (NOT loop()/draw()), so pZzz fade and HUD draw are NOT exercised there.
+- Push: stage -> summarize -> wait for "Push"/"Push it" -> push --approved. demo-teaser.html (~1.5MB) needs
+  two-step fetch (Contents API SHA -> raw blob); raw fetch via raw.githubusercontent.com with token works.
