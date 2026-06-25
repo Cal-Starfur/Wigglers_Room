@@ -8117,6 +8117,13 @@ function updateNPCSims() {
       sim.hist = [];
       sim.path = [];   // this NPC's own tunnel trail — never shares pPath
       if (pathRegistry.indexOf(sim.path) < 0) pathRegistry.push(sim.path); // routable: drops/clog/junctions
+      // Spawn x arrives as xr*W (a fraction of the VIEWPORT), but the bin is sized to WORLD_W
+      // and centered — so on any screen narrower than WORLD_W every worm bunches into a sliver
+      // of the bin and then clamps to the wall. Remap the spawn fraction across the actual bin
+      // interior so worms spawn spread out across the whole bin width.
+      var _b0 = getBinCached();
+      var _sxr = Math.max(0, Math.min(1, W ? opp.x / W : 0.5));
+      opp.x = (_b0.cx - _b0.bw2 + sim.sr) + _sxr * (_b0.bw - sim.sr * 2);
       for (var _si = 0; _si < sim.nSeg; _si++) {
         sim.segs.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
         sim.hist.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
