@@ -127,11 +127,9 @@ function tutorialStep() {
   var step = steps[si];
   tutorial.target = step.target;
   tutorial.panel  = step.panel;
-  if (step.target && !(step.target.eaten || step.target.gone)) {
-    tutorial.leash = { type: 'radius', x: step.target.x, y: step.target.y, r: 150 };
-  } else {
-    tutorial.leash = null;
-  }
+  // No leash for these steps — order is enforced by the eat-gate, guidance by the
+  // ring/arrow/panel, so the player steers themselves (no auto-steer pull).
+  tutorial.leash = null;
 }
 
 // Instruction panel for the current step — name + effect + karma. Screen-space card
