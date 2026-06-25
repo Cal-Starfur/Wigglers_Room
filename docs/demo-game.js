@@ -8119,6 +8119,24 @@ function updatePendingWorms() {
 // Each NPC gets a mini worm: segments, gut, HP, acid, sleep cycle, waypoint roam.
 // NPCs eat nearby scraps, poop castings, sleep, wake — all using the same systems
 // the real player uses. They never die; HP floors at 0.1.
+// ── Per-worm personality ──────────────────────────────────────────────────
+// Seeded from the worm's username so each named worm has a stable, distinct character
+// across reloads (mulberry32 PRNG over a string hash). Drives the whole NPC behaviour set
+// so the 25 demo worms read as individual players rather than one shared brain.
+function _npcPersonality(name, idx) {
+  var s = 0, u = name || ('w' + idx);
+  for (var i = 0; i < u.length; i++) s = (Math.imul(s, 31) + u.charCodeAt(i)) >>> 0;
+  function r() { s = (s + 0x6D2B79F5) | 0; var t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+  return {
+    speed:    0.78 + r() * 0.50,   // crawl speed
+    dig:      r(),                  // 0..1 eagerness to dig & drain vs. linger up top feeding
+    appetite: 0.45 + r() * 0.50,   // how full before it bothers digging; how far it chases food
+    sleepy:   r(),                  // 0..1 nap frequency & length
+    wiggle:   0.60 + r() * 0.90,   // head-wiggle amplitude
+    restless: r(),                  // 0..1 re-targets & idle-pauses more
+    turf:     0.10 + r() * 0.80    // preferred home-x fraction across the bin
+  };
+}
 function updateNPCSims() {
   if (!window._demoMode) return;
   var b2 = getBinCached();
@@ -8144,6 +8162,7 @@ function updateNPCSims() {
         sim.segs.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
         sim.hist.push({ x: opp.x - _si * sim.sr * 2, y: opp.y });
       }
+      sim.per = _npcPersonality(opp.username, _oi);
     }
 
     // ── Tube fade + clog lifecycle (mirrors the player's tubes) ──────────────
@@ -8196,7 +8215,7 @@ function updateNPCSims() {
         sim.segs[_sc].y += (_scy + Math.sin(_ca) * _cr * 0.6 - sim.segs[_sc].y) * 0.14;
       }
       if (inCompost(sim.segs[0].y)) sim.hp = Math.min(1, sim.hp + 0.00002);
-      if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; sim.sleepTimer = 1800 + Math.random() * 3600; sim._pathLastX = null; sim._pathLastY = null; }
+      if (sim.wakeTimer <= 0) { sim.sleeping = false; sim.sleepCurl = 0; var _slp = sim.per ? sim.per.sleepy : 0.5; sim.sleepTimer = (3600 - _slp * 2400) + Math.random() * 2400; sim._pathLastX = null; sim._pathLastY = null; }
       opp.sleeping = true;
       opp.x = sim.segs[0].x; opp.y = sim.segs[0].y;
       // ZZZ particles for sleeping NPCs
@@ -8209,7 +8228,7 @@ function updateNPCSims() {
     sim.sleepCurl = Math.max(0, (sim.sleepCurl || 0) - 0.05);
     // Trigger sleep only in compost layer
     if (sim.sleepTimer <= 0 && inCompost(sim.segs[0].y)) {
-      sim.sleeping = true; sim.wakeTimer = 900 + Math.random() * 1800; continue;
+      var _slp2 = sim.per ? sim.per.sleepy : 0.5; sim.sleeping = true; sim.wakeTimer = (600 + _slp2 * 1400) + Math.random() * 1400; continue;
     }
 
     // ── Goal-directed AI — eat in the food layer, dig DOWN to drain, climb back, repeat ──
@@ -8222,15 +8241,12 @@ function updateNPCSims() {
     var _fTop  = H + H * 0.22;              // food layer (tier 1) — where ti:1 scraps live
     var _fBot  = 2 * H - sim.sr - 6;        // just above the compost boundary
     var _sumpY = 3 * H - sim.sr - 4;        // just above the sump floor
-    if (!sim.aiState) {
-      // One-time per worm: stagger the cycle and assign a role (most are tenders/feeders).
-      sim.aiState = 'forage';
-      sim.aiTimer = Math.floor(Math.random() * 500);
-      sim.role    = Math.random() < 0.3 ? 'driller' : 'tender';
-    }
+    if (!sim.per) sim.per = _npcPersonality(opp.username, _oi); // safety if segs pre-existed
+    var _per = sim.per;
+    if (!sim.aiState) { sim.aiState = 'forage'; sim.aiTimer = Math.floor(Math.random() * 600); }
     sim.aiTimer = (sim.aiTimer || 0) + 1;
     sim.gutMax  = 4 + Math.floor((sim.sr - 4) / 3 * 4);
-    var _tender = sim.role !== 'driller';
+    var _turfX  = _binL + _per.turf * (_binR - _binL);  // this worm's home patch
     var _wx, _wy;
     if (sim.aiState === 'forage') {
       // Head for the nearest uneaten food scrap (tier 1); else roam the food layer.
@@ -8242,22 +8258,30 @@ function updateNPCSims() {
         var _fd2 = _fdx * _fdx + _fdy * _fdy;
         if (_fd2 < _bfd) { _bfd = _fd2; _bfx = _fs.x; _bfy = _fs.y; }
       }
-      if (_bfx != null && _bfd < (H * 1.3) * (H * 1.3)) {
+      var _chase = H * (0.9 + _per.appetite * 0.9);  // hungrier worms chase food from farther
+      if (_bfx != null && _bfd < _chase * _chase) {
         _wx = _bfx; _wy = _bfy;                       // go eat
       } else {
-        if (sim._fgx == null || sim.aiTimer % 160 === 0) {
-          sim._fgx = _binL + Math.random() * (_binR - _binL);
+        // Roam this worm's home turf; restless worms re-pick more often and range wider.
+        var _refresh = 220 - Math.floor(_per.restless * 130);
+        if (sim._fgx == null || sim.aiTimer % _refresh === 0) {
+          var _spread = (_binR - _binL) * (0.12 + _per.restless * 0.28);
+          sim._fgx = Math.max(_binL, Math.min(_binR, _turfX + (Math.random() - 0.5) * 2 * _spread));
           sim._fgy = _fTop + Math.random() * (_fBot - _fTop);
         }
         _wx = sim._fgx; _wy = sim._fgy;               // roam the food layer
       }
+      // Occasional idle pause — fidgety worms stop to nose around more than calm ones.
+      if (sim._pause == null) sim._pause = 0;
+      if (sim._pause <= 0 && Math.random() < 0.0016 * (0.4 + _per.restless)) sim._pause = 24 + Math.floor(Math.random() * 46);
       // Decide to drain only occasionally (Poisson-style) so worms stay DESYNCED and most are
       // feeding at any given moment — tenders dig rarely, drillers more often. A hard cap makes
       // a worm that can't find food still drain eventually so nobody loiters forever.
-      var _minForage = _tender ? 1400 : 400;
-      var _digProb   = _tender ? 0.0014 : 0.004;
-      var _fed       = sim.gut >= sim.gutMax * (_tender ? 0.6 : 0.4);
-      if ((sim.aiTimer > _minForage && _fed && Math.random() < _digProb) || sim.aiTimer > (_tender ? 3200 : 1300)) {
+      var _minForage = Math.floor(1500 - _per.dig * 1050);
+      var _digProb   = 0.0008 + _per.dig * 0.0042;
+      var _fed       = sim.gut >= sim.gutMax * (0.4 + _per.appetite * 0.35);
+      var _hardCap   = Math.floor(2900 - _per.dig * 1500);
+      if ((sim.aiTimer > _minForage && _fed && Math.random() < _digProb) || sim.aiTimer > _hardCap) {
         sim.aiState = 'dig'; sim.aiTimer = 0;
         sim._digX = Math.max(_binL, Math.min(_binR, sim.segs[0].x + (Math.random() - 0.5) * sim.sr * 3));
       }
@@ -8267,12 +8291,12 @@ function updateNPCSims() {
       if (sim.segs[0].y >= _sumpY - sim.sr) { sim.aiState = 'drain'; sim.aiTimer = 0; }
       else if (sim.aiTimer > 1100) { sim.aiState = 'return'; sim.aiTimer = 0; } // safety
     } else if (sim.aiState === 'drain') {
-      // Hold at the sump briefly — lets poop/tea drain and tubes junction in.
+      // Hold at the sump — eager diggers work the drain longer than homebodies.
       _wx = sim._digX; _wy = _sumpY;
-      if (sim.aiTimer > 80) { sim.aiState = 'return'; sim.aiTimer = 0; }
+      if (sim.aiTimer > 60 + _per.dig * 130) { sim.aiState = 'return'; sim.aiTimer = 0; }
     } else { // 'return'
-      // Climb back up into the food layer, then forage again with a fresh desynced duration.
-      _wx = sim._digX + (Math.random() - 0.5) * sim.sr; _wy = _fBot;
+      // Climb back up toward this worm's home turf, then forage again.
+      _wx = _turfX + (Math.random() - 0.5) * sim.sr * 2; _wy = _fBot;
       if (sim.segs[0].y <= _fBot) {
         sim.aiState = 'forage'; sim.aiTimer = 0; sim._fgx = null;
       }
@@ -8333,13 +8357,17 @@ function updateNPCSims() {
     if (sim.gut <= 0)   sim.hp = Math.max(0.1, sim.hp - 0.0001);
 
     // ── Move head toward target ──────────────────────────────────────────
+    if (sim._pause == null) sim._pause = 0;
+    if (sim._pause > 0) sim._pause--;
     if (_wd > 2) {
       var _dn = _wd || 1;
       var _fx = _wdx / _dn, _fy = _wdy / _dn;
       var _px = -_fy, _py = _fx;
-      var _sa = Math.sin(frame * 0.07 + _oi * 1.3) * (sim.aiState === 'dig' ? 0.025 : 0.08);
-      sim.segs[0].x += _fx * 0.35 + _px * _sa;
-      sim.segs[0].y += _fy * 0.35 + _py * _sa;
+      var _sa = Math.sin(frame * 0.07 + _oi * 1.3) * (sim.aiState === 'dig' ? 0.025 : 0.08) * _per.wiggle;
+      // Per-worm crawl speed; an idle pause slows it to a near-stop for a beat.
+      var _spd = 0.35 * _per.speed * (sim._pause > 0 ? 0.18 : 1);
+      sim.segs[0].x += _fx * _spd + _px * _sa;
+      sim.segs[0].y += _fy * _spd + _py * _sa;
     }
     sim.segs[0].x = Math.max(b2.cx - b2.bw2 + sim.sr, Math.min(b2.cx + b2.bw2 - sim.sr, sim.segs[0].x));
     sim.segs[0].y = Math.max(H * 0.8, Math.min(3 * H - sim.sr, sim.segs[0].y));
