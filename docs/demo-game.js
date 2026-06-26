@@ -507,7 +507,6 @@ var valveDrips  = []; // screen-space tea drips falling from spout to grass [{x,
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
 var weekStartTs        = 0;       // timestamp of current week start
 var weeklyContrib      = 0;       // player's contribution this week
-var weeklyFeedPending  = false;   // true when feed cinematic was chained from weekly drain — resets clock on completion
 var drainBonusPopups   = [];      // [{text, x, y, alpha, vy}] floating bonus text
 var scrapsLevel = 1.0;
 var scrapsEmpty = false;
@@ -923,25 +922,6 @@ function _findPendingWorm(uname) {
 // Convert internal 0–1 temp to Fahrenheit  (0 = 20°F, 1 = 110°F)
 function weatherTempF() { return Math.round(20 + weather.temp * 90); }
 
-// ── Farmer Snoo cinematic ─────────────────────────────────────────────────
-// snooScene: null | 'drain' | 'feed' | 'emergency'
-// 'drain'     = weekly tea drain — Snoo operates the sump tap, drains sump, distributes karma
-// 'feed'      = scraps empty — Snoo tips food basket in, refills bin only
-// 'emergency' = collective karma pot filled — emergency delivery
-// snooPhase: 'slidein' | 'bend' | 'tip' | 'straighten' | 'slideout' | 'done'
-var snooScene       = null;
-var snooLidAngle    = 0;       // 0 = closed, max PI*0.55 = wide open
-var snooGamePaused  = false;   // while true, updatePlayer/NPCs skip logic (hunger etc)
-var snooBucketItems = [];      // picked TRASH_TYPES shown in bucket, set on triggerSnoo
-var snooBucketScreenX = 0;    // screen X of bucket mouth during tip — drop origin
-var snooBucketScreenY = 0;    // screen Y of bucket mouth during tip — drop origin
-
-// ── Drain cinematic — standalone scene, separate from feed/emergency ──────
-// Snoo descends below the bin, operates the centre tap, fills a bucket.
-// Phases: floatin → pause → openvalve → draining → closevalve → floatout → done
-var drainScene        = false;   // true while the drain animation is running
-var drainTapRot       = 0;       // valve handle rotation 0 → PI*0.82 = open
-// draining duration is calculated dynamically from tLvl at trigger time
 
 
 // ── Tap drain flood relief ────────────────────────────────────────────────
@@ -2229,13 +2209,6 @@ function spawnScraps() {
     pool.unshift(acidTypes[ai]);
   }
 
-  // Seed the bucket items at the very front — they become the first chunks to spawn
-  // so the items Snoo carried in his basket are the ones that visibly fall in
-  if (typeof snooBucketItems !== 'undefined' && snooBucketItems.length) {
-    for (var bsi = snooBucketItems.length - 1; bsi >= 0; bsi--) {
-      pool.unshift(snooBucketItems[bsi]);
-    }
-  }
 
   // depth controls visual Z (draw order), zScale per depth
   var layerDepth  = [0, 1, 2, 0, 1, 2];
@@ -2295,11 +2268,11 @@ function spawnScraps() {
         locked: layer !== 0,  // only layer 0 starts active
         nextWeatherFrame: frame + Math.floor(Math.random() * 1800), // staggered first shed
         // Drop animation — starts from bucket mouth position
-        dropY: snooScene ? (snooBucketScreenY + camY) : cy,
-        dropX: snooScene ? (snooBucketScreenX + (Math.random()-0.5) * 20) : cx,
-        dropVy: snooScene ? (-1 + Math.random() * 1.5) : 0,  // slight upward arc then fall
-        dropVx: snooScene ? (0.3 + Math.random() * 1.5) : 0, // drift toward bin centre
-        dropping: snooScene ? true : false
+        dropY: cy,
+        dropX: cx,
+        dropVy: 0,
+        dropVx: 0,
+        dropping: false
       };
       placed.push(chunk);
       trashChunks.push(chunk);
@@ -5032,8 +5005,6 @@ function draw() {
   }
 
   // Tiers
-  // ── Farmer Snoo — drawn BEFORE bin so bin renders on top of him ──────────
-
   for (var i = 0; i < 4; i++) {
     var sy = i*H - camY;
     // For i===1 the combined tier 1+2 rect spans H..3*H — skip only if that full range is off screen
@@ -5834,7 +5805,7 @@ function draw() {
   if (lidY > -H && lidY < H + 40) {
 
     // ── Lid underside rim (the part that grips inside the bin opening) ─────
-    if (snooLidAngle < 0.05) {
+    {
       ctx.fillStyle = '#2a3650';
       ctx.fillRect(b.cx-b.bw2+2, lidY, b.bw-4, lidRimH);
     }
@@ -5845,7 +5816,6 @@ function draw() {
     ctx.save();
     // Hinge at right edge — lid swings up and to the left (Snoo lifts from front-left)
     ctx.translate(b.cx + cw/2, lidTop);
-    ctx.rotate(snooLidAngle);
     ctx.translate(-(b.cx + cw/2), -lidTop);
     // Shadow underside of lid where it overhangs
     ctx.fillStyle = '#1e2a40';
@@ -6065,7 +6035,7 @@ function draw() {
     var _hColBase = '#d4b050';
     var _hHubBase = '#c8a040';
     // Orange shadowBlur glow only during an active flood
-    var _glowStrength = (valveOpen && !drainScene)
+    var _glowStrength = (valveOpen)
       ? 6 + Math.sin(frame * 0.13) * 6
       : 0;
 
@@ -6086,7 +6056,7 @@ function draw() {
     // Pulses orange when actionable; no separate glow ring or tooltip label
     ctx.save();
     ctx.translate(_tx+2, _ty-6);
-    var _handleRot = drainScene ? drainTapRot : (_valveOpen ? Math.PI*0.82 : 0);
+    var _handleRot = (_valveOpen ? Math.PI*0.82 : 0);
     ctx.rotate(_handleRot - Math.PI*0.08);
     if (_glowStrength > 0) {
       ctx.shadowColor = '#ff7010';
@@ -6528,7 +6498,7 @@ function draw() {
 
   // Bin Refresh countdown — centred directly under clock
   var _refreshStr;
-  if (drainScene || (snooScene === 'feed' && weeklyFeedPending) || (weekStartTs > 0 && (weekStartTs + WEEK_DRAIN_MS) <= Date.now())) {
+  if (weekStartTs > 0 && (weekStartTs + WEEK_DRAIN_MS) <= Date.now()) {
     // Cinematic running OR week already expired (drain fires this frame) — show refreshing
     _refreshStr = (frame % 40 < 20) ? '\uD83E\uDEA3 Refreshing now!' : '\uD83E\uDEA3 Refreshing now\u2026';
     ctx.fillStyle = 'rgba(255,220,100,' + (0.7 + Math.sin(frame * 0.15) * 0.3) + ')';
@@ -6763,7 +6733,7 @@ function draw() {
   // Flood drain button is now the valve itself (window._valveBtn), not a floating HUD pill.
   // _drainBtn kept as alias for legacy click/touch handlers that check it.
   // _drainBtn alias — set whenever flood is active OR valve is open
-  if (valveOpen && !snooScene) {
+  if (valveOpen) {
     window._drainBtn = window._valveBtn || null;
   } else {
     window._drainBtn = null;
@@ -6775,7 +6745,6 @@ function draw() {
   // Weather HUD — upper left
   drawWeatherHUD();
   drawDebugOverlay();
-  // Snoo cinematics drawn on top of world, below death screen
   // Queue system — pending cocoons and spectator HUD
   try { drawPendingWorms(); } catch(e) {}
   drawQueueHUD();
@@ -7703,11 +7672,9 @@ function loop() {
   try { updateCocoons(); } catch(e) { showErr('updateCocoons: '+e.message); }
   try { updatePendingWorms(); } catch(e) { showErr('updatePendingWorms: '+e.message); }
   if (drainTapCooldown > 0) drainTapCooldown--;
-  if (!snooGamePaused) {
-    try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
-    try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
-    try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
-  }
+  try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
+  try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
+  try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
   // ── Drift + fade ALL ZZZ particles every frame (player AND NPC sleepers) ──
   // This used to live inside the player-sleep block, so NPC z's spawned while the player
   // was awake never faded and piled up forever. Running it here makes every z drift up and
@@ -8009,8 +7976,7 @@ root.addEventListener('click', function(e) {
   var cy = _cp.y;
   if (!viewMode) { mX = cx + camX; mY = cy + camY; } // don't steer worm while scrolling
 
-  // Block clicks during Snoo cinematic
-  if (snooScene) return;
+  
 
   // ── Claim worm button (queued state) ──────────────────────────────────
   if (playerState === 'queued' && window._claimBtn) {
