@@ -7198,7 +7198,7 @@ function draw() {
     ctx.save();
     ctx.globalAlpha = 1; ctx.fillStyle = '#00ff88';
     ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
-    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' active=' + _dbgAct + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 8, 20);
+    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' active=' + _dbgAct + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 22, 20);
     // ── Build-up readout — what is accumulating each frame (demo perf debug). Watch
     //    which number climbs as the lag grows: drops pinned at the cap, regPts ramping,
     //    pops/zzz/chunks creeping, or fps falling against a flat count = pure per-frame load.
@@ -7211,9 +7211,10 @@ function draw() {
     window._fpsBuf.push(_nowMs);
     if (window._fpsBuf.length > 30) window._fpsBuf.shift();
     var _fps = window._fpsBuf.length > 1 ? Math.round(1000 * (window._fpsBuf.length - 1) / (_nowMs - window._fpsBuf[0])) : 0;
-    ctx.fillText('fps=' + _fps + ' drops=' + _dActive + '/' + drops.length + ' regPts=' + _regPts + ' pPath=' + pPath.length, 8, 34);
-    ctx.fillText('zzz=' + pZzz.length + ' pops=' + drainBonusPopups.length + ' bugs=' + bugs.length + ' debris=' + debris.length + ' chunks=' + trashChunks.length + ' coc=' + cocoons.length, 8, 48);
-    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 8, 62);
+    ctx.fillText('fps=' + _fps + ' drops=' + _dActive + '/' + drops.length + ' regPts=' + _regPts + ' pPath=' + pPath.length, 22, 34);
+    ctx.fillText('zzz=' + pZzz.length + ' pops=' + drainBonusPopups.length + ' bugs=' + bugs.length + ' debris=' + debris.length + ' chunks=' + trashChunks.length + ' coc=' + cocoons.length, 22, 48);
+    ctx.fillText('ms tot=' + (window._phTot||0).toFixed(1) + ' npc=' + (window._phNpc||0).toFixed(1) + ' phys=' + (window._phPhys||0).toFixed(1) + ' draw=' + (window._phDraw||0).toFixed(1), 22, 62);
+    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 22, 76);
     ctx.restore();
   }
 
@@ -8865,6 +8866,8 @@ function loop() {
   window._loopRunning = true;
   if (!W || !H) { requestAnimationFrame(loop); return; }
   frame++;
+  var _PN = (window.performance && performance.now) ? performance : Date;
+  var _pStart = _PN.now();
   // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
   // Throttle the new Date() allocation to every 60 frames instead of every frame.
   if (frame % 60 === 0) dayTime = getRealDayTime();
@@ -8878,8 +8881,13 @@ function loop() {
   if (emergencyCooldown > 0) emergencyCooldown--;
   if (!snooGamePaused) {
     try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
+    var _pN0 = _PN.now();
     try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
+    var _pN1 = _PN.now();
     try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
+    var _pN2 = _PN.now();
+    window._phNpc  = window._phNpc ==null ? (_pN1-_pN0) : window._phNpc *0.9 + (_pN1-_pN0)*0.1;
+    window._phPhys = window._phPhys==null ? (_pN2-_pN1) : window._phPhys*0.9 + (_pN2-_pN1)*0.1;
   }
   // ── Drift + fade ALL ZZZ particles every frame (player AND NPC sleepers) ──
   // This used to live inside the player-sleep block, so NPC z's spawned while the player
@@ -8898,7 +8906,11 @@ function loop() {
     camY += (viewCamY - camY) * 0.12;
     camY = Math.round(camY);
   }
+  var _pD0 = _PN.now();
   try { draw(); } catch(e) { showErr('draw: '+e.message); }
+  var _pD1 = _PN.now();
+  window._phDraw = window._phDraw==null ? (_pD1-_pD0)    : window._phDraw*0.9 + (_pD1-_pD0)*0.1;
+  window._phTot  = window._phTot ==null ? (_pD1-_pStart) : window._phTot *0.9 + (_pD1-_pStart)*0.1;
   requestAnimationFrame(loop);
 }
 function showErr(msg) {
