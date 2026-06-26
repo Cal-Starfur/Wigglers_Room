@@ -149,9 +149,10 @@ function tutorialStep() {
   while (si < steps.length && _tutStepDone(steps[si])) si++;   // skip completed steps
   tutorial.stepIndex = si;
 
-  if (si >= steps.length) {            // sequence complete — show the done screen, then free roam
+  if (si >= steps.length) {            // sequence complete — show the done card, then cut to the end screen
     tutorial.target = null; tutorial.leash = null; tutorial.panel = null; tutorial.extras = null;
-    tutorial.done = true;              // drawTutorialDone() takes over; a tap dismisses it to free roam
+    tutorial.done = true;              // drawTutorialDone() takes over
+    tutorial._doneAt = Date.now();     // dwell timer: auto-cut to the end screen after a readable beat
     return;
   }
   var step = steps[si];
@@ -257,12 +258,21 @@ function drawTutorialDone() {
   ctx.fillStyle = '#9fd84a';
   ctx.font = '12px sans-serif';
   ctx.fillText('The bin is yours now.', cx2, py + 132);
-  var _pp = 0.6 + 0.4 * Math.sin(frame * 0.08);
-  ctx.globalAlpha = a * _pp;
-  ctx.fillStyle = '#eaf2dc';
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillText('Tap to play', cx2, py + panelH - 18);
   ctx.restore();
+  // No prompt on the card — the continue action lives on the end screen.
+  // Auto-cut to the end screen once the card has had a readable beat.
+  if (tutorial._doneAt && (Date.now() - tutorial._doneAt) > 2600) _tutFinish();
+}
+
+// Finish the tutorial: turn it off and hand control to the teaser's end screen.
+// Standalone-safe — if window.showDemoEnd isn't present (game run outside the teaser),
+// this just drops to free roam, exactly as the old dismiss did.
+function _tutFinish() {
+  if (tutorial._finished) return;
+  tutorial._finished = true;
+  tutorial.done = false;
+  tutorial.active = false;
+  if (typeof window !== 'undefined' && typeof window.showDemoEnd === 'function') window.showDemoEnd();
 }
 
 // ── Tutorial highlight ───────────────────────────────────────────────────────
@@ -9279,8 +9289,8 @@ root.addEventListener('click', function(e) {
     return;
   }
 
-  // Tutorial done screen — any tap dismisses it to free roam
-  if (tutorial.done) { tutorial.done = false; tutorial.active = false; return; }
+  // Tutorial done card — tap cuts straight to the end screen
+  if (tutorial.done) { _tutFinish(); return; }
 
   // Death screen — single smart respawn button
   if (deathScreen) {
@@ -9437,8 +9447,8 @@ root.addEventListener('touchstart', function(e) {
     return;
   }
 
-  // Tutorial done screen — any tap dismisses it to free roam
-  if (tutorial.done) { tutorial.done = false; tutorial.active = false; return; }
+  // Tutorial done card — tap cuts straight to the end screen
+  if (tutorial.done) { _tutFinish(); return; }
 
   // ── Death screen ────────────────────────────────────────────────────────
   if (deathScreen) {
