@@ -937,50 +937,19 @@ function weatherTempF() { return Math.round(20 + weather.temp * 90); }
 // 'emergency' = collective karma pot filled — emergency delivery
 // snooPhase: 'slidein' | 'bend' | 'tip' | 'straighten' | 'slideout' | 'done'
 var snooScene       = null;
-var snooPhase       = 'done';
-var snooX           = 0;       // current screen X of Snoo (animates in from left)
-var snooTargetX     = 0;       // X position directly above bin centre
-var snooT           = 0;       // phase timer (frames)
-var snooPhaseDur    = { slidein:70, bend:40, tip:50, straighten:30, slideout:60 };
-var snooCamTarget   = 0;       // world-Y the camera should ease toward during scene
-var snooCamPrev     = 0;       // camY before scene — restored after
 var snooLidAngle    = 0;       // 0 = closed, max PI*0.55 = wide open
-var snooBucketAngle = 0;       // 0 = upright, max PI*0.9 = fully tipped
 var snooGamePaused  = false;   // while true, updatePlayer/NPCs skip logic (hunger etc)
-var snooScrapsCascade = false; // true for a few frames while scraps visually fall in
-var snooCascadeT    = 0;
 var snooBucketItems = [];      // picked TRASH_TYPES shown in bucket, set on triggerSnoo
 var snooBucketScreenX = 0;    // screen X of bucket mouth during tip — drop origin
 var snooBucketScreenY = 0;    // screen Y of bucket mouth during tip — drop origin
-var snooScale         = 0;    // 0→1 scale factor for rise-in / rise-out animation
 
 // ── Drain cinematic — standalone scene, separate from feed/emergency ──────
 // Snoo descends below the bin, operates the centre tap, fills a bucket.
 // Phases: floatin → pause → openvalve → draining → closevalve → floatout → done
 var drainScene        = false;   // true while the drain animation is running
-var drainPhase        = 'done';
-var drainPT           = 0;       // per-phase frame counter
-var drainSnooX        = 0;       // screen X of Snoo centre
-var drainSnooY        = 0;       // screen Y of Snoo torso-top anchor
-var drainSnooStopX    = 0;       // locked STOP_X captured at scene start
-var drainSnooStopY    = 0;       // unused since ISS-12 fix — STOP_Y derived live from tapSY
 var drainTapRot       = 0;       // valve handle rotation 0 → PI*0.82 = open
-var drainTapIsOpen    = false;
-var drainTeaFlow      = 0;       // 0–1 flow intensity (drives drip opacity + speed)
-var drainBucketFill   = 0;       // 0–1 bucket fill level (visual)
-var drainVisualTLvl   = 0;       // local copy of tLvl drained visually frame-by-frame
-var drainBonusPool    = 0;       // calculated once at trigger time
-var drainToastAlpha   = 0;       // toast fade in/out
-var drainSnooScale    = 0;       // 0→1 for rise-in/out
-var DRAIN_PHASE_DUR   = { floatin:55, pause:30, openvalve:35, draining:0, closevalve:30, floatout:60 };
 // draining duration is calculated dynamically from tLvl at trigger time
-var drainDrainingDur  = 120;
 
-// ── Emergency scrap collective karma pot ──────────────────────────────────
-var EMERGENCY_KARMA_NEEDED = 50;  // total karma from all worms to trigger delivery
-var emergencyKarmaPot = 0;        // running total contributed this cycle
-var emergencyRequested = false;   // true once any worm hits the button
-var emergencyCooldown = 0;        // frames since last emergency — prevent spam
 
 // ── Tap drain flood relief ────────────────────────────────────────────────
 var DRAIN_TAP_KARMA_REWARD = 8;   // karma awarded to worm who opens the drain
@@ -2604,8 +2573,6 @@ function saveSession() {
       lastCocoonLaid:    lastCocoonLaid,
       weekStartTs:       weekStartTs,
       weeklyContrib:     weeklyContrib,
-      emergencyKarmaPot: emergencyKarmaPot,
-      emergencyRequested: emergencyRequested,
       // ── World-state (tLvl, castingEnrichment) NOT saved here ──────────
       // These belong to the bin (KV_WORLD), not the worm (KV_WORM_SESSION).
       // setWorldState from KV_WORLD is the authoritative source on open — ISS-18.
@@ -2911,9 +2878,6 @@ function setup() {
     // Clamp to 0..1 range; anything above 1 is impossible legitimately.
     weeklyContrib = Math.max(0, Math.min(1, saved.weeklyContrib || 0));
 
-    // Restore emergency pot — clamped so a corrupt save can't pre-fill it
-    emergencyKarmaPot  = Math.max(0, Math.min(EMERGENCY_KARMA_NEEDED, saved.emergencyKarmaPot  || 0));
-    emergencyRequested = !!saved.emergencyRequested;
 
     lastCocoonLaid = saved.lastCocoonLaid || 0;
 
@@ -6992,41 +6956,6 @@ function draw() {
 
 
 
-  // ── Emergency scraps collective karma pot ─────────────────────────────────
-  if (scrapsEmpty && !snooScene && !tapReady) {
-    var potFrac = Math.min(1, emergencyKarmaPot / EMERGENCY_KARMA_NEEDED);
-    var potW = 200, potH = 36;
-    var potX = W/2 - potW/2, potY = H/2 + 20;
-    ctx.fillStyle = 'rgba(60,20,0,0.92)';
-    ctx.beginPath(); ctx.roundRect(potX, potY, potW, potH + 22, 8); ctx.fill();
-    ctx.strokeStyle = '#c87030'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(potX, potY, potW, potH + 22, 8); ctx.stroke();
-    ctx.fillStyle = '#ffcc60';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('🪣 Emergency Scraps', W/2, potY + 14);
-    // Progress bar
-    ctx.fillStyle = 'rgba(20,10,0,0.8)';
-    ctx.fillRect(potX + 8, potY + 19, potW - 16, 10);
-    ctx.fillStyle = '#e8a030';
-    ctx.fillRect(potX + 8, potY + 19, Math.round((potW-16) * potFrac), 10);
-    ctx.fillStyle = '#ffe090';
-    ctx.font = '9px sans-serif';
-    ctx.fillText(Math.floor(emergencyKarmaPot) + ' / ' + EMERGENCY_KARMA_NEEDED + ' karma', W/2, potY + 28);
-    // Donate button
-    var donateW = 120, donateH = 18;
-    var donateX = W/2 - donateW/2, donateY = potY + potH + 4;
-    var canDonate = karma >= 5 && emergencyCooldown <= 0;
-    ctx.fillStyle = canDonate ? 'rgba(80,160,60,0.92)' : 'rgba(50,50,50,0.7)';
-    ctx.beginPath(); ctx.roundRect(donateX, donateY, donateW, donateH, 5); ctx.fill();
-    ctx.fillStyle = canDonate ? '#d0ffb0' : '#888';
-    ctx.font = '10px sans-serif';
-    ctx.fillText(canDonate ? '☯ Donate 5 karma' : 'Need 5 karma', W/2, donateY + 13);
-    // Store button bounds for click handling
-    window._emergencyDonateBtn = {x: donateX, y: donateY, w: donateW, h: donateH};
-  } else {
-    window._emergencyDonateBtn = null;
-  }
 
   // Long-press ring — gesture feedback
   drawLongPressRing();
@@ -7957,7 +7886,6 @@ function loop() {
   try { updateCocoons(); } catch(e) { showErr('updateCocoons: '+e.message); }
   try { updatePendingWorms(); } catch(e) { showErr('updatePendingWorms: '+e.message); }
   if (drainTapCooldown > 0) drainTapCooldown--;
-  if (emergencyCooldown > 0) emergencyCooldown--;
   if (!snooGamePaused) {
     try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
     try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
@@ -8286,16 +8214,6 @@ root.addEventListener('click', function(e) {
     }
   }
 
-  // Emergency scraps donate button
-  if (window._emergencyDonateBtn && !deathScreen) {
-    var eb = window._emergencyDonateBtn;
-    if (cx >= eb.x && cx <= eb.x+eb.w && cy >= eb.y && cy <= eb.y+eb.h && karma >= 5 && emergencyCooldown <= 0) {
-      karma -= 5;
-      emergencyKarmaPot += 5;
-      emergencyRequested = true;
-      return;
-    }
-  }
 
   // Wake from sleep on any tap
   if (pSleeping) { trySleep(); return; }
