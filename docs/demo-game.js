@@ -508,7 +508,6 @@ var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
 var weekStartTs        = 0;       // timestamp of current week start
 var weeklyContrib      = 0;       // player's contribution this week
 var weeklyFeedPending  = false;   // true when feed cinematic was chained from weekly drain — resets clock on completion
-var floodActive        = false;   // flood event in progress — drives UI signals (valve colour, warning, tap state)
 var drainBonusPopups   = [];      // [{text, x, y, alpha, vy}] floating bonus text
 var scrapsLevel = 1.0;
 var scrapsEmpty = false;
@@ -705,7 +704,6 @@ window.addEventListener('message', function(e) {
         if (_localTs > _kvTs) {
           // Local save is newer — keep it but merge in server-authoritative fields from KV
           if (_kvSession.weekStartTs) _localSession.weekStartTs = _kvSession.weekStartTs;
-          if (_kvSession.lastFloodTs) _localSession.lastFloodTs = _kvSession.lastFloodTs;
           localStorage.setItem(SESSION_KEY, JSON.stringify(_localSession));
         } else {
           // KV session is same age or newer — use it as-is (normal path for first load)
@@ -829,34 +827,7 @@ window.addEventListener('message', function(e) {
     otherPlayers = otherPlayers.filter(function(p) { return now - p.lastSeen < 90000; });
   }
 
-  // ── setFlood — authoritative flood event from server ──────────────────────
-  // Broadcast via Devvit Realtime so all viewers get the flood simultaneously.
-  // Replaces the client-side tLvl >= 0.9 trigger for the "official" flood.
-  // { type: 'setFlood', active: bool, level: 0–1, tLvl: 0–1, floodTs: ms }
-  // The client-side tLvl threshold check still runs as a local fallback when
-  // running standalone (localStorage mode) — it is NOT removed.
-  if (msg.type === 'setFlood') {
-    if (msg.tLvl != null) tLvl = Math.max(0, Math.min(1, +msg.tLvl || 0));
-    if (msg.active && !floodActive) {
-      floodActive = true;
-            window._floodMsg  = '⚠ FLOOD! Worm tea overflowing — sump full!';
-      window._floodMsgT = frame;
-      // Record authoritative server flood timestamp — used for offline drain death calc
-      // This is the only path that should set lastFloodTs in production;
-      // the client-only localStorage write in updatePhysics is a local-dev fallback.
-      if (msg.floodTs) {
-        try {
-          var fss = loadSession();
-          if (fss) { fss.lastFloodTs = +msg.floodTs; localStorage.setItem(SESSION_KEY, JSON.stringify(fss)); }
-        } catch(e2) {}
-        postToHost({ type: 'floodAck', floodTs: +msg.floodTs, username: username });
-      }
-    } else if (!msg.active && floodActive) {
-      floodActive = false;
-      window._floodMsg = null;
-    }
-  }
-
+  
   // ── setQueueState — sent on post open to queued / waiting players ─────────
   if (msg.type === 'setQueueState') {
     queuePosition = msg.position || 0;
@@ -951,8 +922,6 @@ function _findPendingWorm(uname) {
 
 // Convert internal 0–1 temp to Fahrenheit  (0 = 20°F, 1 = 110°F)
 function weatherTempF() { return Math.round(20 + weather.temp * 90); }
-
-
 
 // ── Farmer Snoo cinematic ─────────────────────────────────────────────────
 // snooScene: null | 'drain' | 'feed' | 'emergency'
@@ -1142,8 +1111,6 @@ function tSurf() { return cSurf() + H*0.25 + H*0.5 - tLvl*(H-8); }
 function inCompost(wy) { return wy >= 2*H && wy < cSurf(); }
 // 0 at top of compost, 1 at bottom — for depth-scaled rewards/effects
 function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / (cSurf() - 2*H))); }
-
-
 
 // Find the nearest pPath index at or below a given world-y, within xTol horizontally
 function nearestPathIdx(wx, wy, xTol, yTol) {
@@ -2639,25 +2606,7 @@ function applyOfflineDrain(saved) {
   var elapsedSec = (Date.now() - saved.ts) / 1000;
   if (elapsedSec < 10) return; // ignore if <10s (page refresh, etc.)
 
-  // DEVVIT TODO: lastFloodTs must be server-authoritative — a client that writes a
-  // fake lastFloodTs in the future can grief other players by faking flood kills,
-  // or a client that clears it can avoid flood death entirely. When Devvit is wired,
-  // flood events should be broadcast via Realtime and stored server-side; this
-  // localStorage path is a single-player fallback only.
-  // Validate: lastFloodTs must be between saved.ts and now — reject anything outside that window.
-  var validFloodTs = saved.lastFloodTs &&
-    saved.lastFloodTs > saved.ts &&
-    saved.lastFloodTs <= Date.now();
-  if (validFloodTs) {
-    pHP = 0;
-    pGut = 0;
-    deathCause = 'flood';
-    window._offlineDrainMsg = 'A flood occurred while you were away — your worm drowned!';
-    // Clear the flood flag so it only triggers death once
-    try { saved.lastFloodTs = null; localStorage.setItem(SESSION_KEY, JSON.stringify(saved)); } catch(e) {}
-    return;
-  }
-
+  
   // Drain pGut — hunger is derived from gut fill, so this is the correct target.
   // Draining pHunger directly was a bug: it got overwritten by the first updatePlayer tick.
   var drain = Math.min(MAX_OFFLINE_DRAIN, elapsedSec * OFFLINE_DRAIN_PER_SEC);
@@ -2694,7 +2643,7 @@ function applyOfflineDrain(saved) {
     }
 
     // ── World / bin state ───────────────────────────────────────────────────
-    if (floodActive || tLvl >= 0.9) {
+    if (tLvl >= 0.9) {
       _msgs.push('⚠ Sump is flooding!');
     } else if (tLvl >= 0.65) {
       _msgs.push('🫗 Sump is nearly full');
@@ -2839,7 +2788,7 @@ function setup() {
   resizeCanvas();
   pPath = []; drops = []; bugs = []; trashChunks = []; debris = []; weatherQueue = [];
   scraps = []; cocoons = []; teaSplashes = []; valveDrips = []; drainBonusPopups = [];
-  floodActive = false; valveOpen = false; window._valveOpenState = false; window._valveDrainedTotal = 0;
+  valveOpen = false; window._valveOpenState = false; window._valveDrainedTotal = 0;
   tapReady = false;
   drainDownTimer = 0; drainUpTimer = 0; drainDownCooldown = 0;
   window._sumpHadDown = null; window._upDrainBonusFired = false;
@@ -3195,7 +3144,7 @@ function updatePlayer() {
   // ── Passive digestion — runs alongside hunger bleed, not instead of it ───
   // Above 50% gut: full rate. Below 50%: 0.1x — reserve trickles slowly, won't starve you.
   // Stops only when fully starving (pGut=0) or constipated (gut full).
-  if (!starving && !constipated && pGut > 0 && !floodActive) {
+  if (!starving && !constipated && pGut > 0) {
     var digestMult = 1.0;
     if (pSleeping) {
       digestMult = 2.0;
@@ -3702,9 +3651,6 @@ function updatePhysics() {
   // (pooled>0.6). Drops still fall/render; only the totals are held at baseline.
   if (tutorial.active) {
     castingEnrichment = 0; pooled = 0; tLvl = 0; window._moisture = 0;
-    // No flooding or flood warning during the lesson. Cleared every frame (before draw),
-    // so even a host setFlood or stale state can't surface a flood/banner mid-tutorial.
-    floodActive = false; window._floodMsg = null; window._floodMsgT = 0;
   }
   // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
   // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
@@ -4446,49 +4392,14 @@ function updatePhysics() {
   if (window._moisture === undefined) window._moisture = moistureTarget;
   window._moisture += (moistureTarget - window._moisture) * 0.003;
 
-
-
-  // ── Sump flood trigger — fires when tea level is critically high ────────
-  // Simple threshold: sump genuinely full.
-  if (!floodActive && tLvl >= 0.9) {
-    floodActive = true;
-    window._floodMsg = '⚠ FLOOD! Worm tea overflowing — sump full!';
-    window._floodMsgT = frame;
-    try {
-      var fs = loadSession(); if (fs) { fs.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs)); }
-    } catch(e) {}
-    // Broadcast to host — server will re-broadcast via Realtime to all viewers.
-    // In production the setFlood message from the host is authoritative;
-    // this client-side trigger is the local-dev / standalone fallback path.
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, floodActive: true, lastFloodTs: Date.now() });
-  }
-  // ── Oversaturation HP pressure — direct, no flood event needed ─────────
+    // ── Oversaturation HP pressure — direct, no flood event needed ─────────
   // Worm suffocates slowly in waterlogged compost above pooled=0.6.
   if (pSegs.length && inCompost(pSegs[0].y) && pooled > 0.6) {
     if (pHP > 0) deathCause = 'drowning';
     pHP = Math.max(0, pHP - (pooled - 0.6) * 0.00005);
   }
 
-  // ── Sump flood — worm damage when tea is at or above danger threshold ──────
-  // tLvl is the single source of truth. The tea surface sits at sumpFloor - tLvl*(sumpH).
-  // No separate floodLevel — the tea body is one continuous fill driven by tLvl.
-  if (floodActive) {
-    var sumpFloorY   = cSurf() + H*0.25;   // world-Y of sump floor
-    var sumpH        = H*0.25;          // total sump height
-    var teaWorldY    = sumpFloorY - tLvl * sumpH; // actual tea surface in world coords
-    if (pSegs.length && pSegs[0].y > teaWorldY) {
-      var pFloodDepth = Math.min(1, (pSegs[0].y - teaWorldY) / (H * 0.3));
-      if (pHP > 0) deathCause = 'flood';
-      pHP = Math.max(0, pHP - (0.004 + pFloodDepth * 0.004));
-    }
-    // Flood ends when tea drains below threshold
-    if (tLvl < 0.9) {
-      floodActive = false;
-      window._floodMsg = null;
-      window._floodPeakFrame = null;
-    }
-  }
-
+  
   // ── Valve open — continuous tea drain while player holds it open ──────────
   if (valveOpen && drainOwner === 'valve') { // guard: only drain if this system owns tLvl
     if (tLvl > 0) {
@@ -4515,9 +4426,6 @@ function updatePhysics() {
       closeDrainTap();
     }
   }
-
-
-
 
 }
 
@@ -5054,8 +4962,6 @@ function draw() {
   }
 
   ctx.restore(); // end sun/moon clip
-
-
 
   // ── Background ground plane — drawn right after sky, before the bin ────
   // Horizon at world cSurf(). Ground fills from horizScreenY to canvas bottom, full width.
@@ -6159,7 +6065,7 @@ function draw() {
     var _hColBase = '#d4b050';
     var _hHubBase = '#c8a040';
     // Orange shadowBlur glow only during an active flood
-    var _glowStrength = (floodActive && !drainScene)
+    var _glowStrength = (valveOpen && !drainScene)
       ? 6 + Math.sin(frame * 0.13) * 6
       : 0;
 
@@ -6369,8 +6275,6 @@ function draw() {
     ctx.fillText(dbp.text, dbp.x, dbp.wy - camY);
     ctx.globalAlpha = 1;
   }
-
-
 
   // ── Weekly drain announcement ─────────────────────────────────────────────
   if (window._drainMsg && (frame - window._drainMsgT) < 360) {
@@ -6705,8 +6609,6 @@ function draw() {
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.roundRect(_barX + 0.5, _barY + 0.5, _barW - 1, _barH - 1, _barR); ctx.stroke();
 
-
-
   // ── Gut bar ───────────────────────────────────────────────────────────────
   var _gutY = _barY + _barH + _barGap;
   // Track
@@ -6738,8 +6640,6 @@ function draw() {
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.roundRect(_barX + 0.5, _gutY + 0.5, _barW - 1, _barH - 1, _barR); ctx.stroke();
 
-
-
   // Urgent state labels centred inside gut bar
   if (gutIsFullHUD) {
     var _poopFlash = frame % 30 < 15;
@@ -6761,12 +6661,6 @@ function draw() {
   }
   ctx.font = '9px sans-serif';
   ctx.textAlign = 'left';
-
-
-
-
-
-
 
   // --- Safe sleep zone badge (visible while in tiers 2-3) ---
   // --- Offline drain notice ---
@@ -6837,8 +6731,6 @@ function draw() {
     }
   }
 
-
-
   // Sleep warning — tried to sleep in wrong tier
   if (window._sleepWarning && frame - window._sleepWarning < 120) {
     var warnAlpha = 1 - (frame - window._sleepWarning) / 120;
@@ -6851,8 +6743,6 @@ function draw() {
     ctx.fillText('⚠ Swim into the compost layer first!', W/2, H/2 - 2);
     ctx.globalAlpha = 1;
   }
-
-
 
   // ZZZ particles — convert world coords to screen coords (after camera restore)
   for (var zi2 = 0; zi2 < pZzz.length; zi2++) {
@@ -6868,29 +6758,19 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
-
-
-
-
   // "tap the tap" hint is now shown as a tooltip on the valve itself — no floating banner.
 
   // Flood drain button is now the valve itself (window._valveBtn), not a floating HUD pill.
   // _drainBtn kept as alias for legacy click/touch handlers that check it.
   // _drainBtn alias — set whenever flood is active OR valve is open
-  if ((floodActive || valveOpen) && !snooScene) {
+  if (valveOpen && !snooScene) {
     window._drainBtn = window._valveBtn || null;
   } else {
     window._drainBtn = null;
   }
 
-
-
-
-
   // Long-press ring — gesture feedback
   drawLongPressRing();
-
-
 
   // Weather HUD — upper left
   drawWeatherHUD();
@@ -7335,7 +7215,6 @@ function drawDeathScreen() {
     hunger:       { text: '💀 Slowly starved',                 sub: 'Hunger wore the worm down. Keep that gut filled.' },
     constipation: { text: '💩 Died of constipation',          sub: 'Too full to move. Find compost and poop!' },
     acidity:      { text: '⚗ Dissolved by acid',              sub: 'Too many acidic scraps. Eat egg shells to neutralise.' },
-    flood:        { text: '🌊 Drowned in the flood',           sub: 'Worm tea overflowed. Sleep in compost to stay safe.' },
     drowning:     { text: '💧 Suffocated in waterlogged soil', sub: 'The compost was too saturated. Move to drier ground.' },
     natural:      { text: '🌱 Full life, well lived',          sub: 'Your worm completed its natural lifespan. A new worm is ready.' },
   };
@@ -7897,7 +7776,7 @@ function respawnPlayer(usedKarma) {
     pEaten = 0; pSR = 4; pSEG = 4;
     bornTs = Date.now(); // new life — stamp birth time
     // Reset the worm state — bin world persists (persistent game)
-    tapReady = false; floodActive = false;
+    tapReady = false;
     window._moisture = pooled;
   }
 
@@ -8149,7 +8028,7 @@ root.addEventListener('click', function(e) {
   if (!deathScreen && window._valveBtn) {
     var db = window._valveBtn;
     if (cx >= db.x && cx <= db.x+db.w && cy >= db.y && cy <= db.y+db.h) {
-      if (floodActive || valveOpen) {
+      if (valveOpen) {
         if (!valveOpen && drainTapCooldown <= 0) {
           triggerDrainTap();
         } else if (valveOpen) {
@@ -8439,7 +8318,7 @@ root.addEventListener('touchend', function(e) {
       if (isTap && window._valveBtn) {
         var db2 = window._valveBtn;
         if (ex0 >= db2.x && ex0 <= db2.x+db2.w && ey0 >= db2.y && ey0 <= db2.y+db2.h) {
-          if (floodActive || valveOpen) {
+          if (valveOpen) {
             if (!valveOpen && drainTapCooldown <= 0) {
               triggerDrainTap();
             } else if (valveOpen) {
@@ -8503,9 +8382,6 @@ var avatarMode = 0;  // 0=Snoo 1=Names 2=Hidden
 // The listener below is ready to receive those messages and swap in real images.
 
 var playerAvatarImg = null;   // loaded Image for the current player
-
-
-
 
 // ── Debug mode — password-protected toggle ────────────────────────────────
 // Type the secret sequence anywhere to open the password prompt.
@@ -8651,29 +8527,7 @@ window.addEventListener('keydown', function(e) {
     avatarMode = (avatarMode + 1) % 3;
   }
   if (!DEBUG_MODE) return;
-  // DEBUG — F key forces a flood instantly for testing.
-  if (e.code === 'KeyF') {
-    tLvl = 1.0;    // sump 100% full — flood line rises above the sump into compost
-    floodActive = true;
-    window._floodMsg = '⚠ FLOOD! Rapid decomposition — worm tea rising!';
-    window._floodMsgT = frame;
-  }
-  // DEBUG — D key forces clogged drainage + compost pool flood.
-  if (e.code === 'KeyD') {
-    // Clear pPath so drops have no channel to follow — simulates clogged drain
-    pPath.length = 0;
-    window._moisture     = 1.0;
-    pooled = 0.80;
-    floodActive         = true;
-    window._floodMsg    = '⚠ FLOOD! Compost waterlogged — liquid pooling in soil!';
-    window._floodMsgT   = frame;
-    try {
-      var fs3 = loadSession();
-      if (fs3) { fs3.lastFloodTs = Date.now(); localStorage.setItem(SESSION_KEY, JSON.stringify(fs3)); }
-    } catch(e2) {}
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel, floodActive: true, lastFloodTs: Date.now() });
-  }
-  // DEBUG — Shift+C wipes saved session and reloads fresh.
+    // DEBUG — Shift+C wipes saved session and reloads fresh.
   if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
   // DEBUG — ] key increments generation
   if (e.code === 'BracketRight') { generation = Math.min(99, generation + 1); }
@@ -8722,10 +8576,4 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
     _retries++;
   }, 500);
 })();
-
-
-
-
-
-
 
