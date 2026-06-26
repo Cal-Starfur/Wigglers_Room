@@ -1,9 +1,32 @@
 # Session Manifest — Wigglers Room
-Session: 29 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-25
+Session: 30 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
 
 ## Blocked
 - ISS-19 (localStorage race condition) — P1, code freeze until shipped
 - No game.js / main.tsx changes this sprint (demo-game.js / demo-teaser.html only)
+- Green debug overlay + per-phase ms timing (from cda6126) STILL LIVE in demo-game.js — strip in a clean commit once Sir confirms the phone is smooth
+
+## Session 30 — Per-poop lag fix + tutorial constipation/refuel arc (all docs/demo-game.js, ?tut=1)
+- 4a581ec — PERF: per-poop mobile lag fixed. Root cause: the clog render block ran a per-clogged-point
+            tube-outline clip every frame (segment-boundary walk + offset-polygon rebuild + ctx.clip()).
+            More poop -> more clogged points -> more clips. Replaced with a direct tube-width capsule
+            stroke (clog already sits in the tube on straight/curved runs). +7/-64. Verify smooth on phone.
+- 7bc41b3 — Tutorial CONSTIPATION arc. Overripe-fruit beat now HOLDS until the gut is full (acid rides
+            up to ~0.3-0.4, under the 0.5 damage line) -> Constipation card (relief poop, any tier) ->
+            Eggshell cure (2 shells to clear the higher acid) -> Refuel (HP recovers via digestion) ->
+            Compost-bonus poop. New gates acidfull/pooprelief/cure in _tutStepDone; relief latch in
+            tryPoop; eggshells open during the cure beat.
+- 7a878a9 — Refuel beat spawns 4 scraps; reworded HP line to "comes back as you digest"; multi-item
+            beats (cure eggshells, refuel scraps) ring EVERY target circle and re-point the arrow to the
+            next remaining item as you eat (tutorial.extras + tutorialStep re-point).
+- 01af76b — Compost-poop target is a big ZONE ring (centre 2.5H, _zoneR = H*0.48) that nearly touches
+            the tier-1/2 line (2H) and the sump line (3H) — "get in this layer and poop", no aim-dot.
+            Refuel beat now stays OPEN (all 4 scraps edible) until the worm DIVES into the compost
+            (gate = head y >= 2H), so you can fill up as much as you want before moving on.
+
+Tutorial order (11 beats): lettuce -> watermelon -> overripe fruit (hold til full) -> constipation/relief
+poop -> eggshell cure (x2) -> refuel (4 scraps, dive to advance) -> compost-bonus poop (big zone ring) ->
+down drain -> cocoon -> up drain -> surface & eat. Activate ?tut=1 (default OFF). NOT yet device-confirmed.
 
 ## Session 29 — In-canvas tutorial (the demo intro). Tutorial code in docs/demo-game.js; activation + cache-bust loader in docs/demo-teaser.html
 - 7e265bf — NPC sleep tunnel fade fix (sleeping NPC tubes now fill in fast like the player's)
@@ -42,19 +65,20 @@ Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> 
             tubes (verified for vertical tubes); per-frame drop cost flat even with tea near cap.
 
 ## OPEN / NEXT SESSION
-- **Tutorial polish backlog:** make the tutorial the DEFAULT (flip tutorial.scene on without ?tut=1; decide if the right-side teaser guide panel stays); "you've got it — explore!" completion beat; optional poop step (add a _tutStepDone kind); free-play windows between beats; tune panel copy/positions/tints on device.
-- **Merge plan (run tutorial OVER the live game)** documented in TUTORIAL_ARCHITECTURE.md §12 — keep spawnScraps() + inject curriculum items additively, tighten eat-gate to ALL scraps, suppress only camera-hijack cinematics during the lesson, add an HP-floor safety, no tutorial->free-roam seam. Medium-sized; ?tut=1-gated.
-- **HUD HP/gut bar bug (REPORTED, NOT YET DIAGNOSED — session ended before fix).** Player HP/gut
-  bar in the side-panel "game HUD" has "gotten frozen"; per Sir it "should track with the screen y."
-  The only player HP/gut bar found in demo-game.js is the screen-fixed top-left bar at ~line 7315
-  (_barX=10,_barY=50, no camY). Did NOT locate a separate side-panel HP/gut bar in demo-game.js —
-  NEXT: check docs/demo-teaser.html for an HTML/DOM side-panel HP/gut readout (or a canvas HUD that
-  uses camY / a world Y) whose update may have stalled. Sir asked to stop before any change.
-- **ghostERR: line still needed.** Per-NPC try/catch guard (commit 81460e4, ~lines 6900s) is masking
-  a ghost-worm render crash; the green NPCdbg overlay (top-left) is also still live. Both stay until
-  Sir reports the `ghostERR:` value from the console — then fix root cause + remove guard + overlay.
-- Possible follow-up if lag persists: add live drops=/clogs= readout to the green debug overlay to
-  confirm whether tea/clog backup is still accumulating in the real game.
+- **Device-test + tune the new constipation/refuel arc (Session 30 work, NOT yet confirmed on phone):**
+  (1) does holding the overripe-fruit gate reliably reach 98% gut before the player gives up nibbling?
+  (2) do 2 eggshells fully clear the green, or is residual acid left? (3) does the compost zone ring
+  (H*0.48) sit cleanly between the layer lines on-device or poke into soil/sump? (4) refuel: after
+  eating all 4 scraps the arrow guidance vanishes until you dive — consider a downward "dive" beacon if
+  players hesitate. All single-number / small tweaks.
+- **Confirm the per-poop lag is gone on the phone (4a581ec).** If smooth, strip the green debug overlay +
+  per-phase ms timing in a clean commit — that instrumentation is still live in demo-game.js.
+- **HUD HP/gut bar bug (REPORTED, NOT DIAGNOSED).** Side-panel HP/gut bar "frozen"; Sir says it "should
+  track with the screen y." Only a screen-fixed top-left bar (~line 7315, _barX=10/_barY=50, no camY)
+  was found in demo-game.js — check demo-teaser.html for a DOM/canvas side-panel readout that stalled.
+- **ghostERR: value still needed.** Per-NPC try/catch guard (81460e4) masks a ghost-worm render crash;
+  green NPCdbg overlay still live. Both stay until Sir reports the console `ghostERR:` value.
+- ISS-19 (localStorage race) — P1, still open.
 
 ## Tooling notes
 - Edits: Python with assert content.count(old)==1, then `node --check demo-game.js`. Working copy /tmp/demo-game.js.
