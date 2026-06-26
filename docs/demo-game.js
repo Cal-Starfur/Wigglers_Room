@@ -118,6 +118,7 @@ function _tutStepDone(step) {
   if (step.kind === 'acidfull')   return pGut >= pGutMax * 0.98;   // hold the acid beat until the gut is full (constipated)
   if (step.kind === 'pooprelief') return !!tutorial._reliefPooped; // any poop relieves the full gut
   if (step.kind === 'cure')       return pAcid < 0.12;             // ate enough eggshell to clear the green
+  if (step.kind === 'refuel')     return !!tutorial._refuelAte;     // ate at least one refuel scrap
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
   if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
@@ -132,11 +133,21 @@ function tutorialStep() {
   tutorial.stepIndex = si;
 
   if (si >= steps.length) {            // sequence complete — release to free roam
-    tutorial.target = null; tutorial.leash = null; tutorial.panel = null;
+    tutorial.target = null; tutorial.leash = null; tutorial.panel = null; tutorial.extras = null;
     return;
   }
   var step = steps[si];
-  tutorial.target = step.target;
+  // Multi-item beats: if the primary target is already eaten but the beat isn't done,
+  // re-point the ring/arrow to the next remaining extra so guidance never disappears.
+  var _et = step.target;
+  if (step.extras && step.extras.length && _et && (_et.eaten || _et.gone)) {
+    for (var _ek = 0; _ek < step.extras.length; _ek++) {
+      var _ee = step.extras[_ek];
+      if (_ee && !_ee.eaten && !_ee.gone) { _et = _ee; break; }
+    }
+  }
+  tutorial.target = _et;
+  tutorial.extras = step.extras || null;
   tutorial.panel  = step.panel;
   // No leash for these steps — order is enforced by the eat-gate, guidance by the
   // ring/arrow/panel, so the player steers themselves (no auto-steer pull).
@@ -269,6 +280,27 @@ function drawTutorialHighlight() {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
+  }
+
+  // Secondary target circles for multi-item beats (extra eggshells / refuel scraps).
+  if (tutorial.extras && tutorial.extras.length) {
+    for (var _ei = 0; _ei < tutorial.extras.length; _ei++) {
+      var _ex = tutorial.extras[_ei];
+      if (!_ex || _ex.eaten || _ex.gone || _ex === tgt) continue;
+      var _exy = _ex.y - camY;
+      var _exbR = _ex.sz || 10;
+      if (_exy < -_exbR || _exy > H + _exbR) continue;
+      var _exR = _exbR * (1.7 + 0.35 * pulse);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.45 + 0.35 * pulse) + ')';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(255,176,48,0.9)';
+      ctx.shadowBlur = 9 + 6 * pulse;
+      ctx.beginPath();
+      ctx.arc(_ex.x, _exy, _exR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }
 var frame = 0;
@@ -3174,6 +3206,7 @@ function spawnTutorialScene() {
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
   tutorial._reliefPooped  = false;
+  tutorial._refuelAte     = false;
   tutorial._downDrainDone = false;
   tutorial._upDrainArmed  = false;
   tutorial._cocoonDone    = false;
@@ -3239,8 +3272,12 @@ function spawnTutorialScene() {
   var _downSpot = { x: b.cx - _span * 0.16,   y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
   var _upSpot   = { x: b.cx - _span * 0.053, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
 
-  // Refuel scrap — fresh tier-1 food for the post-cure refuel beat; HP recovers as the gut refills.
-  var _refuel  = _tutFood('watermelon_chunk', _xL + _span * 0.42, H + H * 0.40);
+  // Refuel scraps — four fresh tier-1 foods for the post-cure refuel beat. The worm only
+  // needs to eat ONE to advance; the rest are extra digestion fuel. _refuelTut opens them all.
+  var _refuel  = _tutFood('watermelon_chunk', _xL + _span * 0.34, H + H * 0.42); _refuel._refuelTut  = true;
+  var _refuel2 = _tutFood('lettuce',          _xL + _span * 0.46, H + H * 0.40); _refuel2._refuelTut = true;
+  var _refuel3 = _tutFood('bread_crust',      _xL + _span * 0.40, H + H * 0.53); _refuel3._refuelTut = true;
+  var _refuel4 = _tutFood('watermelon_chunk', _xL + _span * 0.52, H + H * 0.51); _refuel4._refuelTut = true;
 
   // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
@@ -3253,8 +3290,8 @@ function spawnTutorialScene() {
     { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
     { target: null,     kind: 'pooprelief', panel: { title: 'Constipation',   lines: ['A full gut is constipation —', 'you bleed health till you poop.', 'Two-finger tap (or Space).'], karma: 'clears the gut', tint: '#e8b89a' } },
-    { target: _egg1,    kind: 'cure',       panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'until the green fades.'],      karma: '+3 each',  tint: '#a8dc80' } },
-    { target: _refuel,  kind: 'eat',        panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill', 'back up — your health recovers', 'as the gut refills.'],        karma: '+3 karma', tint: '#c0d4a8' } },
+    { target: _egg1,    kind: 'cure',   extras: [_egg2],                   panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'both until the green fades.'], karma: '+3 each',  tint: '#a8dc80' } },
+    { target: _refuel,  kind: 'refuel', extras: [_refuel2, _refuel3, _refuel4], panel: { title: 'Refuel',         lines: ['That hurt you. Grab a scrap —', 'your health comes back as', 'you digest. Eat one to go on.'], karma: '+3 karma', tint: '#c0d4a8' } },
     { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
@@ -4126,12 +4163,15 @@ function updatePlayer() {
   if (_wqAnyFired) weatherQueue = weatherQueue.filter(function(e) { return !e._fired; });
 
   // --- Eat tier 1 debris scraps (small fragments) ---
-  // During the 'cure' beat, open ALL eggshell scraps (worm needs ~2 to clear the higher acid).
-  var _tutCure = tutorial.scene && tutorial.steps[tutorial.stepIndex] && tutorial.steps[tutorial.stepIndex].kind === 'cure';
+  // Multi-item beats open extra same-type scraps: 'cure' opens all eggshells, 'refuel' opens all refuel scraps.
+  var _tutStepNow = tutorial.scene ? tutorial.steps[tutorial.stepIndex] : null;
+  var _tutKindNow = _tutStepNow ? _tutStepNow.kind : null;
   for (var i = 0; i < scraps.length; i++) {
     var s = scraps[i];
     if (s.eaten || s.ti !== 1) continue;
-    if (tutorial.scene && s.tutProtected && s !== tutorial.target && !(_tutCure && s.t && s.t.name === 'egg_shell')) continue;  // only the active target, in order (eggshells open during cure)
+    var _openExtra = (_tutKindNow === 'cure'   && s.t && s.t.name === 'egg_shell') ||
+                     (_tutKindNow === 'refuel' && s._refuelTut);
+    if (tutorial.scene && s.tutProtected && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras on multi-item beats)
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
@@ -4151,6 +4191,7 @@ function updatePlayer() {
         var scrapFill = 0.5 + (pSR - 4) / 3 * 0.1; // sr=4: 0.5, sr=7: 0.6 — matches nibble rate
         pGut = Math.min(pGutMax, pGut + scrapFill);
         if (s.t && s.t.name === 'egg_shell') pAcid = Math.max(0, pAcid - 0.15);
+        if (s._refuelTut) tutorial._refuelAte = true;   // any refuel scrap eaten advances the refuel beat
         // Liquid drops — juicy/acid scraps produce drops that fall toward tea level
         if (s.t && s.t.liq > 0) {
           var numDrops = Math.ceil(s.t.liq / 3); // liq:3=1 drop, liq:6=2, liq:9=3
