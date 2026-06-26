@@ -1,9 +1,23 @@
 # Session Manifest — Wigglers Room
-Session: 31 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
+Session: 32 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
 
 ## Blocked
 - ISS-19 (localStorage race condition) — P1, code freeze until shipped
 - No game.js / main.tsx changes this sprint (demo-game.js / demo.html only)
+
+## Session 32 — Tutorial end-screen auto-cut fix + tut=2 verified live (docs/demo-game.js)
+- d8fe78b — Tutorial end-screen never auto-showed. Root cause: tutorialStep()'s "sequence complete"
+            branch (si >= steps.length) re-fires EVERY frame while the worm sleeps and was resetting
+            tutorial._doneAt = Date.now() each time, so drawTutorialDone()'s >2600ms dwell never elapsed
+            and _tutFinish() -> window.showDemoEnd() never fired. Now latched once:
+            if (!tutorial.done) { done = true; _doneAt = now }. Final beat now runs:
+            viewscroll -> "Tutorial Complete" card -> ~2.6s -> #end-screen (with the ↺ Play again button).
+            Shared step machine, so tut=1 and tut=2 both fixed. Tap/wake skip still works.
+- ?tut=2 (live merge mode, 7ec7a6d) confirmed WORKING on device — curriculum over the real field
+  (spawnScraps, ambient kept live, eat-gate tightened to all scraps, HP-floor safety). Functional, see jank below.
+
+End-screen markup lives in docs/demo.html (#end-screen, .show -> display:flex; _restartDemo() = page reload;
+window.showDemoEnd() adds .show). Single secondary "↺ Play again" button; unused .btn-p / .sub styles still present.
 
 ## Session 31 — Geometry halve + castings cleanup + tea re-attach + tutorial merge mode (all docs/demo-game.js)
 - 7814978 — Refuel beat 4->2 scraps (4 force-fed the small ~4-unit gut straight back to full) AND removed all
@@ -95,6 +109,9 @@ Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> 
             tubes (verified for vertical tubes); per-frame drop cost flat even with tea near cap.
 
 ## OPEN / NEXT SESSION
+- **Final scroll -> end screen is JANKY (tut=2, device-confirmed working but rough).** The handoff —
+  viewscroll beat -> "Tutorial Complete" card -> #end-screen — feels janky on device. Works, just not smooth;
+  smooth out the transition next session (candidates: dwell timing, card fade, camera state at the cut).
 - **Confirm ?tut=2 (tutorial-over-live-game, 7ec7a6d) loads clean on device:** lesson items readable in the
   real cluttered pile, eat-gate blocks ambient scraps, HP floor holds on the constipation beat. THEN:
   - Commit B: suppress the weekly Snoo-drain cinematic (triggerSnooDrain, ~line 5311) during the live lesson.
