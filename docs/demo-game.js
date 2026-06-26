@@ -7199,7 +7199,21 @@ function draw() {
     ctx.globalAlpha = 1; ctx.fillStyle = '#00ff88';
     ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
     ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' active=' + _dbgAct + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 8, 20);
-    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 8, 34);
+    // ── Build-up readout — what is accumulating each frame (demo perf debug). Watch
+    //    which number climbs as the lag grows: drops pinned at the cap, regPts ramping,
+    //    pops/zzz/chunks creeping, or fps falling against a flat count = pure per-frame load.
+    var _dActive = 0;
+    for (var _dbk = 0; _dbk < drops.length; _dbk++) { if (drops[_dbk].active) _dActive++; }
+    var _regPts = 0;
+    for (var _rpi = 0; _rpi < pathRegistry.length; _rpi++) { _regPts += pathRegistry[_rpi].length; }
+    var _nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (!window._fpsBuf) window._fpsBuf = [];
+    window._fpsBuf.push(_nowMs);
+    if (window._fpsBuf.length > 30) window._fpsBuf.shift();
+    var _fps = window._fpsBuf.length > 1 ? Math.round(1000 * (window._fpsBuf.length - 1) / (_nowMs - window._fpsBuf[0])) : 0;
+    ctx.fillText('fps=' + _fps + ' drops=' + _dActive + '/' + drops.length + ' regPts=' + _regPts + ' pPath=' + pPath.length, 8, 34);
+    ctx.fillText('zzz=' + pZzz.length + ' pops=' + drainBonusPopups.length + ' bugs=' + bugs.length + ' debris=' + debris.length + ' chunks=' + trashChunks.length + ' coc=' + cocoons.length, 8, 48);
+    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 8, 62);
     ctx.restore();
   }
 
