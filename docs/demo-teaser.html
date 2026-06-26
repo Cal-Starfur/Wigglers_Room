@@ -1057,6 +1057,14 @@ function _enterBin() {
 function _restartDemo() {
   window.location.reload();
 }
+
+// Tutorial finished: the in-game "Tutorial Complete" card calls this to cut to the
+// existing end screen (#end-screen). Only ever invoked from the tutorial, so free-roam
+// is untouched. Safe no-op if the element is missing.
+window.showDemoEnd = function() {
+  var es = document.getElementById('end-screen');
+  if (es) es.classList.add('show');
+};
 // Keyboard also dismisses intro
 document.addEventListener('keydown', function() {
   if (!_introDismissed) _enterBin();
