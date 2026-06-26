@@ -118,7 +118,14 @@ function _tutStepDone(step) {
   if (step.kind === 'acidfull')   return pGut >= pGutMax * 0.98;   // hold the acid beat until the gut is full (constipated)
   if (step.kind === 'pooprelief') return !!tutorial._reliefPooped; // any poop relieves the full gut
   if (step.kind === 'cure')       return pAcid < 0.12;             // ate enough eggshell to clear the green
-  if (step.kind === 'refuel')     return pSegs && pSegs.length && pSegs[0].y >= 2 * H;  // dove into the compost = done filling up (all refuel scraps stay open until then)
+  if (step.kind === 'refuel') {                                    // advance ONLY when every refuel scrap is eaten
+    if (!step.target || (!step.target.eaten && !step.target.gone)) return false;
+    if (step.extras) for (var _rf = 0; _rf < step.extras.length; _rf++) {
+      var _rx = step.extras[_rf];
+      if (_rx && !_rx.eaten && !_rx.gone) return false;
+    }
+    return true;
+  }
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
   if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
@@ -3292,7 +3299,7 @@ function spawnTutorialScene() {
     { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
     { target: null,     kind: 'pooprelief', panel: { title: 'Constipation',   lines: ['A full gut is constipation —', 'you bleed health till you poop.', 'Two-finger tap (or Space).'], karma: 'clears the gut', tint: '#e8b89a' } },
     { target: _egg1,    kind: 'cure',   extras: [_egg2],                   panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'both until the green fades.'], karma: '+3 each',  tint: '#a8dc80' } },
-    { target: _refuel,  kind: 'refuel', extras: [_refuel2], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat your fill, then dive down.'], karma: '+3 karma', tint: '#c0d4a8' } },
+    { target: _refuel,  kind: 'refuel', extras: [_refuel2], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat both scraps to move on.'], karma: '+3 karma', tint: '#c0d4a8' } },
     { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
