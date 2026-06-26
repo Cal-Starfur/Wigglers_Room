@@ -5058,6 +5058,7 @@ function updatePhysics() {
             d.y  = d.stallDepth;
             d.vy = 0;
             d.stalled = true;
+            d.lastSegStart = null; d.lastSegEnd = null;  // release old-tube lock once pooled
           } else {
             // Still falling toward stall — apply compost drag
             d.vy *= 0.96;
@@ -5123,6 +5124,12 @@ function updatePhysics() {
           if (!_sp) continue;
           var _sa = _sp.alpha != null ? _sp.alpha : 1;
           if (_sa <= 0) continue;
+          // Don't immediately re-grab the tube we just detached from at its lowest point.
+          // Tunnels wiggle, so the old bottom has a slightly-deeper neighbour that re-snaps the
+          // drop in a loop ("looking for the old tube"). Skip the just-left segment so the drop
+          // falls clear, then attaches to a NEW tube below or pools in the compost.
+          if (!d.isPoop && d.lastSegStart != null && _carr === (d.pathArr || pPath) &&
+              _si >= d.lastSegStart && _si <= d.lastSegEnd) continue;
           // Tea only attaches to points at-or-below drop position to flow downward.
           if (!d.isPoop && _sp.y < _scanY) continue;
           if (!d.isPoop && _sp.y > _scanY + _yTol) continue; // tea: don't snap too far below
