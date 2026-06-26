@@ -457,9 +457,12 @@ body::before {
 
 /* ── End screen ── */
 #end-screen {
-  position: absolute; inset: 0;
+  /* fixed (not absolute) so the end screen covers the whole viewport, not just
+     the .game-panel box — in a narrow webview the panel is a left column and the
+     overlay was rendering as a thin left stripe. */
+  position: fixed; inset: 0;
   background: rgba(8,4,1,0.97);
-  z-index: 600; display: none;
+  z-index: 9000; display: none;
   flex-direction: column; align-items: center;
   justify-content: center; text-align: center;
   padding: 24px;
