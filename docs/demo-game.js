@@ -7650,23 +7650,16 @@ function updateNPCSims() {
           var _ntClogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
           _ntp.clog = Math.max(0, _ntp.clog - _ntClogDecay);
         }
-        // Tube faded with clog still present — burst it back into poop drops.
-        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0 && drops.length < MAX_DROPS * 0.85) {
-          var _ntStrength = _ntp.clog;
-          var _ntNum = 1 + Math.floor(_ntStrength * 3); // 1–4 drops by clog density
-          for (var _ntb = 0; _ntb < _ntNum; _ntb++) {
-            dropsPush({
-              x:              _ntp.x + (Math.random() - 0.5) * (_ntp.r || sim.sr) * 2,
-              y:              _ntp.y,
-              vy:             0.4 + Math.random() * 0.5,
-              sz:             (_ntp.r || sim.sr) * (0.5 + Math.random() * 0.5),
-              active:         true,
-              isPoop:         true,
-              clogAmt:        0.08 + (_ntStrength / _ntNum) * 0.12,
-              enteredCompost: inCompost(_ntp.y)
-            });
-          }
-          _ntp.clog = 0; // clear so no double-burst next frame
+        // Tube faded with clog still present. On the PLAYER's tube this bursts the clog
+        // back into poop drops so it gets another shot at draining — but NPC tubes are
+        // DEAD-ENDS with no sump/drain. A burst here just re-attaches to the same dead end
+        // and re-deposits (which re-solidifies the point to alpha 1.0), so it bursts again
+        // next fade — an endless drop source (the "tea regenerating in NPC tubes" mess).
+        // Instead let faded NPC clog decompose silently into castings — the same fate as
+        // poop that falls past the sump floor. No new drops, so the loop can't close.
+        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0) {
+          castingEnrichment = Math.min(1, castingEnrichment + 0.0005);
+          _ntp.clog = 0; // cleared as castings — no burst, no re-deposit loop
         }
       }
     }
