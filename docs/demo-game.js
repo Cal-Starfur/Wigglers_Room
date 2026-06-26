@@ -6267,82 +6267,13 @@ function draw() {
 
     var _cr = _cp.r || 4;
 
-    // ── 1. Find segment boundaries (walk to null or array edge) ──────────────
-    var _segS = _ci;
-    while (_segS > 0 && _CP[_segS - 1]) _segS--;
-    var _segE = _ci;
-    while (_segE < _CP.length - 1 && _CP[_segE + 1]) _segE++;
-
-    // ── 2. Build clip path from the full segment polyline ────────────────────
-    ctx.save();
-    // Trace the segment as a stroked path into the clip region.
-    // We use the canvas clip trick: stroke the path into beginPath, then clip.
-    // lineWidth must match the tunnel outer stroke so the clip is exactly the tube.
-    var _clipR = _cr * 2.6 / 2 + 1; // half tube-width + 1px tolerance
-    ctx.beginPath();
-    var _firstSeg = true;
-    for (var _si = _segS; _si <= _segE; _si++) {
-      var _sp = _CP[_si];
-      if (!_sp) break;
-      var _spy = _sp.y - camY;
-      if (_firstSeg) { ctx.moveTo(_sp.x, _spy); _firstSeg = false; }
-      else           { ctx.lineTo(_sp.x, _spy); }
-    }
-    // Expand the path into a filled region by stroking with a wide line into clip.
-    // Canvas clip only works with fill, so we use the stroke-to-path trick via
-    // a temporary path traced around the polyline using the tube half-width.
-    // Simpler and more compatible: build a polygon that outlines the tube.
-    // We use the approach of building an offset polygon (left side + right side).
-    var _segPts = _segPtsScratch;
-    _segPts.length = 0; // clear without deallocation
-    for (var _si2 = _segS; _si2 <= _segE; _si2++) {
-      var _sp2 = _CP[_si2];
-      if (!_sp2) break;
-      _segPts.push({ x: _sp2.x, y: _sp2.y - camY });
-    }
-    if (_segPts.length >= 2) {
-      ctx.beginPath();
-      // Walk forward (left offset) then backward (right offset) to make a filled tube shape
-      for (var _pi = 0; _pi < _segPts.length; _pi++) {
-        var _pA = _segPts[Math.max(0, _pi - 1)];
-        var _pB = _segPts[_pi];
-        var _pC = _segPts[Math.min(_segPts.length - 1, _pi + 1)];
-        var _nx = 0, _ny = 0, _cnt = 0;
-        if (_pi > 0) { var _lx = _pB.x-_pA.x, _ly = _pB.y-_pA.y, _ll=Math.sqrt(_lx*_lx+_ly*_ly)||1; _nx+=(-_ly/_ll); _ny+=(_lx/_ll); _cnt++; }
-        if (_pi < _segPts.length-1) { var _rx=_pC.x-_pB.x,_ry=_pC.y-_pB.y,_rl=Math.sqrt(_rx*_rx+_ry*_ry)||1; _nx+=(-_ry/_rl); _ny+=(_rx/_rl); _cnt++; }
-        if (_cnt > 1) { _nx/=_cnt; _ny/=_cnt; var _nm=Math.sqrt(_nx*_nx+_ny*_ny)||1; _nx/=_nm; _ny/=_nm; }
-        if (_pi === 0) ctx.moveTo(_pB.x + _nx*_clipR, _pB.y + _ny*_clipR);
-        else           ctx.lineTo(_pB.x + _nx*_clipR, _pB.y + _ny*_clipR);
-      }
-      // Start caps
-      var _p0 = _segPts[0], _p1 = _segPts[1];
-      var _capDx = _p0.x-_p1.x, _capDy = _p0.y-_p1.y, _capL = Math.sqrt(_capDx*_capDx+_capDy*_capDy)||1;
-      ctx.arc(_p0.x, _p0.y, _clipR, Math.atan2(_capDy,_capDx) - Math.PI/2, Math.atan2(_capDy,_capDx) + Math.PI/2, false);
-      // Right side backward
-      for (var _pi2 = _segPts.length - 1; _pi2 >= 0; _pi2--) {
-        var _pA2=_segPts[Math.max(0,_pi2-1)], _pB2=_segPts[_pi2], _pC2=_segPts[Math.min(_segPts.length-1,_pi2+1)];
-        var _nx2=0,_ny2=0,_cnt2=0;
-        if (_pi2>0){var _lx2=_pB2.x-_pA2.x,_ly2=_pB2.y-_pA2.y,_ll2=Math.sqrt(_lx2*_lx2+_ly2*_ly2)||1;_nx2+=(-_ly2/_ll2);_ny2+=(_lx2/_ll2);_cnt2++;}
-        if (_pi2<_segPts.length-1){var _rx2=_pC2.x-_pB2.x,_ry2=_pC2.y-_pB2.y,_rl2=Math.sqrt(_rx2*_rx2+_ry2*_ry2)||1;_nx2+=(-_ry2/_rl2);_ny2+=(_rx2/_rl2);_cnt2++;}
-        if (_cnt2>1){_nx2/=_cnt2;_ny2/=_cnt2;var _nm2=Math.sqrt(_nx2*_nx2+_ny2*_ny2)||1;_nx2/=_nm2;_ny2/=_nm2;}
-        ctx.lineTo(_pB2.x - _nx2*_clipR, _pB2.y - _ny2*_clipR);
-      }
-      // End cap
-      var _pLast=_segPts[_segPts.length-1],_pPrev=_segPts[_segPts.length-2];
-      var _eDx=_pLast.x-_pPrev.x,_eDy=_pLast.y-_pPrev.y;
-      ctx.arc(_pLast.x,_pLast.y,_clipR,Math.atan2(_eDy,_eDx)+Math.PI/2,Math.atan2(_eDy,_eDx)-Math.PI/2,false);
-      ctx.closePath();
-      ctx.clip();
-    } else if (_segPts.length === 1) {
-      // Single-point segment — clip to circle
-      ctx.beginPath();
-      ctx.arc(_segPts[0].x, _segPts[0].y, _clipR, 0, Math.PI*2);
-      ctx.clip();
-    }
-
-    // ── 3. Find tunnel direction and draw the clog stroke inside the clip ────
-    var _prevP = _ci > _segS ? _CP[_ci - 1] : null;
-    var _nextP = _ci < _segE ? _CP[_ci + 1] : null;
+    // PERF: clog stroke is a tube-width, round-capped capsule along the local
+    // tunnel axis, so on straight/gently-curved runs it already sits inside the
+    // tube. We skip the old per-point tube-outline clip (segment-boundary walk +
+    // offset-polygon rebuild + ctx.clip()) which cost ~everything here and scaled
+    // with poop count. Tradeoff: at very sharp bends a clog may bleed a few px.
+    var _prevP = (_ci > 0 && _CP[_ci - 1]) ? _CP[_ci - 1] : null;
+    var _nextP = (_ci < _CP.length - 1 && _CP[_ci + 1]) ? _CP[_ci + 1] : null;
     var _angle = Math.PI / 2;
     if (_prevP || _nextP) {
       var _dx = (_nextP ? _nextP.x : _cp.x) - (_prevP ? _prevP.x : _cp.x);
@@ -6369,8 +6300,6 @@ function draw() {
       ctx.lineTo(_cp.x + _ax * _halfLen * 0.7, _csy + _ay * _halfLen * 0.7);
       ctx.stroke();
     }
-
-    ctx.restore(); // removes clip
     ctx.globalAlpha = 1;
   }
   }
