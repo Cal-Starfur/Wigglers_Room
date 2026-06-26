@@ -5112,14 +5112,13 @@ function updatePhysics() {
           if (!_sp) continue;
           var _sa = _sp.alpha != null ? _sp.alpha : 1;
           if (_sa <= 0) continue;
-          // Don't immediately re-grab the tube we just detached from at its lowest point.
-          // Tunnels wiggle, so the old bottom has a slightly-deeper neighbour that re-snaps the
-          // drop in a loop ("looking for the old tube"). Skip the just-left segment so the drop
-          // falls clear, then attaches to a NEW tube below or pools in the compost.
-          if (!d.isPoop && d.lastSegStart != null && _carr === (d.pathArr || pPath) &&
-              _si >= d.lastSegStart && _si <= d.lastSegEnd) continue;
-          // Tea only attaches to points at-or-below drop position to flow downward.
-          if (!d.isPoop && _sp.y < _scanY) continue;
+          // Tea only attaches to points clearly BELOW the drop (>= ~0.6 worm-radii down). That
+          // "below" margin is what stops a drop that just detached at a tube's lowest point from
+          // instantly re-grabbing that same point (a wiggle neighbour looks "deeper") and looping
+          // forever — while still letting it connect to a genuinely lower tube (a new path) as it
+          // keeps falling. The old whole-segment exclusion was too broad: a long tunnel is one
+          // segment, so it also blocked re-joining the SAME tunnel further down.
+          if (!d.isPoop && _sp.y < _scanY + pSR * 0.6) continue;
           if (!d.isPoop && _sp.y > _scanY + _yTol) continue; // tea: don't snap too far below
           if (!d.isPoop && _sp.y < _scanY - _yTol) continue; // poop: no upper bound needed beyond tolerance
           if (Math.abs(_sp.x - _scanX) > _xTol) continue;
