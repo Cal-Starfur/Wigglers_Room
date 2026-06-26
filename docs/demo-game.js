@@ -140,6 +140,11 @@ function _tutStepDone(step) {
     return (Date.now() - tutorial._freeStart) >= 90000;
   }
   if (step.kind === 'sleep')     return !!pSleeping;               // asleep — only possible in the compost (tier 2+)
+  if (step.kind === 'viewscroll') {                                // free-scroll lesson — drag the bin while asleep (viewer mode)
+    if (!viewMode) { tutorial._viewStartY = null; return false; }   // only completable in free-scroll; re-latch if they wake
+    if (tutorial._viewStartY == null) tutorial._viewStartY = viewCamY;
+    return Math.abs(viewCamY - tutorial._viewStartY) > H * 0.4;     // scrolled ~0.4 of a screen
+  }
   return step.target && (step.target.eaten || step.target.gone);   // 'eat'
 }
 function tutorialStep() {
@@ -2395,6 +2400,7 @@ function spawnTutorialScene() {
   tutorial._downDrainDone = false;
   tutorial._upDrainArmed  = false;
   tutorial._cocoonDone    = false;
+  tutorial._viewStartY    = null;
   tutorial._freeStart     = 0;
 
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
@@ -2497,7 +2503,8 @@ function spawnTutorialScene() {
     { target: _cocoonSpot, kind: 'cocoon',  panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
     { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } },
-    { target: _sleepSpot, kind: 'sleep',    panel: { title: 'Bedtime',       lines: ['Last one: dive into the dark', 'compost and sleep down here.', 'Press and hold (or S).'],            karma: 'worms rest in the compost', tint: '#a9c2e0' } }
+    { target: _sleepSpot, kind: 'sleep',    panel: { title: 'Bedtime',       lines: ['Dive into the dark compost', 'and sleep down here.', 'Press and hold (or S).'],                karma: 'worms rest in the compost', tint: '#a9c2e0' } },
+    { target: null,       kind: 'viewscroll', panel: { title: 'Look Around',  lines: ['While you sleep, drag to', 'scroll around — roam the bin', 'and watch the others.'],           karma: 'viewer mode',               tint: '#a9c2e0' } }
   ];
   tutorial.stepIndex = 0;
   tutorial.panel = tutorial.steps[0].panel;
