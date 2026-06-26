@@ -118,7 +118,7 @@ function _tutStepDone(step) {
   if (step.kind === 'acidfull')   return pGut >= pGutMax * 0.98;   // hold the acid beat until the gut is full (constipated)
   if (step.kind === 'pooprelief') return !!tutorial._reliefPooped; // any poop relieves the full gut
   if (step.kind === 'cure')       return pAcid < 0.12;             // ate enough eggshell to clear the green
-  if (step.kind === 'refuel')     return !!tutorial._refuelAte;     // ate at least one refuel scrap
+  if (step.kind === 'refuel')     return pSegs && pSegs.length && pSegs[0].y >= 2 * H;  // dove into the compost = done filling up (all refuel scraps stay open until then)
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
   if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
@@ -213,7 +213,7 @@ function drawTutorialHighlight() {
   var baseR = tgt.sz || 10;
   var onScreen = ty > -baseR && ty < H + baseR;
   var pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
-  var ringR = baseR * (1.7 + 0.35 * pulse);
+  var ringR = tgt._zoneR ? tgt._zoneR : baseR * (1.7 + 0.35 * pulse);  // _zoneR = big fixed zone ring (compost poop)
 
   // Head proximity (0 far -> 1 arrived) drives BOTH the arrow's arrival dismiss and the
   // ring thickening, so reaching a target reads as a payoff rather than a nagging arrow.
@@ -242,7 +242,7 @@ function drawTutorialHighlight() {
     // Precise aim point — a crisp dot at the exact target centre so the player
     // knows where to place their steering point (critical for the sump drain holds:
     // put your point on the dot at the floor and the hold connects).
-    if (tgt._tutBeacon) {
+    if (tgt._tutBeacon && !tgt._zoneR) {   // precise dot for point beacons only — zones get the big ring, no dot
       ctx.save();
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(255,176,48,0.95)';
@@ -3261,7 +3261,10 @@ function spawnTutorialScene() {
 
   // Compost beacon — a non-edible marker the poop beat aims the ring/arrow at, low
   // in the dark soil (tier 2) so the worm is guided down to where pooping pays off.
-  var _poopSpot = { x: b.cx, y: 2 * H + H * 0.45, sz: 16, eaten: false, gone: false, _tutBeacon: true };
+  // Compost poop beacon — a big ZONE ring centred in the compost band (tier 2). _zoneR makes
+  // the ring nearly touch the tier-1/2 line above (2H) and the sump line below (3H): "get in
+  // this layer and poop", not a precise point — so no aim-dot for this one.
+  var _poopSpot = { x: b.cx, y: 2.5 * H, sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: H * 0.48 };
 
   // Two sump-floor beacons ON the sump border (y = 3H - 2). The worm head clamps at
   // 3H - pSR, so steering the point onto a beacon parks the head in the _atSump zone
@@ -3291,7 +3294,7 @@ function spawnTutorialScene() {
     { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
     { target: null,     kind: 'pooprelief', panel: { title: 'Constipation',   lines: ['A full gut is constipation —', 'you bleed health till you poop.', 'Two-finger tap (or Space).'], karma: 'clears the gut', tint: '#e8b89a' } },
     { target: _egg1,    kind: 'cure',   extras: [_egg2],                   panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'both until the green fades.'], karma: '+3 each',  tint: '#a8dc80' } },
-    { target: _refuel,  kind: 'refuel', extras: [_refuel2, _refuel3, _refuel4], panel: { title: 'Refuel',         lines: ['That hurt you. Grab a scrap —', 'your health comes back as', 'you digest. Eat one to go on.'], karma: '+3 karma', tint: '#c0d4a8' } },
+    { target: _refuel,  kind: 'refuel', extras: [_refuel2, _refuel3, _refuel4], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat your fill, then dive down.'], karma: '+3 karma', tint: '#c0d4a8' } },
     { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
