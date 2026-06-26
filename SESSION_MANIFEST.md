@@ -1,10 +1,40 @@
 # Session Manifest — Wigglers Room
-Session: 30 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
+Session: 31 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
 
 ## Blocked
 - ISS-19 (localStorage race condition) — P1, code freeze until shipped
 - No game.js / main.tsx changes this sprint (demo-game.js / demo-teaser.html only)
-- Green debug overlay + per-phase ms timing (from cda6126) STILL LIVE in demo-game.js — strip in a clean commit once Sir confirms the phone is smooth
+
+## Session 31 — Geometry halve + castings cleanup + tea re-attach + tutorial merge mode (all docs/demo-game.js)
+- 7814978 — Refuel beat 4->2 scraps (4 force-fed the small ~4-unit gut straight back to full) AND removed all
+            demo debug instrumentation: green NPCdbg/build-up overlay + per-phase ms-timing + per-phase perf
+            clocks in loop(). KEPT the loop try/catch guards and the per-NPC ghost-worm crash guard.
+- a2c90fb — Refuel gate opens only when BOTH scraps are eaten (no dive shortcut); eating the first keeps the
+            second ringed/open. Panel: "Eat both scraps to move on."
+- 58e76e6 — GEOMETRY: compost depth HALVED. cSurf() (sump line / compost bottom / horizon) moved 3H->2.5H;
+            compost band is now [2H..2.5H]. All 45 literal 3*H (every one = the sump line) routed through
+            cSurf(); depth-band-dependent values rescaled to the new band (compostDepth/depthT normalizers,
+            tea stallDepth, cocoon deep thresholds, tutorial poop beacon centre + _zoneR). tier2Bot / horizon
+            / sump / drains / camera / worm-clamp all track cSurf().
+- 8624639 — Removed the "castings" name + the never-populated castings array (collision/sink/draw no-op loops).
+            Label "castings & compost" -> "compost"; sleep warning "castings layer" -> "compost layer". KEPT
+            the castingEnrichment mechanic in full (pooping still enriches compost).
+- 420a03e — RENDER fix: soil/compost gradient colour stops were hardcoded fractions of the OLD H..3.25H span,
+            so after the halve they sat ~0.5H too high. Now computed from cSurf() so the compost/sump colour
+            bands line up with the new geometry.
+- b15c11a — TEA re-attach fix. A detached drop now requires its re-attach point to be >= ~0.6 worm-radii BELOW
+            it: breaks the "re-grab the same lowest point" loop (a wiggle neighbour looked deeper) while still
+            letting the drop catch a genuinely lower tube. Supersedes a9addf0 (whole-segment exclusion — too
+            broad: a long tunnel is ONE segment, so it also blocked re-joining the same tunnel lower down).
+            Routing can't be tested here — confirm on phone.
+- 7ec7a6d — TUTORIAL MERGE MODE (TUTORIAL_ARCHITECTURE.md s12). New tutorial.live flag (?tut=2) runs the SAME
+            11-step curriculum OVER the live game: spawnScraps() builds the real field + NPCs + ambient and the
+            lesson items inject on top (no field wipe), no ambient freeze, eat-gate locks ALL non-target scraps
+            (not just injected ones), HP floor 0.08 so a teaching beat can't end in death. Fully gated on
+            tutorial.live -> ?tut=1 staged scene and free-roam are byte-identical.
+
+Tutorial gap audit (Session 31): all PLAYER mechanics are now covered; clog is treated as an advanced poop
+mechanic (covered). Not taught, by choice: weekly Snoo-drain cinematic, weather, bugs, multiplayer presence.
 
 ## Session 30 — Per-poop lag fix + tutorial constipation/refuel arc (all docs/demo-game.js, ?tut=1)
 - 4a581ec — PERF: per-poop mobile lag fixed. Root cause: the clog render block ran a per-clogged-point
@@ -65,19 +95,20 @@ Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> 
             tubes (verified for vertical tubes); per-frame drop cost flat even with tea near cap.
 
 ## OPEN / NEXT SESSION
-- **Device-test + tune the new constipation/refuel arc (Session 30 work, NOT yet confirmed on phone):**
-  (1) does holding the overripe-fruit gate reliably reach 98% gut before the player gives up nibbling?
-  (2) do 2 eggshells fully clear the green, or is residual acid left? (3) does the compost zone ring
-  (H*0.48) sit cleanly between the layer lines on-device or poke into soil/sump? (4) refuel: after
-  eating all 4 scraps the arrow guidance vanishes until you dive — consider a downward "dive" beacon if
-  players hesitate. All single-number / small tweaks.
-- **Confirm the per-poop lag is gone on the phone (4a581ec).** If smooth, strip the green debug overlay +
-  per-phase ms timing in a clean commit — that instrumentation is still live in demo-game.js.
-- **HUD HP/gut bar bug (REPORTED, NOT DIAGNOSED).** Side-panel HP/gut bar "frozen"; Sir says it "should
-  track with the screen y." Only a screen-fixed top-left bar (~line 7315, _barX=10/_barY=50, no camY)
-  was found in demo-game.js — check demo-teaser.html for a DOM/canvas side-panel readout that stalled.
-- **ghostERR: value still needed.** Per-NPC try/catch guard (81460e4) masks a ghost-worm render crash;
-  green NPCdbg overlay still live. Both stay until Sir reports the console `ghostERR:` value.
+- **Confirm ?tut=2 (tutorial-over-live-game, 7ec7a6d) loads clean on device:** lesson items readable in the
+  real cluttered pile, eat-gate blocks ambient scraps, HP floor holds on the constipation beat. THEN:
+  - Commit B: suppress the weekly Snoo-drain cinematic (triggerSnooDrain, ~line 5311) during the live lesson.
+  - Commit C: flip ?tut=1 onto live mode (set tutorial.live when scene is on) and retire the staged scene.
+- **Device-confirm the tea re-attach fix (b15c11a):** detached drops should connect to a lower tube, not pool
+  or loop. If still wrong, add a tiny temporary on-screen readout of one drop's pathIdx/detach/attach.
+- **Device-confirm the geometry halve (58e76e6 + 420a03e):** compost band [2H..2.5H] reads right; gradient
+  colour bands line up; worm clamp / drains / cocoon depths all sit correctly in the shallower compost.
+- **Tune the constipation/refuel arc on device** (refuel is now 2 scraps, both-eaten gate): overripe-fruit
+  hold reaches ~98% gut; 2 eggshells fully clear the green; compost zone ring sits between the layer lines.
+- **HUD HP/gut bar bug (REPORTED, NOT DIAGNOSED).** Likely a demo-teaser.html DOM/canvas side-panel readout
+  that stalled (only a screen-fixed top-left bar exists in demo-game.js).
+- **ghostERR: value still needed.** Per-NPC try/catch (81460e4) masks a ghost-worm render crash; the green
+  NPCdbg overlay was REMOVED (7814978), so the value now has to come from the browser console.
 - ISS-19 (localStorage race) — P1, still open.
 
 ## Tooling notes
