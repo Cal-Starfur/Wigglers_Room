@@ -1014,14 +1014,28 @@ function _pPathBucketInsert(arr, idx, y) {
 }
 
 // Full rebuild — called after a splice() shifts indices in any registered path.
-// Walks every path in the registry. Only fires when a MAX cap is hit, not every frame.
+// Walks every path in the registry. Once tunnels saturate their cap this fires EVERY
+// frame (every carve prunes -> dirty), so it must allocate nothing: it reuses the bucket
+// arrays (cleared in place) and draws {arr,idx} entries from a persistent pool. Previously
+// it minted ~one object per point per frame (~4800 at full tunnels), and that GC churn was
+// the progressive-lag culprit. Output is identical; only the allocations are gone.
+var _bucketEntryPool = [];   // reused {arr,idx} carriers — grows to high-water once, then 0 allocs
 function _pPathBucketRebuild() {
-  _pPathBuckets = {};
+  for (var _k in _pPathBuckets) { var _ba = _pPathBuckets[_k]; if (_ba) _ba.length = 0; }
+  var _pc = 0;
   for (var _ri = 0; _ri < pathRegistry.length; _ri++) {
     var _ra = pathRegistry[_ri];
     for (var _bi = 0; _bi < _ra.length; _bi++) {
       var _bp = _ra[_bi];
-      if (_bp) _pPathBucketInsert(_ra, _bi, _bp.y);
+      if (!_bp) continue;
+      var _key = _pPathBucketKey(_bp.y);
+      var _bkt = _pPathBuckets[_key];
+      if (!_bkt) { _bkt = _pPathBuckets[_key] = []; }
+      var _e = _bucketEntryPool[_pc];
+      if (!_e) { _e = _bucketEntryPool[_pc] = { arr: null, idx: 0 }; }
+      _e.arr = _ra; _e.idx = _bi;
+      _bkt.push(_e);
+      _pc++;
     }
   }
 }
