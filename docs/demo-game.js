@@ -76,6 +76,7 @@ var tutorial = {
   _downDrainDone: false, // down-drain beat — latched when a down drain connects at the sump
   _upDrainArmed:  false, // up-drain beat — latched when an up drain is armed ("Up drain ready!")
   _cocoonDone:    false, // cocoon beat — latched when a cocoon is laid (swipe up / E)
+  _freeStart:     0,     // free-play beat — wall-clock ms when the 90s explore window opened (0 = not started)
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
@@ -132,6 +133,11 @@ function _tutStepDone(step) {
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
   if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
   if (step.kind === 'updrain')   return !!tutorial._upDrainArmed;  // up drain armed ("Up drain ready!")
+  if (step.kind === 'freeplay') {                                  // 90s of open exploration
+    if (!tutorial._freeStart) tutorial._freeStart = Date.now();    // wall-clock timer starts the frame this beat goes active
+    return (Date.now() - tutorial._freeStart) >= 90000;
+  }
+  if (step.kind === 'sleep')     return !!pSleeping;               // asleep — only possible in the compost (tier 2+)
   return step.target && (step.target.eaten || step.target.gone);   // 'eat'
 }
 function tutorialStep() {
@@ -203,7 +209,13 @@ function drawTutorialPanel() {
 
   ctx.fillStyle = '#9fd84a';
   ctx.font = 'bold 12px sans-serif';
-  ctx.fillText(pnl.karma || '', cx2, cardY + cardH - 9);
+  var _karmaTxt = pnl.karma || '';
+  var _curStep = tutorial.steps && tutorial.steps[tutorial.stepIndex];
+  if (_curStep && _curStep.kind === 'freeplay' && tutorial._freeStart) {  // live countdown on the free-play card
+    var _rem = Math.max(0, Math.ceil((90000 - (Date.now() - tutorial._freeStart)) / 1000));
+    _karmaTxt = 'Tutorial resumes in ' + _rem + 's';
+  }
+  ctx.fillText(_karmaTxt, cx2, cardY + cardH - 9);
   ctx.restore();
 }
 
@@ -3219,6 +3231,7 @@ function spawnTutorialScene() {
   tutorial._downDrainDone = false;
   tutorial._upDrainArmed  = false;
   tutorial._cocoonDone    = false;
+  tutorial._freeStart     = 0;
 
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
   var _span = _xR - _xL;
@@ -3297,6 +3310,11 @@ function spawnTutorialScene() {
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
   var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.28);
 
+  // Sleep zone — the SAME big compost ZONE ring as the poop beat, just a different spot:
+  // "get down into the compost and sleep". Sleeping only succeeds in tier 2+, so being
+  // asleep IS the completion; the ring is pure guidance (no aim-dot, like the poop zone).
+  var _sleepSpot = { x: b.cx + _span * 0.14, y: 2*H + 0.5*(cSurf()-2*H), sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: (cSurf()-2*H)*0.48 };
+
   // Ordered step list — each beat teaches one distinct thing. Karma matches the
   // engine: tier-1 scraps pay a flat +3; a finished pile chunk pays pts*5.
   tutorial.steps = [
@@ -3310,7 +3328,9 @@ function spawnTutorialScene() {
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _cocoonSpot, kind: 'cocoon',  panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
     { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
-    { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } }
+    { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } },
+    { target: null,       kind: 'freeplay', panel: { title: 'Free Play',     lines: ['Nice work — you know the basics.', 'Take a bit to roam the bin on', 'your own: eat, dig, drain, poke.'], karma: 'explore freely',            tint: '#c0d4a8' } },
+    { target: _sleepSpot, kind: 'sleep',    panel: { title: 'Bedtime',       lines: ['Last one: dive into the dark', 'compost and sleep down here.', 'Press and hold (or S).'],            karma: 'worms rest in the compost', tint: '#a9c2e0' } }
   ];
   tutorial.stepIndex = 0;
   tutorial.panel = tutorial.steps[0].panel;
@@ -4189,7 +4209,7 @@ function updatePlayer() {
     if (s.eaten || s.ti !== 1) continue;
     var _openExtra = (_tutKindNow === 'cure'   && s.t && s.t.name === 'egg_shell') ||
                      (_tutKindNow === 'refuel' && s._refuelTut);
-    if (tutorial.scene && (tutorial.live || s.tutProtected) && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras); live mode locks ALL scraps, not just injected ones
+    if (tutorial.scene && !(_tutStepNow && _tutStepNow.kind === 'freeplay') && (tutorial.live || s.tutProtected) && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras); live mode locks ALL scraps; free-play opens everything
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
