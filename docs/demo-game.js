@@ -3694,6 +3694,14 @@ var TUNNEL_DECAY = 0.0000167;        // base rate (~16 min for sump-connected)
 var TUNNEL_DECAY_UNCONNECTED = 0.0000535; // ~5 min for tubes with no sump link
 
 function updatePhysics() {
+  // ── Tutorial: compost economy OFF ─────────────────────────────────────────
+  // The lesson doesn't need casting enrichment or saturation (sump tea + moisture),
+  // and letting them build invites flood/drowning pressure and NPC-tube drop churn
+  // mid-lesson. updatePhysics runs LAST each frame (after updatePlayer + updateNPCSims +
+  // tryPoop), so pinning here every frame wipes all accumulation before draw and before
+  // next frame's threshold checks — values never approach flood (tLvl>=0.9) or drowning
+  // (pooled>0.6). Drops still fall/render; only the totals are held at baseline.
+  if (tutorial.active) { castingEnrichment = 0; pooled = 0; tLvl = 0; window._moisture = 0; }
   // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
   // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
   // tunnels saturated their cap the per-carve rebuilds piled up and the game got laggy over
