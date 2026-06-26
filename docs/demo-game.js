@@ -3275,12 +3275,10 @@ function spawnTutorialScene() {
   var _downSpot = { x: b.cx - _span * 0.16,   y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
   var _upSpot   = { x: b.cx - _span * 0.053, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
 
-  // Refuel scraps — four fresh tier-1 foods for the post-cure refuel beat. The worm only
+  // Refuel scraps — two fresh tier-1 foods for the post-cure refuel beat. The worm only
   // needs to eat ONE to advance; the rest are extra digestion fuel. _refuelTut opens them all.
   var _refuel  = _tutFood('watermelon_chunk', _xL + _span * 0.34, H + H * 0.42); _refuel._refuelTut  = true;
   var _refuel2 = _tutFood('lettuce',          _xL + _span * 0.46, H + H * 0.40); _refuel2._refuelTut = true;
-  var _refuel3 = _tutFood('bread_crust',      _xL + _span * 0.40, H + H * 0.53); _refuel3._refuelTut = true;
-  var _refuel4 = _tutFood('watermelon_chunk', _xL + _span * 0.52, H + H * 0.51); _refuel4._refuelTut = true;
 
   // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
@@ -3294,7 +3292,7 @@ function spawnTutorialScene() {
     { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
     { target: null,     kind: 'pooprelief', panel: { title: 'Constipation',   lines: ['A full gut is constipation —', 'you bleed health till you poop.', 'Two-finger tap (or Space).'], karma: 'clears the gut', tint: '#e8b89a' } },
     { target: _egg1,    kind: 'cure',   extras: [_egg2],                   panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'both until the green fades.'], karma: '+3 each',  tint: '#a8dc80' } },
-    { target: _refuel,  kind: 'refuel', extras: [_refuel2, _refuel3, _refuel4], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat your fill, then dive down.'], karma: '+3 karma', tint: '#c0d4a8' } },
+    { target: _refuel,  kind: 'refuel', extras: [_refuel2], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat your fill, then dive down.'], karma: '+3 karma', tint: '#c0d4a8' } },
     { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
@@ -7165,43 +7163,6 @@ function draw() {
   var wormCol = getGenColor(generation);
   drawWorm(pSegs, pSR, wormCol, pSleeping, pAcid, pHP);
 
-  // ── DEBUG (demo only) — NPC visibility readout at a fixed screen position ──
-  if (window._demoMode) {
-    var _dbgN = 0, _dbgPts = 0, _dbgVis = 0, _dbgAct = 0;
-    for (var _dbi = 0; _dbi < otherPlayers.length; _dbi++) {
-      var _dbo = otherPlayers[_dbi];
-      if (_dbo.sim) {
-        _dbgN++;
-        if (!_dbo._dormant) _dbgAct++;
-        if (_dbo.sim.path) _dbgPts += _dbo.sim.path.length;
-        if (_dbo.sim.segs && _dbo.sim.segs.length) {
-          var _dy = _dbo.sim.segs[0].y - camY;
-          if (_dy >= -40 && _dy <= H + 40) _dbgVis++;
-        }
-      }
-    }
-    ctx.save();
-    ctx.globalAlpha = 1; ctx.fillStyle = '#00ff88';
-    ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
-    ctx.fillText('NPCdbg others=' + otherPlayers.length + ' sims=' + _dbgN + ' active=' + _dbgAct + ' onscreen=' + _dbgVis + ' pts=' + _dbgPts, 22, 20);
-    // ── Build-up readout — what is accumulating each frame (demo perf debug). Watch
-    //    which number climbs as the lag grows: drops pinned at the cap, regPts ramping,
-    //    pops/zzz/chunks creeping, or fps falling against a flat count = pure per-frame load.
-    var _dActive = 0;
-    for (var _dbk = 0; _dbk < drops.length; _dbk++) { if (drops[_dbk].active) _dActive++; }
-    var _regPts = 0;
-    for (var _rpi = 0; _rpi < pathRegistry.length; _rpi++) { _regPts += pathRegistry[_rpi].length; }
-    var _nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
-    if (!window._fpsBuf) window._fpsBuf = [];
-    window._fpsBuf.push(_nowMs);
-    if (window._fpsBuf.length > 30) window._fpsBuf.shift();
-    var _fps = window._fpsBuf.length > 1 ? Math.round(1000 * (window._fpsBuf.length - 1) / (_nowMs - window._fpsBuf[0])) : 0;
-    ctx.fillText('fps=' + _fps + ' drops=' + _dActive + '/' + drops.length + ' regPts=' + _regPts + ' pPath=' + pPath.length, 22, 34);
-    ctx.fillText('zzz=' + pZzz.length + ' pops=' + drainBonusPopups.length + ' bugs=' + bugs.length + ' debris=' + debris.length + ' chunks=' + trashChunks.length + ' coc=' + cocoons.length, 22, 48);
-    ctx.fillText('ms tot=' + (window._phTot||0).toFixed(1) + ' npc=' + (window._phNpc||0).toFixed(1) + ' phys=' + (window._phPhys||0).toFixed(1) + ' draw=' + (window._phDraw||0).toFixed(1), 22, 62);
-    if (window._ghostErr) ctx.fillText('ghostERR: ' + window._ghostErr, 22, 76);
-    ctx.restore();
-  }
 
   // ── Ghost worms — real players (lerp) or NPC sims (full seg chain) ────────
   if (otherPlayers.length) {
@@ -8851,8 +8812,6 @@ function loop() {
   window._loopRunning = true;
   if (!W || !H) { requestAnimationFrame(loop); return; }
   frame++;
-  var _PN = (window.performance && performance.now) ? performance : Date;
-  var _pStart = _PN.now();
   // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
   // Throttle the new Date() allocation to every 60 frames instead of every frame.
   if (frame % 60 === 0) dayTime = getRealDayTime();
@@ -8866,13 +8825,8 @@ function loop() {
   if (emergencyCooldown > 0) emergencyCooldown--;
   if (!snooGamePaused) {
     try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
-    var _pN0 = _PN.now();
     try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
-    var _pN1 = _PN.now();
     try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
-    var _pN2 = _PN.now();
-    window._phNpc  = window._phNpc ==null ? (_pN1-_pN0) : window._phNpc *0.9 + (_pN1-_pN0)*0.1;
-    window._phPhys = window._phPhys==null ? (_pN2-_pN1) : window._phPhys*0.9 + (_pN2-_pN1)*0.1;
   }
   // ── Drift + fade ALL ZZZ particles every frame (player AND NPC sleepers) ──
   // This used to live inside the player-sleep block, so NPC z's spawned while the player
@@ -8891,11 +8845,7 @@ function loop() {
     camY += (viewCamY - camY) * 0.12;
     camY = Math.round(camY);
   }
-  var _pD0 = _PN.now();
   try { draw(); } catch(e) { showErr('draw: '+e.message); }
-  var _pD1 = _PN.now();
-  window._phDraw = window._phDraw==null ? (_pD1-_pD0)    : window._phDraw*0.9 + (_pD1-_pD0)*0.1;
-  window._phTot  = window._phTot ==null ? (_pD1-_pStart) : window._phTot *0.9 + (_pD1-_pStart)*0.1;
   requestAnimationFrame(loop);
 }
 function showErr(msg) {
