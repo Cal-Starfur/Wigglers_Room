@@ -5544,6 +5544,53 @@ function drawGenBadge(x, screenY, gen) {
   ctx.restore();
 }
 
+// Cheap NPC body — one round-capped stroke through the segment chain (+ head + eyes)
+// instead of a per-segment stack of circle fills. Same acid/HP colour treatment as
+// drawWorm at a fraction of the draw ops, so a full crowd of NPC worms stays cheap on mobile.
+function drawWormCheap(segs, sr, col, sleeping, acid, hp) {
+  if (!segs || segs.length < 1) return;
+  hp = (hp === undefined) ? 1.0 : hp;
+  var drawCol = col;
+  if (acid && acid > 0.1) {
+    var t1 = Math.min(1, (acid - 0.1) / 0.4);
+    var r0 = parseInt(col.slice(1,3),16), g0 = parseInt(col.slice(3,5),16), b0 = parseInt(col.slice(5,7),16);
+    var rr = Math.round(r0 + (0xc8 - r0) * t1);
+    var gg = Math.round(g0 + (0xf0 - g0) * t1);
+    var bb = Math.round(b0 + (0x20 - b0) * t1);
+    drawCol = '#' + ('0'+rr.toString(16)).slice(-2) + ('0'+gg.toString(16)).slice(-2) + ('0'+bb.toString(16)).slice(-2);
+  }
+  if (hp < 0.45) {
+    var _pt = Math.min(1, (0.45 - hp) / 0.45);
+    var _cr = parseInt(drawCol.slice(1,3),16), _cg = parseInt(drawCol.slice(3,5),16), _cb = parseInt(drawCol.slice(5,7),16);
+    var _pr2 = Math.round(_cr + (0xe8 - _cr) * _pt);
+    var _pg2 = Math.round(_cg + (0xe0 - _cg) * _pt);
+    var _pb2 = Math.round(_cb + (0xd8 - _cb) * _pt);
+    drawCol = '#' + ('0'+_pr2.toString(16)).slice(-2) + ('0'+_pg2.toString(16)).slice(-2) + ('0'+_pb2.toString(16)).slice(-2);
+  }
+  var _a = ctx.globalAlpha;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // one centreline path, stroked twice: dark edge then colour core
+  ctx.beginPath();
+  ctx.moveTo(segs[0].x, segs[0].y - camY);
+  for (var i = 1; i < segs.length; i++) ctx.lineTo(segs[i].x, segs[i].y - camY);
+  ctx.strokeStyle = '#1a1008'; ctx.globalAlpha = _a * 0.5; ctx.lineWidth = sr * 2.2; ctx.stroke();
+  ctx.strokeStyle = drawCol;  ctx.globalAlpha = _a;       ctx.lineWidth = sr * 1.7; ctx.stroke();
+  // head + eyes
+  var hx = segs[0].x, hy = segs[0].y - camY;
+  ctx.fillStyle = drawCol;
+  ctx.beginPath(); ctx.arc(hx, hy, sr * 1.05, 0, Math.PI * 2); ctx.fill();
+  if (segs.length > 1) {
+    var ang = Math.atan2(segs[0].y - segs[1].y, segs[0].x - segs[1].x);
+    var perp = ang + Math.PI / 2;
+    var fx = Math.cos(ang) * sr * 0.35, fy = Math.sin(ang) * sr * 0.35;
+    var px = Math.cos(perp) * sr * 0.42, py = Math.sin(perp) * sr * 0.42;
+    ctx.fillStyle = sleeping ? drawCol : '#1a1008';
+    ctx.beginPath(); ctx.arc(hx + fx + px, hy + fy + py, sr * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx + fx - px, hy + fy - py, sr * 0.17, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = _a;
+}
+
 function drawWorm(segs, sr, col, sleeping, acid, hp) {
   if (segs.length < 1) return;
   hp = (hp === undefined) ? 1.0 : hp; // default full health for ghost worms
@@ -7220,7 +7267,7 @@ function draw() {
       var oppHP   = sim ? sim.hp   : 1;
 
       ctx.globalAlpha = 0.92 * _staleAlpha;
-      drawWorm(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
+      drawWormCheap(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
 
       // Poop flash for NPC sims
       if (sim && sim.poopFlash > 0) {
