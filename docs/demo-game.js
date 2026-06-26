@@ -66,6 +66,7 @@ var tutorial = {
   leash:  null,    // null = free; { type:'radius', x, y, r } projects the target
   target: null,    // the scrap/trash this step is about (later commits)
   scene:  false,   // true = load the authored staged scene + freeze ambient refill
+  live:   false,   // true (?tut=2) = run the SAME curriculum OVER the live game: real field, NPCs, ambient — no stripped scene, no freeze
   foodScraps: [],  // staged tier-1 food scraps (eat/fill steps) — set by spawnTutorialScene
   acidChunk:  null, // staged tier-0 acid pile item (acid step)   — set by spawnTutorialScene
   targetIndex: 0,  // (legacy) superseded by stepIndex
@@ -81,6 +82,7 @@ try {
   var _tutSearch = window.location.search || '';
   if (/[?&](leash|tutdbg)=1/.test(_tutSearch)) { tutorial.debug = true; tutorial.active = true; }
   if (/[?&]tut=1/.test(_tutSearch))            { tutorial.scene = true; tutorial.active = true; }
+  if (/[?&]tut=2/.test(_tutSearch))            { tutorial.scene = true; tutorial.active = true; tutorial.live = true; }  // tutorial OVER the live game (merge mode)
 } catch (e) {}
 
 // Soft radius leash — project the requested steering target onto the allowed
@@ -3207,7 +3209,8 @@ function spawnScraps() {
 // Positions are intentionally simple and meant to be tuned.
 function spawnTutorialScene() {
   var b = getBin();
-  scraps = []; trashChunks = []; debris = []; bugs = [];
+  if (tutorial.live) { spawnScraps(); }                              // merge mode: build the REAL field, inject curriculum on top
+  else { scraps = []; trashChunks = []; debris = []; bugs = []; }    // staged mode: strip the field down to the lesson
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
@@ -3308,13 +3311,14 @@ function spawnTutorialScene() {
   tutorial.stepIndex = 0;
   tutorial.panel = tutorial.steps[0].panel;
 
-  // Freeze the food-supply bookkeeping so nothing refills or unlocks mid-tutorial.
-  scrapsLevel = 1.0; scrapsEmpty = false;
+  // Staged mode freezes the food-supply bookkeeping so nothing refills/unlocks mid-tutorial.
+  // Live mode leaves the real game's supply running.
+  if (!tutorial.live) { scrapsLevel = 1.0; scrapsEmpty = false; }
 }
 
 function updateScrapsLevel() {
   // Tutorial freeze — staged scene never refills or unlocks reserve layers.
-  if (tutorial.scene) { scrapsLevel = 1.0; scrapsEmpty = false; return; }
+  if (tutorial.scene && !tutorial.live) { scrapsLevel = 1.0; scrapsEmpty = false; return; }
   // Count alive chunks per layer (0-5)
   var layerTotal = [0,0,0,0,0,0];
   var layerAlive = [0,0,0,0,0,0];
@@ -3798,6 +3802,9 @@ function updatePlayer() {
     pHP = 0;
   }
 
+  // Tutorial safety: a teaching beat must never end in death. Hold a small HP floor while the
+  // live tutorial is still working through its steps; normal mortality resumes once it ends.
+  if (tutorial.live && tutorial.active && tutorial.steps && tutorial.stepIndex < tutorial.steps.length && pHP < 0.08) pHP = 0.08;
   // Death check — trigger death screen instead of instant respawn
   if (pHP <= 0 && !deathScreen) { // hunger now drives HP bleed; death is always HP-based
     deathScreen = true;
@@ -4178,7 +4185,7 @@ function updatePlayer() {
     if (s.eaten || s.ti !== 1) continue;
     var _openExtra = (_tutKindNow === 'cure'   && s.t && s.t.name === 'egg_shell') ||
                      (_tutKindNow === 'refuel' && s._refuelTut);
-    if (tutorial.scene && s.tutProtected && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras on multi-item beats)
+    if (tutorial.scene && (tutorial.live || s.tutProtected) && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras); live mode locks ALL scraps, not just injected ones
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
