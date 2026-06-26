@@ -8093,6 +8093,14 @@ function trySleep() {
   if (deathScreen) return;
 
   if (pSleeping) {
+    // Final tutorial beat: don't let the player wake out of 'Look Around' or the
+    // done card. They should scroll to finish, then go straight to the end screen —
+    // waking here drops viewMode and the viewscroll beat could never complete.
+    if (tutorial.active && tutorial.scene) {
+      if (tutorial.done) { _tutFinish(); return; }                       // done card up — wake attempt ends the tutorial
+      var _cs = tutorial.steps && tutorial.steps[tutorial.stepIndex];
+      if (_cs && _cs.kind === 'viewscroll') return;                      // stay asleep — must scroll to finish
+    }
     // Wake up — exit free-scroll, re-lock camera to worm
     pSleeping = false;
     pSleepCurl = 0;
