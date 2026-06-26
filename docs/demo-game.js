@@ -7576,6 +7576,17 @@ function updateNPCSims() {
   if (!window._demoMode) return;
   var b2 = getBinCached();
 
+  // ── PERF/correctness: rebuild the carve-able path registry from LIVE paths only ──
+  // pathRegistry never had a removal path. Each NPC sim pushes a fresh sim.path on init,
+  // so re-inited sims (presence re-sends recreate sims) leaked dead arrays into the
+  // registry forever. Every per-frame consumer — the Y-bucket index rebuild, the clog
+  // render, nearestPathIdx — walked that growing junk (progressive lag over a session),
+  // and stale tunnels polluted routing so drops/junctions attached to tubes that no longer
+  // exist. Reset to just the player here; each active (non-dormant) sim re-registers its own
+  // path below, so dead/dormant paths fall out and the registry stays bounded to NPC_SIM_CAP+1.
+  pathRegistry.length = 1;        // keep pPath at index 0
+  _pPathBucketsDirty = true;      // purge stale points from the Y-bucket index this frame
+
   // ── Thin the herd ──────────────────────────────────────────────────────
   // A single page can't carry a whole server's worth of worms. We SIMULATE (and draw)
   // at most NPC_SIM_CAP of them; the rest are marked dormant and skipped here AND in the
@@ -7597,7 +7608,7 @@ function updateNPCSims() {
       sim.segs = [];
       sim.hist = [];
       sim.path = [];   // this NPC's own tunnel trail — never shares pPath
-      if (pathRegistry.indexOf(sim.path) < 0) pathRegistry.push(sim.path); // routable: drops/clog/junctions
+      // (registered every frame below, after the per-frame registry reset at the top)
       // Spawn x arrives as xr*W (a fraction of the VIEWPORT), but the bin is sized to WORLD_W
       // and centered — so on any screen narrower than WORLD_W every worm bunches into a sliver
       // of the bin and then clamps to the wall. Remap the spawn fraction across the actual bin
@@ -7611,6 +7622,10 @@ function updateNPCSims() {
       }
       sim.per = _npcPersonality(opp.username, _oi);
     }
+
+    // Re-register this active NPC's tunnel for routing + render this frame (registry was
+    // reset to [pPath] at the top). Each active sim is visited once, so a plain push is safe.
+    if (sim.path) pathRegistry.push(sim.path);
 
     // ── Tube fade + clog lifecycle (mirrors the player's tubes) ──────────────
     // NPC tunnels fill back in over time. When a CLOGGED point fades to alpha 0 it
