@@ -3362,9 +3362,11 @@ function spawnTutorialScene() {
   var _refuel  = _tutFood('watermelon_chunk', _xL + _span * 0.34, H + H * 0.42); _refuel._refuelTut  = true;
   var _refuel2 = _tutFood('lettuce',          _xL + _span * 0.46, H + H * 0.40); _refuel2._refuelTut = true;
 
-  // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
-  // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
-  var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.28);
+  // Surface refuel scrap — fresh tier-1 food sitting JUST ABOVE the compost line (~1.8H),
+  // for the "starving, climb up and eat" beat. The worm rises straight out of the sump after
+  // the up-drain beat, so keeping the crust low means it can refuel before its gut bottoms out.
+  // tutProtected + non-target until then, so the eat-gate keeps it locked early.
+  var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.80);
 
   // Sleep zone — the SAME big compost ZONE ring as the poop beat, just a different spot:
   // "get down into the compost and sleep". Sleeping only succeeds in tier 2+, so being
