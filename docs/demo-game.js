@@ -156,8 +156,10 @@ function tutorialStep() {
 
   if (si >= steps.length) {            // sequence complete — show the done card, then cut to the end screen
     tutorial.target = null; tutorial.leash = null; tutorial.panel = null; tutorial.extras = null;
-    tutorial.done = true;              // drawTutorialDone() takes over
-    tutorial._doneAt = Date.now();     // dwell timer: auto-cut to the end screen after a readable beat
+    if (!tutorial.done) {              // latch ONCE — this branch re-fires every frame while asleep,
+      tutorial.done = true;            // drawTutorialDone() takes over
+      tutorial._doneAt = Date.now();   // dwell timer: set once so the auto-cut to the end screen can elapse
+    }                                  // (was reset every frame, so > 2600ms never hit -> end screen never showed)
     return;
   }
   var step = steps[si];
