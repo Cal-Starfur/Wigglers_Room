@@ -1122,7 +1122,6 @@ function getBin() {
 // Cached bin geometry — recomputed only when W changes (resizeCanvas).
 // Hot paths call _bin instead of getBin() to avoid per-frame recalculation.
 var _bin = null;
-function _refreshBin() { _bin = getBin(); }
 // Override getBin to return the cache when available — safe because W never
 // changes mid-frame. Falls back to live if cache is stale (W changed since last resize).
 var _binCacheW = -1;
@@ -4572,61 +4571,6 @@ function drawPath(path) {
 }
 
 // ── Generation debug panel (DEBUG_MODE only) ─────────────────────────────
-function drawGenDebugPanel() {
-  var pw = 180, ph = 148;
-  var px = W - pw - 8, py2 = 110;
-  // Panel bg
-  ctx.fillStyle = 'rgba(10,5,20,0.88)';
-  ctx.strokeStyle = 'rgba(180,100,255,0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(px, py2, pw, ph, 8); ctx.fill(); ctx.stroke();
-
-  ctx.textAlign = 'left';
-
-  // Title
-  ctx.fillStyle = 'rgba(220,180,255,0.9)';
-  ctx.font = 'bold 9px monospace';
-  ctx.fillText('⚙ GEN DEBUG', px + 8, py2 + 13);
-
-  // Color swatch + gen info
-  var col = getGenColor(generation);
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.roundRect(px + 8, py2 + 20, 14, 14, 3); ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '9px monospace';
-  ctx.fillText('G' + generation + ' — ' + getGenName(generation), px + 26, py2 + 31);
-
-  // pEaten progress bar
-  var barW = pw - 16, barH = 7;
-  var bx = px + 8, barY = py2 + 42;
-  var prog = Math.min(1, pEaten / 300000);
-  ctx.fillStyle = 'rgba(80,40,120,0.8)';
-  ctx.beginPath(); ctx.roundRect(bx, barY, barW, barH, 3); ctx.fill();
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.roundRect(bx, barY, barW * prog, barH, 3); ctx.fill();
-  ctx.fillStyle = '#ccc';
-  ctx.font = '8px monospace';
-  ctx.fillText(pEaten + ' / 300000', bx, barY + barH + 10);
-
-  // Active perks
-  var perks = [
-    { gen: 1, label: '+10% gut cap' },
-    { gen: 2, label: '−15% offline drain' },
-    { gen: 3, label: '×2 sleep regen' },
-    { gen: 4, label: 'cocoon 5d (not 7)' },
-    { gen: 5, label: '+20% bite rate' },
-  ];
-  ctx.font = '8px monospace';
-  for (var pi = 0; pi < perks.length; pi++) {
-    var active = generation >= perks[pi].gen;
-    ctx.fillStyle = active ? '#80ff80' : 'rgba(120,120,120,0.6)';
-    ctx.fillText((active ? '✓ ' : '○ ') + 'G' + perks[pi].gen + ': ' + perks[pi].label, px + 8, py2 + 74 + pi * 13);
-  }
-
-  // Acid state
-  ctx.fillStyle = pAcid > 0.1 ? '#a8d898' : 'rgba(120,120,120,0.6)';
-  ctx.fillText('acid: ' + pAcid.toFixed(2) + (pAcid > 0.1 ? ' ◀ active' : ''), px + 8, py2 + 140);
-}
 
 // ── Generation color palette ──────────────────────────────────────────────
 var GEN_COLORS = [
@@ -4648,77 +4592,11 @@ function getGenName(gen) {
   return GEN_NAMES[Math.min(gen, GEN_NAMES.length - 1)];
 }
 
-function drawGenBadge(x, screenY, gen) {
-  if (gen <= 0) return;
-  var label = (gen >= 5 ? '✦ ' : gen >= 3 ? '★ ' : '') + 'G' + gen;
-  var col   = getGenColor(gen);
-  var pulse = (gen >= 5) ? (0.7 + Math.sin(frame * 0.08) * 0.3) : 1;
-  ctx.save();
-  ctx.globalAlpha = pulse;
-  // Pill background
-  ctx.font = 'bold 9px sans-serif';
-  var tw = ctx.measureText(label).width;
-  var pw = tw + 10, ph = 13;
-  var bx = x - pw/2, by = screenY - ph - 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.roundRect(bx, by, pw, ph, 5); ctx.fill();
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.roundRect(bx, by, pw, ph, 5); ctx.stroke();
-  // Text
-  ctx.fillStyle = col;
-  ctx.textAlign = 'center';
-  ctx.fillText(label, x, by + ph - 3);
-  ctx.restore();
-}
 
 // RESERVED / NOT CURRENTLY CALLED — kept for future "invasive worms" (a cheap, distinct body).
 // One round-capped stroke through the segment chain (dark edge + colour core) + head + 2 eye
 // dots: ~5 canvas ops/worm vs the per-segment circle stack in drawWorm. Same acid/HP colour
 // treatment. NPCs use the detailed drawWorm; wire this up when invasive worms are added.
-function drawWormCheap(segs, sr, col, sleeping, acid, hp) {
-  if (!segs || segs.length < 1) return;
-  hp = (hp === undefined) ? 1.0 : hp;
-  var drawCol = col;
-  if (acid && acid > 0.1) {
-    var t1 = Math.min(1, (acid - 0.1) / 0.4);
-    var r0 = parseInt(col.slice(1,3),16), g0 = parseInt(col.slice(3,5),16), b0 = parseInt(col.slice(5,7),16);
-    var rr = Math.round(r0 + (0xc8 - r0) * t1);
-    var gg = Math.round(g0 + (0xf0 - g0) * t1);
-    var bb = Math.round(b0 + (0x20 - b0) * t1);
-    drawCol = '#' + ('0'+rr.toString(16)).slice(-2) + ('0'+gg.toString(16)).slice(-2) + ('0'+bb.toString(16)).slice(-2);
-  }
-  if (hp < 0.45) {
-    var _pt = Math.min(1, (0.45 - hp) / 0.45);
-    var _cr = parseInt(drawCol.slice(1,3),16), _cg = parseInt(drawCol.slice(3,5),16), _cb = parseInt(drawCol.slice(5,7),16);
-    var _pr2 = Math.round(_cr + (0xe8 - _cr) * _pt);
-    var _pg2 = Math.round(_cg + (0xe0 - _cg) * _pt);
-    var _pb2 = Math.round(_cb + (0xd8 - _cb) * _pt);
-    drawCol = '#' + ('0'+_pr2.toString(16)).slice(-2) + ('0'+_pg2.toString(16)).slice(-2) + ('0'+_pb2.toString(16)).slice(-2);
-  }
-  var _a = ctx.globalAlpha;
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // one centreline path, stroked twice: dark edge then colour core
-  ctx.beginPath();
-  ctx.moveTo(segs[0].x, segs[0].y - camY);
-  for (var i = 1; i < segs.length; i++) ctx.lineTo(segs[i].x, segs[i].y - camY);
-  ctx.strokeStyle = '#1a1008'; ctx.globalAlpha = _a * 0.5; ctx.lineWidth = sr * 2.2; ctx.stroke();
-  ctx.strokeStyle = drawCol;  ctx.globalAlpha = _a;       ctx.lineWidth = sr * 1.7; ctx.stroke();
-  // head + eyes
-  var hx = segs[0].x, hy = segs[0].y - camY;
-  ctx.fillStyle = drawCol;
-  ctx.beginPath(); ctx.arc(hx, hy, sr * 1.05, 0, Math.PI * 2); ctx.fill();
-  if (segs.length > 1) {
-    var ang = Math.atan2(segs[0].y - segs[1].y, segs[0].x - segs[1].x);
-    var perp = ang + Math.PI / 2;
-    var fx = Math.cos(ang) * sr * 0.35, fy = Math.sin(ang) * sr * 0.35;
-    var px = Math.cos(perp) * sr * 0.42, py = Math.sin(perp) * sr * 0.42;
-    ctx.fillStyle = sleeping ? drawCol : '#1a1008';
-    ctx.beginPath(); ctx.arc(hx + fx + px, hy + fy + py, sr * 0.17, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(hx + fx - px, hy + fy - py, sr * 0.17, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.globalAlpha = _a;
-}
 
 function drawWorm(segs, sr, col, sleeping, acid, hp) {
   if (segs.length < 1) return;
@@ -5022,10 +4900,6 @@ function getSoilGradStops(e, mw) {
   return _soilGradCache;
 }
 
-function blendEnrichCol(br, bg, bb, er, eg, eb, e) {
-  var r = Math.round(br + (er-br)*e), g = Math.round(bg + (eg-bg)*e), b2 = Math.round(bb + (eb-bb)*e);
-  return '#'+('0'+r.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+b2.toString(16)).slice(-2);
-}
 function lerpCol(a, c, t) {
   function h(s,i){ return parseInt(s.slice(i,i+2),16); }
   var r  = Math.round(h(a,1) + (h(c,1)-h(a,1))*t);
