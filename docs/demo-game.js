@@ -2386,6 +2386,7 @@ function spawnTutorialScene() {
 
   // Curated curriculum, placed to make a sensible path:
   //   lettuce (left) → watermelon (mid) → acid pile chunk (centre top) → eggshell (centre low)
+  var _starter = _tutFood('lettuce',          _xL + _span * 0.42, H + H * 0.47);  // close first bite — worm spawns mid-bin, lettuce was too far (HP bleed)
   var _lettuce = _tutFood('lettuce',          _xL + _span * 0.22, H + H * 0.55);
   var _melon   = _tutFood('watermelon_chunk', _xL + _span * 0.55, H + H * 0.50);
   var _egg1    = _tutFood('egg_shell',        _xL + _span * 0.563, H + H * 0.459);  // cure beat: 2 eggshells clear the higher acid
@@ -2453,6 +2454,7 @@ function spawnTutorialScene() {
   // Ordered step list — each beat teaches one distinct thing. Karma matches the
   // engine: tier-1 scraps pay a flat +3; a finished pile chunk pays pts*5.
   tutorial.steps = [
+    { target: _starter, kind: 'eat',  panel: { title: 'First Bite',     lines: ['A scrap, right by you.', 'Eat it to get started.'],                                karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _lettuce, kind: 'eat',  panel: { title: 'Lettuce',        lines: ['Food fills your gut.', 'Eat it to grow.'],                                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
