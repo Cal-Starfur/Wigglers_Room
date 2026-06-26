@@ -1,7 +1,7 @@
 # Wigglers Room — Tutorial System Architecture & Reference
 
 **Status:** Tutorial skeleton complete, end-to-end (4-beat curriculum).
-**File:** all tutorial code lives in `docs/demo-game.js`; activation/loader in `docs/demo-teaser.html`.
+**File:** all tutorial code lives in `docs/demo-game.js`; activation/loader in `docs/demo.html`.
 **Activation:** `?tut=1` (staged tutorial) or `?leash=1` (leash debug proof). Default OFF — free roam unchanged.
 **Last updated:** session ending 2026-06-25 (commits `25100dc` → `76c4203`).
 
@@ -23,7 +23,7 @@ This document exists so future sessions can extend the tutorial — especially *
 | Commit | What | Key idea |
 |---|---|---|
 | `25100dc` | **Director skeleton + move-target clamp hook** | The single point where the worm reads its steering goal (`tutorialClampTarget`), so movement can be gated in *one* place instead of policing 5 input handlers. |
-| (teaser) | **Cache-bust loader** | `demo-teaser.html` mirrors the page's `?v=` onto the `demo-game.js` `<script>` via `document.write`, so `?v=SHA` busts both HTML and JS (mobile Safari has no hard-refresh). |
+| (teaser) | **Cache-bust loader** | `demo.html` mirrors the page's `?v=` onto the `demo-game.js` `<script>` via `document.write`, so `?v=SHA` busts both HTML and JS (mobile Safari has no hard-refresh). |
 | `4b13120` | **`spawnTutorialScene()` + freeze** | Authored staged scene replaces the random field; `updateScrapsLevel()` early-returns while staged so nothing refills/unlocks. |
 | `50bcef5` | **NPC food protection** | Live NPCs were eating the staged food; `tutProtected` flag + both NPC scrap loops skip it. |
 | `ac99cfa` | **Highlight/spotlight render** | `drawTutorialHighlight()` — initially dim + ring + edge arrow. |
@@ -214,7 +214,7 @@ For steps that complete on something other than "eat the item":
 ## 11. Activation, testing, cache-busting
 
 - `?tut=1` → staged tutorial. `?leash=1` → leash proof. Neither on → normal free roam.
-- **Test link:** `https://cal-starfur.github.io/Wigglers_Room/demo-teaser.html?tut=1&v=<COMMIT_SHA>`. The `?v=` busts the HTML; the teaser's loader mirrors it onto `demo-game.js`, so it busts the JS too. **Required on mobile Safari (no hard-refresh).**
+- **Test link:** `https://cal-starfur.github.io/Wigglers_Room/demo.html?tut=1&v=<COMMIT_SHA>`. The `?v=` busts the HTML; the teaser's loader mirrors it onto `demo-game.js`, so it busts the JS too. **Required on mobile Safari (no hard-refresh).**
 - Verify a push by reading the committed blob at the pinned SHA (`contents?ref=SHA`) — the branch `raw` URL is CDN-cached and can lie for minutes.
 
 ---

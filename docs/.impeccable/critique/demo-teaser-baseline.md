@@ -1,6 +1,6 @@
-# Impeccable Critique — `docs/demo-teaser.html`
+# Impeccable Critique — `docs/demo.html`
 **Updated · Session 26 · 2026-06-24**
-**Target:** `docs/demo-teaser.html`
+**Target:** `docs/demo.html`
 
 ---
 

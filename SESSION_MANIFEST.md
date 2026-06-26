@@ -3,7 +3,7 @@ Session: 31 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-26
 
 ## Blocked
 - ISS-19 (localStorage race condition) — P1, code freeze until shipped
-- No game.js / main.tsx changes this sprint (demo-game.js / demo-teaser.html only)
+- No game.js / main.tsx changes this sprint (demo-game.js / demo.html only)
 
 ## Session 31 — Geometry halve + castings cleanup + tea re-attach + tutorial merge mode (all docs/demo-game.js)
 - 7814978 — Refuel beat 4->2 scraps (4 force-fed the small ~4-unit gut straight back to full) AND removed all
@@ -58,10 +58,10 @@ Tutorial order (11 beats): lettuce -> watermelon -> overripe fruit (hold til ful
 poop -> eggshell cure (x2) -> refuel (4 scraps, dive to advance) -> compost-bonus poop (big zone ring) ->
 down drain -> cocoon -> up drain -> surface & eat. Activate ?tut=1 (default OFF). NOT yet device-confirmed.
 
-## Session 29 — In-canvas tutorial (the demo intro). Tutorial code in docs/demo-game.js; activation + cache-bust loader in docs/demo-teaser.html
+## Session 29 — In-canvas tutorial (the demo intro). Tutorial code in docs/demo-game.js; activation + cache-bust loader in docs/demo.html
 - 7e265bf — NPC sleep tunnel fade fix (sleeping NPC tubes now fill in fast like the player's)
 - 25100dc — Commit 1: Director skeleton + single move-target clamp hook (tutorialClampTarget); ?leash=1 proof; default OFF
-- 302650a — Cache-bust loader: demo-teaser.html mirrors page ?v= onto the demo-game.js <script> (busts HTML+JS; mobile Safari has no hard-refresh)
+- 302650a — Cache-bust loader: demo.html mirrors page ?v= onto the demo-game.js <script> (busts HTML+JS; mobile Safari has no hard-refresh)
 - 4b13120 — Commit 2: spawnTutorialScene() staged scene + ambient freeze (updateScrapsLevel early-return); ?tut=1
 - 50bcef5 — NPC food protection (tutProtected; both NPC scrap loops skip it) — NPCs were eating the staged food
 - ac99cfa — Commit 3: drawTutorialHighlight() (ring + arrow)
@@ -105,7 +105,7 @@ Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> 
   colour bands line up; worm clamp / drains / cocoon depths all sit correctly in the shallower compost.
 - **Tune the constipation/refuel arc on device** (refuel is now 2 scraps, both-eaten gate): overripe-fruit
   hold reaches ~98% gut; 2 eggshells fully clear the green; compost zone ring sits between the layer lines.
-- **HUD HP/gut bar bug (REPORTED, NOT DIAGNOSED).** Likely a demo-teaser.html DOM/canvas side-panel readout
+- **HUD HP/gut bar bug (REPORTED, NOT DIAGNOSED).** Likely a demo.html DOM/canvas side-panel readout
   that stalled (only a screen-fixed top-left bar exists in demo-game.js).
 - **ghostERR: value still needed.** Per-NPC try/catch (81460e4) masks a ghost-worm render crash; the green
   NPCdbg overlay was REMOVED (7814978), so the value now has to come from the browser console.
@@ -115,5 +115,5 @@ Tutorial state: 4-beat curriculum lettuce -> watermelon -> acid (pile chunk) -> 
 - Edits: Python with assert content.count(old)==1, then `node --check demo-game.js`. Working copy /tmp/demo-game.js.
 - Headless harness pattern (/tmp/harness*.js): first 62 lines of harness.js = browser stubs + load;
   drives updateNPCSims/updatePhysics (NOT loop()/draw()), so pZzz fade and HUD draw are NOT exercised there.
-- Push: stage -> summarize -> wait for "Push"/"Push it" -> push --approved. demo-teaser.html (~1.5MB) needs
+- Push: stage -> summarize -> wait for "Push"/"Push it" -> push --approved. demo.html (~1.5MB) needs
   two-step fetch (Contents API SHA -> raw blob); raw fetch via raw.githubusercontent.com with token works.
