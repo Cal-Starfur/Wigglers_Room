@@ -3701,7 +3701,12 @@ function updatePhysics() {
   // tryPoop), so pinning here every frame wipes all accumulation before draw and before
   // next frame's threshold checks — values never approach flood (tLvl>=0.9) or drowning
   // (pooled>0.6). Drops still fall/render; only the totals are held at baseline.
-  if (tutorial.active) { castingEnrichment = 0; pooled = 0; tLvl = 0; window._moisture = 0; }
+  if (tutorial.active) {
+    castingEnrichment = 0; pooled = 0; tLvl = 0; window._moisture = 0;
+    // No flooding or flood warning during the lesson. Cleared every frame (before draw),
+    // so even a host setFlood or stale state can't surface a flood/banner mid-tutorial.
+    floodActive = false; window._floodMsg = null; window._floodMsgT = 0;
+  }
   // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
   // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
   // tunnels saturated their cap the per-carve rebuilds piled up and the game got laggy over
