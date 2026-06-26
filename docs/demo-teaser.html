@@ -662,11 +662,7 @@ body::before {
   <!-- LEFT: game canvas panel -->
   <div class="game-panel">
 
-    <!-- HUD -->
-    <div id="demo-hud">
-      <img id="hud-bg" src="" data-bg-img="1" alt="worm">
-      <div class="title">u/Wigglers_Room <span style="font-weight:400;color:var(--text-dim);font-size:.75rem">· demo</span></div>
-    </div>
+    <!-- HUD header removed — the icon + u/Wigglers_Room bar overlapped the in-canvas HUD -->
 
     <!-- Layer toast -->
     <div id="layer-toast"></div>
@@ -1066,8 +1062,7 @@ document.addEventListener('keydown', function() {
   if (!_introDismissed) _enterBin();
 }, {once: true});
 
-// 7. Adjust root div padding for HUD
-document.getElementById('root').style.paddingTop = '44px';
+// 7. HUD header removed — no top padding needed; canvas uses the full height.
 </script>
 
 <!-- ── Demo: localStorage shim ─────────────────────────────────────────── -->
@@ -1111,9 +1106,7 @@ var _injectInterval = setInterval(function() {
     clearInterval(_injectInterval);
     _injectNPCs();
     _wrapRAF();
-    // Also move the HUD back above the canvas
-    var hud = document.getElementById('demo-hud');
-    hud.style.zIndex = '501';
+    // (HUD header removed)
   }
 }, 100);
 
