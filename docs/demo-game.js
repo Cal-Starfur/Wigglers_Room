@@ -3027,6 +3027,7 @@ function updatePlayer() {
 
   // ── Sleeping — worm is locked in place ───────────────────────────────────
   if (pSleeping) {
+    tutorialStep();   // keep advancing the tutorial while asleep — otherwise the final 'sleep' beat never completes and the done card never fires
     pSleepCurl = Math.min(1, pSleepCurl + 0.04);
     for (var si = 0; si < pSegs.length; si++) {
       var coilAngle = (si / pSegs.length) * Math.PI * 2 * 1.5 * pSleepCurl;
