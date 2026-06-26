@@ -3283,6 +3283,10 @@ function spawnTutorialScene() {
   // while the worm traverses between them.
   var _downSpot = { x: b.cx - _span * 0.16,   y: cSurf() - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
   var _upSpot   = { x: b.cx - _span * 0.053, y: cSurf() - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
+  // Cocoon sits MIDWAY between the down & up drain dots: the cocoon can be laid anywhere in
+  // deep compost, so its dot belongs right on the traverse — not parked on the far up-drain
+  // dot (which made it look like a long detour). down -> cocoon -> up now reads left-to-right.
+  var _cocoonSpot = { x: b.cx - _span * 0.106, y: cSurf() - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
 
   // Refuel scraps — two fresh tier-1 foods for the post-cure refuel beat. The worm only
   // needs to eat ONE to advance; the rest are extra digestion fuel. _refuelTut opens them all.
@@ -3304,7 +3308,7 @@ function spawnTutorialScene() {
     { target: _refuel,  kind: 'refuel', extras: [_refuel2], panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill up —', 'health comes back as you digest.', 'Eat both scraps to move on.'], karma: '+3 karma', tint: '#c0d4a8' } },
     { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
-    { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
+    { target: _cocoonSpot, kind: 'cocoon',  panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
     { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } }
   ];
