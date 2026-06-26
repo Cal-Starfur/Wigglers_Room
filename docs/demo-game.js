@@ -305,7 +305,24 @@ function drawTutorialHighlight() {
 
   // Pulsing amber glow ring (amber = glow only — design token). Thickens + brightens as
   // the worm arrives (_prox), locking the target in as the arrow leaves.
-  if (onScreen) {
+  if (tgt._zoneLine) {
+    // Compost-bonus beat: a glowing line across the compost top (y=2H) instead of a ring —
+    // it marks the boundary the worm must drop BELOW to poop for the bonus.
+    var _bz = getBin();
+    var _lineSY = (2 * H) - camY;
+    if (_lineSY > -24 && _lineSY < H + 24) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
+      ctx.lineWidth = 3 + 4 * _prox;
+      ctx.shadowColor = 'rgba(255,176,48,0.9)';
+      ctx.shadowBlur = 10 + 8 * pulse + 6 * _prox;
+      ctx.beginPath();
+      ctx.moveTo(_bz.cx - _bz.bw2, _lineSY);
+      ctx.lineTo(_bz.cx + _bz.bw2, _lineSY);
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (onScreen) {
     ctx.save();
     ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
     ctx.lineWidth = 2.5 + 5 * _prox;
@@ -2420,7 +2437,7 @@ function spawnTutorialScene() {
   // Compost poop beacon — a big ZONE ring centred in the compost band (tier 2). _zoneR makes
   // the ring nearly touch the tier-1/2 line above (2H) and the sump line below (3H): "get in
   // this layer and poop", not a precise point — so no aim-dot for this one.
-  var _poopSpot = { x: b.cx, y: 2*H + 0.5*(cSurf()-2*H), sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: (cSurf()-2*H)*0.48 };
+  var _poopSpot = { x: b.cx, y: 2*H + 0.5*(cSurf()-2*H), sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: (cSurf()-2*H)*0.48, _zoneLine: true };
 
   // Two sump-floor beacons ON the sump border (y = 3H - 2). The worm head clamps at
   // 3H - pSR, so steering the point onto a beacon parks the head in the _atSump zone
