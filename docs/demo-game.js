@@ -5544,9 +5544,10 @@ function drawGenBadge(x, screenY, gen) {
   ctx.restore();
 }
 
-// Cheap NPC body — one round-capped stroke through the segment chain (+ head + eyes)
-// instead of a per-segment stack of circle fills. Same acid/HP colour treatment as
-// drawWorm at a fraction of the draw ops, so a full crowd of NPC worms stays cheap on mobile.
+// RESERVED / NOT CURRENTLY CALLED — kept for future "invasive worms" (a cheap, distinct body).
+// One round-capped stroke through the segment chain (dark edge + colour core) + head + 2 eye
+// dots: ~5 canvas ops/worm vs the per-segment circle stack in drawWorm. Same acid/HP colour
+// treatment. NPCs use the detailed drawWorm; wire this up when invasive worms are added.
 function drawWormCheap(segs, sr, col, sleeping, acid, hp) {
   if (!segs || segs.length < 1) return;
   hp = (hp === undefined) ? 1.0 : hp;
@@ -7267,7 +7268,7 @@ function draw() {
       var oppHP   = sim ? sim.hp   : 1;
 
       ctx.globalAlpha = 0.92 * _staleAlpha;
-      drawWormCheap(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
+      drawWorm(ghostSegs, oppSR, oppCol, oppSleeping, oppAcid, oppHP);
 
       // Poop flash for NPC sims
       if (sim && sim.poopFlash > 0) {
