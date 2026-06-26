@@ -77,6 +77,8 @@ var tutorial = {
   _upDrainArmed:  false, // up-drain beat — latched when an up drain is armed ("Up drain ready!")
   _cocoonDone:    false, // cocoon beat — latched when a cocoon is laid (swipe up / E)
   _freeStart:     0,     // free-play beat — wall-clock ms when the 90s explore window opened (0 = not started)
+  done:       false, // true once the final beat (sleep) clears — shows the completion screen until tapped
+  _doneFade:  0,     // 0->1 fade-in for the done screen
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
@@ -147,8 +149,9 @@ function tutorialStep() {
   while (si < steps.length && _tutStepDone(steps[si])) si++;   // skip completed steps
   tutorial.stepIndex = si;
 
-  if (si >= steps.length) {            // sequence complete — release to free roam
+  if (si >= steps.length) {            // sequence complete — show the done screen, then free roam
     tutorial.target = null; tutorial.leash = null; tutorial.panel = null; tutorial.extras = null;
+    tutorial.done = true;              // drawTutorialDone() takes over; a tap dismisses it to free roam
     return;
   }
   var step = steps[si];
@@ -216,6 +219,49 @@ function drawTutorialPanel() {
     _karmaTxt = 'Tutorial resumes in ' + _rem + 's';
   }
   ctx.fillText(_karmaTxt, cx2, cardY + cardH - 9);
+  ctx.restore();
+}
+
+// ── Tutorial done screen ─────────────────────────────────────────────────────
+// Shown after the final (sleep) beat clears. Fade-in dark wash + a centred card that
+// recaps the loop; any tap dismisses it and turns the tutorial off (free roam). Amber is
+// used for the glow/border ONLY (locked token) — never for text fill.
+function drawTutorialDone() {
+  if (!tutorial.done) return;
+  tutorial._doneFade = Math.min(1, tutorial._doneFade + 0.03);
+  var a = tutorial._doneFade;
+  ctx.save();
+  ctx.globalAlpha = a * 0.85;
+  ctx.fillStyle = '#06140a';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = a;
+  var cx2 = W/2, cy2 = H/2;
+  var panelW = Math.min(W * 0.85, 360), panelH = 188;
+  var px = cx2 - panelW/2, py = cy2 - panelH/2;
+  ctx.fillStyle = '#0a1f0a';
+  ctx.strokeStyle = 'rgba(255,176,48,0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = 'rgba(255,176,48,0.4)'; ctx.shadowBlur = 16;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(px, py, panelW, panelH, 14); else ctx.rect(px, py, panelW, panelH);
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#eaf2dc';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText('Tutorial Complete', cx2, py + 52);
+  ctx.fillStyle = '#bcd0a8';
+  ctx.font = '13px sans-serif';
+  ctx.fillText("You've got the basics down —", cx2, py + 86);
+  ctx.fillText('eat, poop, drain, cocoon, sleep.', cx2, py + 106);
+  ctx.fillStyle = '#9fd84a';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('The bin is yours now.', cx2, py + 132);
+  var _pp = 0.6 + 0.4 * Math.sin(frame * 0.08);
+  ctx.globalAlpha = a * _pp;
+  ctx.fillStyle = '#eaf2dc';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('Tap to play', cx2, py + panelH - 18);
   ctx.restore();
 }
 
@@ -7324,6 +7370,7 @@ function draw() {
 
   drawTutorialHighlight();
   drawTutorialPanel();
+  drawTutorialDone();
 
   // Tutorial leash boundary — debug proof only (?leash=1). Same coord convention
   // as the cursor dot above: world-X direct, Y offset by camY.
@@ -9232,6 +9279,9 @@ root.addEventListener('click', function(e) {
     return;
   }
 
+  // Tutorial done screen — any tap dismisses it to free roam
+  if (tutorial.done) { tutorial.done = false; tutorial.active = false; return; }
+
   // Death screen — single smart respawn button
   if (deathScreen) {
     var _panelH2 = 240, _btnW2 = Math.min(W * 0.85 * 0.8, 260), _btnH2 = 44;
@@ -9386,6 +9436,9 @@ root.addEventListener('touchstart', function(e) {
     }, _gesture.lpDur);
     return;
   }
+
+  // Tutorial done screen — any tap dismisses it to free roam
+  if (tutorial.done) { tutorial.done = false; tutorial.active = false; return; }
 
   // ── Death screen ────────────────────────────────────────────────────────
   if (deathScreen) {
