@@ -3231,8 +3231,8 @@ function spawnTutorialScene() {
   // sit at SEPARATE x so the second beat reads as "now steer over to the new dot",
   // not an invisible re-hold in place. Both stay on the floor so _sumpHadDown persists
   // while the worm traverses between them.
-  var _downSpot = { x: b.cx - _span * 0.16, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
-  var _upSpot   = { x: b.cx + _span * 0.16, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
+  var _downSpot = { x: b.cx - _span * 0.16,   y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
+  var _upSpot   = { x: b.cx - _span * 0.053, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
 
   // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
