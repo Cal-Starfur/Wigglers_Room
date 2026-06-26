@@ -115,6 +115,9 @@ function tutorialClampTarget(tx, ty) {
 function _tutStepDone(step) {
   if (!step) return true;
   if (step.kind === 'acid') return pAcid > 0.35;   // green, but below the HP-damage threshold (~0.5)
+  if (step.kind === 'acidfull')   return pGut >= pGutMax * 0.98;   // hold the acid beat until the gut is full (constipated)
+  if (step.kind === 'pooprelief') return !!tutorial._reliefPooped; // any poop relieves the full gut
+  if (step.kind === 'cure')       return pAcid < 0.12;             // ate enough eggshell to clear the green
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
   if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
@@ -3170,6 +3173,7 @@ function spawnTutorialScene() {
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
+  tutorial._reliefPooped  = false;
   tutorial._downDrainDone = false;
   tutorial._upDrainArmed  = false;
   tutorial._cocoonDone    = false;
@@ -3196,7 +3200,8 @@ function spawnTutorialScene() {
   //   lettuce (left) → watermelon (mid) → acid pile chunk (centre top) → eggshell (centre low)
   var _lettuce = _tutFood('lettuce',          _xL + _span * 0.22, H + H * 0.55);
   var _melon   = _tutFood('watermelon_chunk', _xL + _span * 0.55, H + H * 0.50);
-  var _egg     = _tutFood('egg_shell',        _xL + _span * 0.593, H + H * 0.459);  // original 3rd-scrap spot (mid-right tier 1)
+  var _egg1    = _tutFood('egg_shell',        _xL + _span * 0.563, H + H * 0.459);  // cure beat: 2 eggshells clear the higher acid
+  var _egg2    = _tutFood('egg_shell',        _xL + _span * 0.66,  H + H * 0.500);
 
   // Acid item in the tier-0 pile — climb up, nibble, pAcid rises, worm tints green.
   var _ac = null;
@@ -3234,6 +3239,9 @@ function spawnTutorialScene() {
   var _downSpot = { x: b.cx - _span * 0.16,   y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
   var _upSpot   = { x: b.cx - _span * 0.053, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
 
+  // Refuel scrap — fresh tier-1 food for the post-cure refuel beat; HP recovers as the gut refills.
+  var _refuel  = _tutFood('watermelon_chunk', _xL + _span * 0.42, H + H * 0.40);
+
   // Surface refuel scrap — fresh tier-1 food, high up, for the "starving, surface to eat"
   // beat. tutProtected + non-target until then, so the eat-gate keeps it locked early.
   var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.28);
@@ -3243,9 +3251,11 @@ function spawnTutorialScene() {
   tutorial.steps = [
     { target: _lettuce, kind: 'eat',  panel: { title: 'Lettuce',        lines: ['Food fills your gut.', 'Eat it to grow.'],                                        karma: '+3 karma',  tint: '#c0d4a8' } },
     { target: _melon,   kind: 'eat',  panel: { title: 'Watermelon',     lines: ['Juicy scraps drip into the', 'worm tea you drain weekly.'],                        karma: '+3 karma',  tint: '#c0d4a8' } },
-    { target: _ac,      kind: 'acid', panel: { title: 'Overripe Fruit', lines: ['From the pile: worth more,', 'but acidic — it builds up', 'and turns you green.'], karma: '+45 karma', tint: '#e89060' } },
-    { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } },
-    { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } },
+    { target: _ac,      kind: 'acidfull',   panel: { title: 'Overripe Fruit', lines: ['Worth more, but acidic — and', 'it fills you up. Keep eating', 'until your gut is stuffed.'], karma: '+45 karma', tint: '#e89060' } },
+    { target: null,     kind: 'pooprelief', panel: { title: 'Constipation',   lines: ['A full gut is constipation —', 'you bleed health till you poop.', 'Two-finger tap (or Space).'], karma: 'clears the gut', tint: '#e8b89a' } },
+    { target: _egg1,    kind: 'cure',       panel: { title: 'Eggshell',       lines: ['The antidote: eggshell', 'neutralizes the acid. Eat', 'until the green fades.'],      karma: '+3 each',  tint: '#a8dc80' } },
+    { target: _refuel,  kind: 'eat',        panel: { title: 'Refuel',         lines: ['That hurt you. Eat to fill', 'back up — your health recovers', 'as the gut refills.'],        karma: '+3 karma', tint: '#c0d4a8' } },
+    { target: _poopSpot, kind: 'poop',      panel: { title: 'Compost Bonus',  lines: ['Now dive into the dark', 'compost and poop down here —', 'bonus karma + rich soil.'],     karma: 'bonus karma', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
     { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
@@ -4116,10 +4126,12 @@ function updatePlayer() {
   if (_wqAnyFired) weatherQueue = weatherQueue.filter(function(e) { return !e._fired; });
 
   // --- Eat tier 1 debris scraps (small fragments) ---
+  // During the 'cure' beat, open ALL eggshell scraps (worm needs ~2 to clear the higher acid).
+  var _tutCure = tutorial.scene && tutorial.steps[tutorial.stepIndex] && tutorial.steps[tutorial.stepIndex].kind === 'cure';
   for (var i = 0; i < scraps.length; i++) {
     var s = scraps[i];
     if (s.eaten || s.ti !== 1) continue;
-    if (tutorial.scene && s.tutProtected && s !== tutorial.target) continue;  // only the active target, in order
+    if (tutorial.scene && s.tutProtected && s !== tutorial.target && !(_tutCure && s.t && s.t.name === 'egg_shell')) continue;  // only the active target, in order (eggshells open during cure)
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
@@ -9020,6 +9032,7 @@ function tryPoop() {
   if (pGut <= 0) return; // nothing in the tank
   if (frame - pLastPoop < POOP_COOLDOWN) return;
   pLastPoop = frame;
+  if (tutorial.scene) tutorial._reliefPooped = true;   // any poop relieves a full gut (tutorial relief beat)
 
   // Body size factor: pSEG goes 4→20, pSR goes 4→7
   // Tiny worm (4 segs) = very small deposits; fat worm (20 segs) = full size
