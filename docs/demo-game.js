@@ -2503,6 +2503,7 @@ function spawnTutorialScene() {
     { target: _cocoonSpot, kind: 'cocoon',  panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
     { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } },
+    { target: null,       kind: 'freeplay', panel: { title: 'Free Play',     lines: ['Nice work — you know the basics.', 'Take a bit to roam the bin on', 'your own: eat, dig, drain, poke.'], karma: 'explore freely',            tint: '#c0d4a8' } },
     { target: _sleepSpot, kind: 'sleep',    panel: { title: 'Bedtime',       lines: ['Dive into the dark compost', 'and sleep down here.', 'Press and hold (or S).'],                karma: 'worms rest in the compost', tint: '#a9c2e0' } },
     { target: null,       kind: 'viewscroll', panel: { title: 'Look Around',  lines: ['While you sleep, drag to', 'scroll around — roam the bin', 'and watch the others.'],           karma: 'viewer mode',               tint: '#a9c2e0' } }
   ];
