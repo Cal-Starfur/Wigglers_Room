@@ -6128,23 +6128,23 @@ function draw() {
       if (t12VisBottom > t12VisTop) {
         var e  = castingEnrichment;
         var mw = Math.min(1, window._moisture || 0);
-        // Gradient: tier 1 brown at top → compost colors below — 2H is the midpoint (0.5)
-        // Gradient spans tier1(H..2H) + compost(2H..3H) + sump(3H..3.25H)
-        // Stops at fractions of full 2.25H range:
-        //   tier1  = 0/2.25 .. 1/2.25 = 0 .. 0.444
-        //   compost= 1/2.25 .. 2/2.25 = 0.444 .. 0.889
-        //   sump   = 2/2.25 .. 2.25/2.25 = 0.889 .. 1.0
+        // Gradient spans tier1(H..2H) + compost(2H..cSurf()) + sump(cSurf()..cSurf()+0.25H).
+        // Boundary fractions are computed from the LIVE geometry so the colour lines track
+        // cSurf() (they used to be hardcoded for the old 3H sump and drifted when compost halved).
+        var _gR = (cSurf() + 0.25*H) - H;   // world height the gradient covers
+        var _fC = (2*H - H) / _gR;          // tier1 / compost colour boundary (world 2H)
+        var _fS = (cSurf() - H) / _gR;      // compost / sump colour boundary (world cSurf())
         var t12Grad = ctx.createLinearGradient(0, t12Top, 0, t12Bottom);
         var _sgs = getSoilGradStops(e, mw);
-        t12Grad.addColorStop(0,     '#8b6340'); // tier 1 flat brown
-        t12Grad.addColorStop(0.443, '#8b6340'); // hold to compost boundary
-        t12Grad.addColorStop(0.444, _sgs[0]); // compost top
-        t12Grad.addColorStop(0.62,  _sgs[1]);
-        t12Grad.addColorStop(0.80,  _sgs[2]);
-        t12Grad.addColorStop(0.888, _sgs[3]);
-        t12Grad.addColorStop(0.889, '#2e3d58'); // sump top — blue
-        t12Grad.addColorStop(0.95,  '#1e2a44');
-        t12Grad.addColorStop(1,     '#161f33'); // sump bottom
+        t12Grad.addColorStop(0,                        '#8b6340'); // tier 1 flat brown
+        t12Grad.addColorStop(Math.max(0, _fC - 0.001), '#8b6340'); // hold to compost boundary
+        t12Grad.addColorStop(_fC,                      _sgs[0]); // compost top
+        t12Grad.addColorStop(_fC + (_fS - _fC) * 0.40, _sgs[1]);
+        t12Grad.addColorStop(_fC + (_fS - _fC) * 0.75, _sgs[2]);
+        t12Grad.addColorStop(Math.max(_fC, _fS - 0.001), _sgs[3]); // compost bottom
+        t12Grad.addColorStop(_fS,                      '#2e3d58'); // sump top — blue
+        t12Grad.addColorStop(_fS + (1 - _fS) * 0.5,    '#1e2a44');
+        t12Grad.addColorStop(1,                        '#161f33'); // sump bottom
         ctx.fillStyle = t12Grad;
         ctx.fillRect(b.cx-b.bw2, t12VisTop, b.bw, t12VisBottom - t12VisTop);
 
