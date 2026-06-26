@@ -324,8 +324,8 @@ var dayTime = getRealDayTime();
 var TIERS = [
   {bg:'#3a4a6a', label:'scraps & blanket'},
   {bg:'#8b6340', label:'active worms'},
-  {bg:'#7a5535', label:'castings & compost'},  // top of merged layer
-  {bg:'#4a2c10', label:'castings & compost'},  // bottom of merged layer
+  {bg:'#7a5535', label:'compost'},  // top of merged layer
+  {bg:'#4a2c10', label:'compost'},  // bottom of merged layer
 ];
 
 // Large rubbish chunks for tier 0 — nibbled down by worms
@@ -402,7 +402,6 @@ var gardenTufts = [];  // pre-generated static grass tufts — never recomputed
 var gardenFlowers = []; // pre-generated static flowers
 var _bladeCanvas = null; // PERF-3: offscreen pre-render of blade fringe — rebuilt in setup()
 var bugs = [];   // fruit flies / gnats in tier 0 empty airspace
-var castings = [];
 var tLvl = 0;
 var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by pooping in compost
 var pooled = 0;
@@ -1063,7 +1062,7 @@ function getTier(wy) {
 function cSurf() { return 2.5*H; } // sump line / compost bottom. Compost = [2H..cSurf()] (half-depth).
 function tSurf() { return cSurf() + H*0.25 + H*0.5 - tLvl*(H-8); }
 
-// ── Compost layer — the single combined castings/compost zone (y = 2H..3H) ─
+// ── Compost layer (tier 2, y = 2H..cSurf()) ─
 function inCompost(wy) { return wy >= 2*H && wy < cSurf(); }
 // 0 at top of compost, 1 at bottom — for depth-scaled rewards/effects
 function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / (cSurf() - 2*H))); }
@@ -3636,7 +3635,7 @@ function _buildBladeCanvas() {
 
 function setup() {
   resizeCanvas();
-  pPath = []; drops = []; bugs = []; castings = []; trashChunks = []; debris = []; weatherQueue = [];
+  pPath = []; drops = []; bugs = []; trashChunks = []; debris = []; weatherQueue = [];
   scraps = []; cocoons = []; teaSplashes = []; valveDrips = []; drainBonusPopups = [];
   floodActive = false; valveOpen = false; window._valveOpenState = false; window._valveDrainedTotal = 0;
   tapReady = false;
@@ -4219,17 +4218,6 @@ function updatePlayer() {
     }
   }
 
-  // Casting collision — drifting lumps in tier 1 slow the worm
-  if (headTier <= 1) {
-    for (var ci = 0; ci < castings.length; ci++) {
-      var ca2 = castings[ci];
-      if (ca2.rest) continue;
-      var cdx = head.x - ca2.x, cdy = head.y - ca2.y;
-      if (Math.sqrt(cdx*cdx + cdy*cdy) < pSR + ca2.sz) {
-        spd *= 0.7; // castings slow you down
-      }
-    }
-  }
 
   if (d > 2) {
     // Steer wiggle — nudge direction left/right each frame so head snakes toward target
@@ -5243,36 +5231,6 @@ function updatePhysics() {
   if (window._moisture === undefined) window._moisture = moistureTarget;
   window._moisture += (moistureTarget - window._moisture) * 0.003;
 
-  // Castings — drop fast initially, slow to a crawl through tier 1, settle and sink into tier 2
-  var tier2Top = 2 * H;
-  var tier2Bot = cSurf();
-  for (var i = castings.length - 1; i >= 0; i--) {
-    var ca = castings[i];
-    if (ca.rest) {
-      ca.age++;
-      // After a short pause, continue very slowly sinking through tier 2
-      if (ca.age > 180) {
-        ca.y += 0.012 + ca.sz * 0.001;
-        // Fade out as it merges into the compost
-        ca.alpha = Math.max(0, 1 - (ca.y - tier2Top) / (H * 0.6));
-        if (ca.y >= tier2Bot || ca.alpha <= 0) {
-          castings.splice(i, 1); // fully absorbed into compost
-        }
-      }
-      continue;
-    }
-    // Fast initial drop slows as it enters tier 1 soil
-    if (ca.vy > 0.003) {
-      ca.vy *= 0.92;
-      if (ca.vy < 0.003) ca.vy = 0.003;
-    }
-    ca.y += ca.vy;
-    if (ca.y >= tier2Top) {
-      ca.rest = true;
-      ca.y = tier2Top + Math.random() * 6;
-      ca.age = 0;
-    }
-  }
 
 
   // ── Sump flood trigger — fires when tea level is critically high ────────
@@ -6932,18 +6890,6 @@ function draw() {
     }
   }
 
-  // Castings — drawn after drips so they sit on top
-  for (var i = 0; i < castings.length; i++) {
-    var ca = castings[i];
-    var cay = ca.y - camY;
-    if (cay < -10 || cay > H+10) continue;
-    ctx.globalAlpha = ca.alpha;
-    ctx.fillStyle = '#1e0e00';
-    ctx.beginPath();
-    ctx.arc(ca.x, cay, ca.sz, 0, Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
 
   // ── Vermicompost bin lid ──────────────────────────────────────────────────
   // Lid sits at world y = H*0.5 (halfway into tier 0, right above the rubbish heap).
@@ -7878,7 +7824,7 @@ function draw() {
     ctx.fillStyle = '#ffddaa';
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('⚠ Swim into the castings layer first!', W/2, H/2 - 2);
+    ctx.fillText('⚠ Swim into the compost layer first!', W/2, H/2 - 2);
     ctx.globalAlpha = 1;
   }
 
