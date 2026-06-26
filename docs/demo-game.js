@@ -74,6 +74,7 @@ var tutorial = {
   _compostPooped: false, // poop beat — latched true on first tier-2 (compost) poop
   _downDrainDone: false, // down-drain beat — latched when a down drain connects at the sump
   _upDrainArmed:  false, // up-drain beat — latched when an up drain is armed ("Up drain ready!")
+  _cocoonDone:    false, // cocoon beat — latched when a cocoon is laid (swipe up / E)
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
 try {
@@ -116,6 +117,7 @@ function _tutStepDone(step) {
   if (step.kind === 'acid') return pAcid > 0.35;   // green, but below the HP-damage threshold (~0.5)
   if (step.kind === 'poop') return !!tutorial._compostPooped;      // pooped down in the compost (tier 2)
   if (step.kind === 'downdrain') return !!tutorial._downDrainDone; // down drain connected at the sump
+  if (step.kind === 'cocoon')    return !!tutorial._cocoonDone;     // laid a cocoon on the traverse
   if (step.kind === 'updrain')   return !!tutorial._upDrainArmed;  // up drain armed ("Up drain ready!")
   return step.target && (step.target.eaten || step.target.gone);   // 'eat'
 }
@@ -3170,6 +3172,7 @@ function spawnTutorialScene() {
   tutorial._compostPooped = false;
   tutorial._downDrainDone = false;
   tutorial._upDrainArmed  = false;
+  tutorial._cocoonDone    = false;
 
   var _xL = b.cx - b.bw2 + 28, _xR = b.cx + b.bw2 - 28;
   var _span = _xR - _xL;
@@ -3244,7 +3247,8 @@ function spawnTutorialScene() {
     { target: _egg,     kind: 'eat',  panel: { title: 'Eggshell',       lines: ['Neutralizes the acid —', 'watch the green fade.'],                                 karma: '+3 karma',  tint: '#a8dc80' } },
     { target: _poopSpot, kind: 'poop', panel: { title: 'Compost',        lines: ['Stuffed? Dive into the dark', 'compost below, then poop.', 'Two-finger tap (or Space).'],   karma: 'bonus karma + rich soil', tint: '#cda36a' } },
     { target: _downSpot, kind: 'downdrain', panel: { title: 'Down Drain',    lines: ['Put your point on the dot at', 'the sump floor and hold — tea', 'drains down and out.'],            karma: '+100 karma', tint: '#7fc8e0' } },
-    { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now steer to the next dot and', 'hold to arm an up drain — it', 'pumps tea back up to harvest.'],   karma: '+100 karma', tint: '#7fc8e0' } },
+    { target: _upSpot,   kind: 'cocoon',    panel: { title: 'Cocoon',        lines: ['Laying a cocoon in the deep', 'compost is an extra life for', 'your worm. Swipe up (or E).'], karma: 'banks an extra life', tint: '#e6d2a0' } },
+    { target: _upSpot,   kind: 'updrain',   panel: { title: 'Up Drain',      lines: ['Now hold on that dot to arm', 'an up drain — it pumps the tea', 'back up to harvest.'],             karma: '+100 karma', tint: '#7fc8e0' } },
     { target: _surface,  kind: 'eat',       panel: { title: 'Surface & Eat', lines: ['All that digging emptied', 'your gut. Climb up to the', 'surface and eat to refuel.'],        karma: '+3 karma',   tint: '#c0d4a8' } }
   ];
   tutorial.stepIndex = 0;
@@ -8981,6 +8985,7 @@ function tryLayCocoon() {
     pulse: 0
   });
   lastCocoonLaid = now;
+  if (tutorial.scene) tutorial._cocoonDone = true;   // cocoon beat satisfied
 
   // Cost — hunger drain + brief slowdown
   pGut = Math.max(0, pGut - pGutMax * 0.20); // laying a cocoon costs gut energy
