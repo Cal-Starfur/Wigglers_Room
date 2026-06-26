@@ -1060,13 +1060,13 @@ function getTier(wy) {
   return Math.min(Math.max(Math.floor(wy / H), 0), 3);
 }
 
-function cSurf() { return 3*H; } // top of sump zone — where tunnelled drops enter tea
-function tSurf() { return 3*H + H*0.25 + H*0.5 - tLvl*(H-8); }
+function cSurf() { return 2.5*H; } // sump line / compost bottom. Compost = [2H..cSurf()] (half-depth).
+function tSurf() { return cSurf() + H*0.25 + H*0.5 - tLvl*(H-8); }
 
 // ── Compost layer — the single combined castings/compost zone (y = 2H..3H) ─
-function inCompost(wy) { return wy >= 2*H && wy < 3*H; }
+function inCompost(wy) { return wy >= 2*H && wy < cSurf(); }
 // 0 at top of compost, 1 at bottom — for depth-scaled rewards/effects
-function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / H)); }
+function compostDepth(wy) { return Math.min(1, Math.max(0, (wy - 2*H) / (cSurf() - 2*H))); }
 
 
 
@@ -2639,7 +2639,7 @@ function triggerSnooDrain() {
   // STOP_Y is now derived from tapSY in updateSnooDrain — no longer stored here.
   var _b    = getBin();
   var _SC   = H * 0.16;
-  camY = Math.round(3*H + H*0.25 - H * 0.45); // sump floor at 45% down screen
+  camY = Math.round(cSurf() + H*0.25 - H * 0.45); // sump floor at 45% down screen
   drainSnooStopX = _b.cx - _SC * 0.127; // world-space X — drawSnooDrain is inside world transform
   drainSnooStopY = 0;                           // unused — STOP_Y computed live from tapSY each frame
 }
@@ -2653,7 +2653,7 @@ function updateSnooDrain() {
   var SC      = H * 0.16;
 
   // Tap in screen space — camY is stable (snapped at trigger), so this is constant each frame.
-  var tapSY   = 3*H + H*0.25 - camY + 8;
+  var tapSY   = cSurf() + H*0.25 - camY + 8;
   var STOP_X  = drainSnooStopX;
   // ISS-12 fix: derive torso anchor from tap position so bucket mouth sits ~15px below spout.
   // Bucket mouth offset from torso top = SC*(0.270*0.10 + 0.165*0.92) = SC*0.1788.
@@ -2745,7 +2745,7 @@ function drawSnooDrain() {
   if (!drainScene) return;
 
   var b      = getBin();
-  var bsy    = 3*H + H*0.25 - camY;  // bin floor screen Y
+  var bsy    = cSurf() + H*0.25 - camY;  // bin floor screen Y
   var SC     = H * 0.16;             // must match updateSnooDrain SC
   var headR  = SC * 0.30;
   var bodyW  = SC * 0.195;
@@ -3271,7 +3271,7 @@ function spawnTutorialScene() {
   // Compost poop beacon — a big ZONE ring centred in the compost band (tier 2). _zoneR makes
   // the ring nearly touch the tier-1/2 line above (2H) and the sump line below (3H): "get in
   // this layer and poop", not a precise point — so no aim-dot for this one.
-  var _poopSpot = { x: b.cx, y: 2.5 * H, sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: H * 0.48 };
+  var _poopSpot = { x: b.cx, y: 2*H + 0.5*(cSurf()-2*H), sz: 16, eaten: false, gone: false, _tutBeacon: true, _zoneR: (cSurf()-2*H)*0.48 };
 
   // Two sump-floor beacons ON the sump border (y = 3H - 2). The worm head clamps at
   // 3H - pSR, so steering the point onto a beacon parks the head in the _atSump zone
@@ -3279,8 +3279,8 @@ function spawnTutorialScene() {
   // sit at SEPARATE x so the second beat reads as "now steer over to the new dot",
   // not an invisible re-hold in place. Both stay on the floor so _sumpHadDown persists
   // while the worm traverses between them.
-  var _downSpot = { x: b.cx - _span * 0.16,   y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
-  var _upSpot   = { x: b.cx - _span * 0.053, y: 3 * H - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
+  var _downSpot = { x: b.cx - _span * 0.16,   y: cSurf() - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };
+  var _upSpot   = { x: b.cx - _span * 0.053, y: cSurf() - 2, sz: 15, eaten: false, gone: false, _tutBeacon: true };  // ~1/3 of the old down->up gap — short traverse keeps the worm low so _sumpHadDown holds
 
   // Refuel scraps — two fresh tier-1 foods for the post-cure refuel beat. The worm only
   // needs to eat ONE to advance; the rest are extra digestion fuel. _refuelTut opens them all.
@@ -3657,7 +3657,7 @@ function setup() {
     var fc = flowerCols2[Math.floor(Math.random() * flowerCols2.length)];
     gardenFlowers.push({
       xf:    Math.random(),
-      wy:    3*H + Math.random() * H * 0.8, // fixed world Y below horizon
+      wy:    cSurf() + Math.random() * H * 0.8, // fixed world Y below horizon
       h:     10 + Math.random() * 14,
       petR:  2.5 + Math.random() * 2,
       nPet:  4 + Math.floor(Math.random() * 3),
@@ -3672,7 +3672,7 @@ function setup() {
   for (var ti3 = 0; ti3 < 380; ti3++) {
     gardenTufts.push({
       xf:   Math.random(),
-      wy:   3*H + Math.random() * H * 0.8, // fixed world Y below horizon
+      wy:   cSurf() + Math.random() * H * 0.8, // fixed world Y below horizon
       h:    4 + Math.random() * 8,
       w:    2 + Math.random() * 3,
       lean: (Math.random() - 0.5) * 3,
@@ -3735,7 +3735,7 @@ function setup() {
         if (c.owner !== username) return;
         var clampedLaid = Math.max(now2 - COCOON_WEEK_MS * 2, Math.min(now2, c.laid || now2));
         // Clamp y to valid compost range using current H — prevents sump drift on resize
-        var cy = Math.max(2.7*H, Math.min(2.95*H, c.y || 2.8*H));
+        var cy = Math.max((2*H + 0.70*(cSurf()-2*H)), Math.min((2*H + 0.95*(cSurf()-2*H)), c.y || (2*H + 0.80*(cSurf()-2*H))));
         var bRes = getBin();
         var cx = Math.max(bRes.cx - bRes.bw2 + 10, Math.min(bRes.cx + bRes.bw2 - 10, c.x || bRes.cx));
         cocoons.push({
@@ -3829,7 +3829,7 @@ function updatePlayer() {
   }
   if (deathScreen) {
     // Freeze camera — clamp to valid world bounds so it can't drift or go NaN
-    camY = Math.max(0, Math.min(3*H + H*0.25 - H + 120, camY));
+    camY = Math.max(0, Math.min(cSurf() + H*0.25 - H + 120, camY));
     return;
   }
 
@@ -3885,7 +3885,7 @@ function updatePlayer() {
     // Camera still follows sleep spot — unless player has scrolled away in viewMode
     if (!viewMode) {
       var tc3 = pSleepY - H/2;
-      camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc3)) - camY) * 0.04;
+      camY += (Math.max(0, Math.min(cSurf() + H*0.25 - H + 120, tc3)) - camY) * 0.04;
       camY = Math.round(camY);
     }
     return;
@@ -4244,7 +4244,7 @@ function updatePlayer() {
   }
   var b2 = getBinCached();
   head.x = Math.max(b2.cx - b2.bw2 + 4, Math.min(b2.cx + b2.bw2 - 4, head.x));
-  head.y = Math.max(wormCeiling, Math.min(3*H - pSR, head.y));
+  head.y = Math.max(wormCeiling, Math.min(cSurf() - pSR, head.y));
 
   // Path history — head position now already wiggles so tunnel carves naturally
   pHist.push({x: head.x, y: head.y});
@@ -4273,7 +4273,7 @@ function updatePlayer() {
   window._lastHeadX = head.x; window._lastHeadY = head.y;
 
   // ── Sump boundary flag — must be declared BEFORE junction check which guards on it ──
-  var _atSump = head.y >= 3*H - pSR - 2;
+  var _atSump = head.y >= cSurf() - pSR - 2;
 
   // ── Junction detection — worm holds still over an existing sump-connected path ─
   // Only active in compost, not at the sump boundary itself
@@ -4378,7 +4378,7 @@ function updatePlayer() {
           if (tutorial.scene) tutorial._downDrainDone = true;   // down-drain beat satisfied
           karma += 100;
           drainBonusPopups.push({ text: 'Down drain connected! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
-          pPath.push({x: head.x, y: 3*H, r: pSR, ti: 2, sumpExit: true});
+          pPath.push({x: head.x, y: cSurf(), r: pSR, ti: 2, sumpExit: true});
           pPath.push(null);
           pLastX = -999; pLastY = -999;
           var _dsSegTop = false;
@@ -4410,8 +4410,8 @@ function updatePlayer() {
             drainUpTimer = 0;
             drainDownCooldown = JUNCTION_HOLD_FRAMES; // cooldown after each up drain too
             window._sumpHadDown = true; // keep flag so further holds make more up drains
-            pPath.push({x: head.x, y: 3*H, r: pSR, ti: 2, sumpExit: true});
-            pLastX = head.x; pLastY = 3*H;
+            pPath.push({x: head.x, y: cSurf(), r: pSR, ti: 2, sumpExit: true});
+            pLastX = head.x; pLastY = cSurf();
             window._upDrainBonusFired = false;
             drainBonusPopups.push({ text: '🌿 Up drain ready!', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
             if (tutorial.scene) tutorial._upDrainArmed = true;   // up-drain beat satisfied (the +100 completes on the climb up)
@@ -4431,7 +4431,7 @@ function updatePlayer() {
     drainUpTimer = 0;
     drainDownCooldown = 0; // leaving the sump fully resets cooldown
     // Clear down-drain flag once worm is clearly above sump
-    if (head.y < 3*H - pSR - 20) {
+    if (head.y < cSurf() - pSR - 20) {
       window._sumpHadDown = null;
     }
   }
@@ -4470,7 +4470,7 @@ function updatePlayer() {
   // Camera — slow smooth lerp to follow worm (suppressed in viewMode)
   if (!viewMode) {
     var tc = head.y - H/2;
-    camY += (Math.max(0, Math.min(3*H + H*0.25 - H + 120, tc)) - camY) * 0.04;
+    camY += (Math.max(0, Math.min(cSurf() + H*0.25 - H + 120, tc)) - camY) * 0.04;
     // Horizontal camera — follow worm, scroll world within viewport.
     // On wide screens (W >= WORLD_W) the bin fits entirely — no scroll needed.
     // Centering is handled by centreOffsetX in draw(), keeping camX always >= 0
@@ -4795,7 +4795,7 @@ function updatePhysics() {
               } else {
                 d.inTunnel = true;
                 d.pathIdx = null;
-                d.y = 3*H;
+                d.y = cSurf();
                 d.vy = 0.5;
                 if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Tea passed sumpExit — clog='+((pp.clog||0).toFixed(3))+' pathIdx='+d.pathIdx);
               }
@@ -5049,7 +5049,7 @@ function updatePhysics() {
             // castingEnrichment compacts lower layers — richer soil stalls drops higher.
             var _maxFrac = 0.90 - castingEnrichment * 0.30; // 0.90 bare → 0.60 rich
             var _minFrac = 0.05;
-            d.stallDepth = 2*H + (_minFrac + Math.random() * (_maxFrac - _minFrac)) * H;
+            d.stallDepth = 2*H + (_minFrac + Math.random() * (_maxFrac - _minFrac)) * (cSurf() - 2*H);
             d.clogStalled = false; // percolation stall — NOT a blockage, re-attach cap must not fire
           }
 
@@ -5183,7 +5183,7 @@ function updatePhysics() {
         }
         } // end scan wrapper — skipped while clog-stalled
       }
-    } else if (d.y >= 3*H && d.y < 3*H + H*0.25) {
+    } else if (d.y >= cSurf() && d.y < cSurf() + H*0.25) {
       // Entered sump zone
       if (!d.inSump) {
         d.inSump = true;
@@ -5200,7 +5200,7 @@ function updatePhysics() {
     }
 
     // Hit the tea surface — use the same world Y the renderer uses so splash lands on the fill line
-    var _sumpFloor  = 3*H + H*0.25;
+    var _sumpFloor  = cSurf() + H*0.25;
     var _teaSurfWY  = (window._teaSurfWorldY !== undefined) ? window._teaSurfWorldY : _sumpFloor;
     var _teaHit = d.inTunnel && !d.counted && (d.y >= _teaSurfWY || d.y >= _sumpFloor - 1);
     if (_teaHit) {
@@ -5245,7 +5245,7 @@ function updatePhysics() {
 
   // Castings — drop fast initially, slow to a crawl through tier 1, settle and sink into tier 2
   var tier2Top = 2 * H;
-  var tier2Bot = 3 * H;
+  var tier2Bot = cSurf();
   for (var i = castings.length - 1; i >= 0; i--) {
     var ca = castings[i];
     if (ca.rest) {
@@ -5300,7 +5300,7 @@ function updatePhysics() {
   // tLvl is the single source of truth. The tea surface sits at sumpFloor - tLvl*(sumpH).
   // No separate floodLevel — the tea body is one continuous fill driven by tLvl.
   if (floodActive) {
-    var sumpFloorY   = 3*H + H*0.25;   // world-Y of sump floor
+    var sumpFloorY   = cSurf() + H*0.25;   // world-Y of sump floor
     var sumpH        = H*0.25;          // total sump height
     var teaWorldY    = sumpFloorY - tLvl * sumpH; // actual tea surface in world coords
     if (pSegs.length && pSegs[0].y > teaWorldY) {
@@ -5326,7 +5326,7 @@ function updatePhysics() {
       if (valveDropTimer % 4 === 0) {
         var _vb = getBinCached();
         var _spoutWorldX = _vb.cx;
-        var _spoutWorldY = 3*H + H*0.25 + 22; // world Y of spout nub tip
+        var _spoutWorldY = cSurf() + H*0.25 + 22; // world Y of spout nub tip
         valveDrips.push({
           x:        _spoutWorldX + (Math.random()-0.5) * 3,
           wy:       _spoutWorldY,   // world Y — converted to screen at render
@@ -5964,10 +5964,10 @@ function draw() {
   var drawPileTopY = window._smoothPileTopY;
 
   // ── Time-of-day sky — fills ENTIRE canvas as base layer ─────────────────
-  // Horizon is fixed at world y = 3*H (the sump line) in screen space.
+  // Horizon is fixed at world y = cSurf() (the sump line) in screen space.
   // Above it: sky. Below it: ground/soil. This stays consistent at all scroll depths.
   var lidScreenY  = H * 0.5 - camY;
-  var horizScreenY = 3*H - camY;   // sump line in screen space — the true horizon
+  var horizScreenY = cSurf() - camY;   // sump line in screen space — the true horizon
   var skyCols = skyCol(dayTime);
 
   var skyGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -6011,7 +6011,7 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
-  // Sun / Moon — arc relative to the true horizon (world 3*H = sump line)
+  // Sun / Moon — arc relative to the true horizon (world cSurf() = sump line)
   var isDay = dayTime >= 0.25 && dayTime <= 0.75;
   if (isDay) {
     var sunT = (dayTime - 0.25) / 0.50; // 0=rise, 0.5=noon, 1=set
@@ -6063,7 +6063,7 @@ function draw() {
 
 
   // ── Background ground plane — drawn right after sky, before the bin ────
-  // Horizon at world 3*H. Ground fills from horizScreenY to canvas bottom, full width.
+  // Horizon at world cSurf(). Ground fills from horizScreenY to canvas bottom, full width.
   // NOTE: the base green fill is UNCONDITIONAL — when camY <= 2*H the horizon is
   // off the bottom of the screen (horizScreenY >= H) but the sky gradient's final
   // stop is dark brown (#2a1e0c), which would bleed through below the bin without
@@ -6148,7 +6148,7 @@ function draw() {
   for (var i = 0; i < 4; i++) {
     var sy = i*H - camY;
     // For i===1 the combined tier 1+2 rect spans H..3*H — skip only if that full range is off screen
-    var _skipBot = (i === 1) ? 3*H + H*0.25 - camY : sy + H;
+    var _skipBot = (i === 1) ? cSurf() + H*0.25 - camY : sy + H;
     if (sy > H+4 || _skipBot < -4) continue;
 
     // Tier 0 bg: only draw the lower half — lid seals the upper half
@@ -6161,10 +6161,10 @@ function draw() {
         ctx.fillRect(b.cx-b.bw2, t0DrawTop, b.bw, t0DrawH);
       }
     } else if (i === 1) {
-      // ── Tier 1 + compost — single seamless gradient from H to 3*H ────────
+      // ── Tier 1 + compost — single seamless gradient from H to cSurf() ────────
       // One rect, no boundary between them, eliminates all flicker at the seam.
       var t12Top    = H - camY;
-      var t12Bottom = 3*H + H*0.25 - camY; // extend to include sump zone
+      var t12Bottom = cSurf() + H*0.25 - camY; // extend to include sump zone
       var t12VisTop    = Math.max(t12Top, -4);
       var t12VisBottom = Math.min(t12Bottom, H + 4);
       if (t12VisBottom > t12VisTop) {
@@ -6336,7 +6336,7 @@ function draw() {
     }
 
     // Tier 3 (sump zone) — drawn separately as the open sump chamber below the tier loop.
-    // The old brown fill that used to live here was removed: it started at cSurf() (3*H)
+    // The old brown fill that used to live here was removed: it started at cSurf() (cSurf())
     // and painted a full-height #2a1800 rect that overwrote the grass behind the legs.
 
     // Tier 4 ? tea
@@ -6723,8 +6723,8 @@ function draw() {
 
   // ── Open sump chamber — drawn BEFORE drops so tea drops fall visibly into it ──
   // Sump bg is now part of the combined tier1+compost+sump gradient rect — no separate fill needed.
-  var sumpTop    = 3*H - camY;
-  var sumpBottom = 3*H + H*0.25 - camY;
+  var sumpTop    = cSurf() - camY;
+  var sumpBottom = cSurf() + H*0.25 - camY;
   if (sumpBottom > -10 && sumpTop < H + 10) {
     var sumpDrawTop = Math.max(sumpTop, -4);
     var sumpDrawH   = Math.min(sumpBottom, H+4) - sumpDrawTop;
@@ -6877,11 +6877,11 @@ function draw() {
   }
 
   // ── Valve drain drips — world-space tea drops from spout to grass ────────
-  // Spout nub is at world Y = 3*H + H*0.25 + 22; stand legs are 80px tall,
-  // so the ground (splash target) is at 3*H + H*0.25 + 80.
-  // Using 3*H here caused every drop to be born already past the threshold
+  // Spout nub is at world Y = cSurf() + H*0.25 + 22; stand legs are 80px tall,
+  // so the ground (splash target) is at cSurf() + H*0.25 + 80.
+  // Using cSurf() here caused every drop to be born already past the threshold
   // and get instantly splashed without ever rendering a visible fall.
-  var _grassWY = 3*H + H*0.25 + 80; // world Y of ground under stand legs
+  var _grassWY = cSurf() + H*0.25 + 80; // world Y of ground under stand legs
   for (var vdi = valveDrips.length - 1; vdi >= 0; vdi--) {
     var vd = valveDrips[vdi];
     if (!vd.splashed) {
@@ -7084,7 +7084,7 @@ function draw() {
   }
   // Side wall strips — lid down to bin floor only (sky visible below floor / between legs)
   var wallTop2 = Math.max(0, H * 0.5 - camY);
-  var wallBot2 = 3*H + H*0.25 - camY + 6; // bin floor
+  var wallBot2 = cSurf() + H*0.25 - camY + 6; // bin floor
   if (wallBot2 > wallTop2 && wallBot2 > 0 && wallTop2 < H) {
     var wDraw = Math.min(wallBot2, H) - Math.max(wallTop2, 0);
     if (wDraw > 0) {
@@ -7094,7 +7094,7 @@ function draw() {
     }
   }
 
-  var bsy = 3*H + H*0.25 - camY;
+  var bsy = cSurf() + H*0.25 - camY;
   // Bin floor and legs — null the valve hit rect when sump is off-screen
   if (bsy <= -10 || bsy >= H + 130) window._valveBtn = null;
   if (bsy > -10 && bsy < H + 130) {
@@ -7417,7 +7417,7 @@ function draw() {
   for (var ci = 0; ci < cocoons.length; ci++) {
     var co = cocoons[ci];
     if (co.owner !== username) continue;
-    if (co.y < 2.7*H) continue; // safety — only render in dark compost zone
+    if (co.y < (2*H + 0.70*(cSurf()-2*H))) continue; // safety — only render in dark compost zone
     var csx = co.x;
     var csy = co.y - camY;
     if (csy < -30 || csy > H + 30) continue;
@@ -8119,7 +8119,7 @@ function drawPendingWorms() {
         y: _dpw.segs[0].y + Math.sin(_dpw.angle*0.7)*0.4
       };
       _wn.x = Math.max(_wb2.cx-_wb2.bw2+8, Math.min(_wb2.cx+_wb2.bw2-8, _wn.x));
-      _wn.y = Math.max(2.0*H, Math.min(3.0*H, _wn.y));
+      _wn.y = Math.max(2*H, Math.min(cSurf(), _wn.y));
       _dpw.segs.unshift(_wn);
       if (_dpw.segs.length > 8) _dpw.segs.pop();
       _dpw.x = _dpw.segs[0].x; _dpw.y = _dpw.segs[0].y;
@@ -8647,7 +8647,7 @@ function updateNPCSims() {
     var _binL = b2.cx - b2.bw2 + sim.sr, _binR = b2.cx + b2.bw2 - sim.sr;
     var _fTop  = H + H * 0.22;              // food layer (tier 1) — where ti:1 scraps live
     var _fBot  = 2 * H - sim.sr - 6;        // just above the compost boundary
-    var _sumpY = 3 * H - sim.sr - 4;        // just above the sump floor
+    var _sumpY = cSurf() - sim.sr - 4;        // just above the sump floor
     if (!sim.per) sim.per = _npcPersonality(opp.username, _oi); // safety if segs pre-existed
     var _per = sim.per;
     if (!sim.aiState) { sim.aiState = 'forage'; sim.aiTimer = Math.floor(Math.random() * 600); }
@@ -8777,7 +8777,7 @@ function updateNPCSims() {
       sim.segs[0].y += _fy * _spd + _py * _sa;
     }
     sim.segs[0].x = Math.max(b2.cx - b2.bw2 + sim.sr, Math.min(b2.cx + b2.bw2 - sim.sr, sim.segs[0].x));
-    sim.segs[0].y = Math.max(H * 0.8, Math.min(3 * H - sim.sr, sim.segs[0].y));
+    sim.segs[0].y = Math.max(H * 0.8, Math.min(cSurf() - sim.sr, sim.segs[0].y));
 
     // ── Segment chain — history ring buffer ──────────────────────────────
     sim.hist.push({ x: sim.segs[0].x, y: sim.segs[0].y });
@@ -8902,7 +8902,7 @@ function loop() {
   }
   // ── View mode camera — lerps camY toward viewCamY when free-scrolling ──
   if (viewMode) {
-    var _camMax = 3*H + H*0.25 - H + 120;
+    var _camMax = cSurf() + H*0.25 - H + 120;
     viewCamY = Math.max(0, Math.min(_camMax, viewCamY));
     camY += (viewCamY - camY) * 0.12;
     camY = Math.round(camY);
@@ -8982,7 +8982,7 @@ function tryLayCocoon() {
   var now = Date.now();
 
   // Must be in the dark compost zone (lower half of tier 2)
-  if (head.y < 2.7*H) { window._cocoonMsg = 'Must be deeper in the compost to lay'; window._cocoonMsgT = frame; return; }
+  if (head.y < (2*H + 0.70*(cSurf()-2*H))) { window._cocoonMsg = 'Must be deeper in the compost to lay'; window._cocoonMsgT = frame; return; }
 
   // Thresholds
   if (karma < COCOON_KARMA_REQ) { window._cocoonMsg = 'Need ' + COCOON_KARMA_REQ + ' karma (have ' + Math.floor(karma) + ')'; window._cocoonMsgT = frame; return; }
@@ -9000,7 +9000,7 @@ function tryLayCocoon() {
   // Lay it
   cocoons.push({
     x: head.x + (Math.random()-0.5)*20,
-    y: Math.max(2.7*H, Math.min(2.95*H, head.y + pSR + 8)),
+    y: Math.max((2*H + 0.70*(cSurf()-2*H)), Math.min((2*H + 0.95*(cSurf()-2*H)), head.y + pSR + 8)),
     owner: username,
     laid: now,
     gifted: false,
@@ -9133,7 +9133,7 @@ function tryPoop() {
     var headTierP = getTier(pSegs[0].y);
     if (headTierP >= 2) {
       if (tutorial.scene) tutorial._compostPooped = true;   // poop beat — the rewarding compost poop landed
-      var depthT = Math.min(1, (pSegs[0].y - 2*H) / H);
+      var depthT = Math.min(1, (pSegs[0].y - 2*H) / (cSurf() - 2*H));
       var depthMult = 0.3 + Math.pow(depthT, 1.8) * 0.7;
       var enrichGain = deposited * 0.008 * depthMult * (1 + sizeFrac);
       castingEnrichment = Math.min(1, castingEnrichment + enrichGain);
