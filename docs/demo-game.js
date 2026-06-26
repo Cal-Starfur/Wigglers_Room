@@ -2461,7 +2461,7 @@ function spawnTutorialScene() {
   // for the "starving, climb up and eat" beat. The worm rises straight out of the sump after
   // the up-drain beat, so keeping the crust low means it can refuel before its gut bottoms out.
   // tutProtected + non-target until then, so the eat-gate keeps it locked early.
-  var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.80);
+  var _surface = _tutFood('bread_crust', _xL + _span * 0.38, H + H * 0.62);  // nudged up off the 2H breakdown line (worm climbs up from the drain to eat it)
 
   // Sleep zone — the SAME big compost ZONE ring as the poop beat, just a different spot:
   // "get down into the compost and sleep". Sleeping only succeeds in tier 2+, so being
@@ -3733,7 +3733,7 @@ function updatePhysics() {
   // --- Settled scraps slowly sink deeper into tier 1, then fade into compost ---
   for (var i = scraps.length - 1; i >= 0; i--) {
     var sc = scraps[i];
-    if (sc.ti !== 1 || sc.eaten) continue;
+    if (sc.ti !== 1 || sc.eaten || sc.tutProtected) continue;   // staged tutorial food never sinks/decomposes — must persist until its beat
     // Sink at same rate as castings — 0.012 + sz*0.001 px/frame
     sc.y += 0.012 + (sc.sz || 5) * 0.001;
     var bsc = getBinCached();
