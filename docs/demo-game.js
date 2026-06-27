@@ -2588,8 +2588,6 @@ function formatOfflineTime(sec) {
 }
 
 // FEAT-2: Cross-device session continuity constants
-var DEVICE_HEARTBEAT_MS = 15000;  // renew active device token every 15s
-var DEVICE_LOCK_TTL_MS  = 45000;  // token older than 45s is considered stale
 var deviceConflictActive = false;  // true if another device is currently active
 
 // Auto-save every 30 seconds while alive
@@ -2606,27 +2604,7 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 
-// FEAT-2: Heartbeat — renew active device token every 15s while worm is alive
-setInterval(function() {
-  if (!deviceConflictActive && !deathScreen && playerState !== 'queued' && pSegs.length) {
-    postToHost({ type: 'deviceHeartbeat' });
-  }
-}, DEVICE_HEARTBEAT_MS);
 
-// Broadcast local player position to host every 2 seconds for Realtime presence.
-// The host fans this out to other viewers via Realtime subscribe.
-// Throttled separately from saveSession to keep KV writes low.
-setInterval(function() {
-  if (!pSegs.length || deathScreen) return;
-  postToHost({
-    type:     'presenceUpdate',
-    username: username,
-    x:        pSegs[0].x,
-    y:        pSegs[0].y,
-    sleeping: pSleeping,
-    size:     pSR
-  });
-}, 2000);
 
 // W = viewport width (what the player sees).
 // WORLD_W = full world/bin width — always iPad Pro 11" landscape width.
@@ -2814,10 +2792,6 @@ function setup() {
   initPlayer(saved);
   applyOfflineDrain(saved);   // hunger penalty for time away
   if (tutorial.scene) { spawnTutorialScene(); } else { spawnScraps(); }
-  // ISS-18: Prime KV_WORLD immediately after setup so any joining device gets
-  // current bin state. Without this, KV_WORLD stays empty until the first
-  // food drop / valve fill / drain — which may be many minutes away.
-  postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
 }
 
 function updateCocoons() {
@@ -7309,7 +7283,6 @@ function respawnPlayer(usedKarma) {
   camX = (W >= WORLD_W) ? 0 : Math.max(0, respawnX - W/2); // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
   saveSession();
-  postToHost({ type: 'presenceUpdate', username: username, x: respawnX, y: respawnY, sleeping: false, size: pSR });
 }
 
 function tryLayCocoon() {
@@ -7455,10 +7428,6 @@ function tryPoop() {
       var bonusScore = Math.round(enrichGain * 1000 * (1 + castingEnrichment));
       karma += bonusScore;
       weeklyContrib += enrichGain * 0.5;
-      if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
-        tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
-      }
     }
 
     pGut = pGut * 0.5;
