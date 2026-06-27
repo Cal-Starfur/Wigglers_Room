@@ -501,7 +501,6 @@ var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by 
 // ── Weekly drain bonus system ──────────────────────────────────────────────
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
 var weekStartTs        = 0;       // timestamp of current week start
-var weeklyContrib      = 0;       // player's contribution this week
 var drainBonusPopups   = [];      // [{text, x, y, alpha, vy}] floating bonus text
 var scrapsLevel = 1.0;
 var scrapsEmpty = false;
@@ -2739,9 +2738,6 @@ function setup() {
     var rawWeekStart = saved.weekStartTs || now2;
     weekStartTs   = Math.max(now2 - WEEK_DRAIN_MS * 2, Math.min(now2, rawWeekStart));
 
-    // DEVVIT TODO: weeklyContrib must be server-authoritative — drives tea drain bonus.
-    // Clamp to 0..1 range; anything above 1 is impossible legitimately.
-    weeklyContrib = Math.max(0, Math.min(1, saved.weeklyContrib || 0));
 
 
     lastCocoonLaid = saved.lastCocoonLaid || 0;
@@ -3111,8 +3107,6 @@ function updatePlayer() {
         if (frame % 8 === 0) {
           karma += 1;
           pEaten++;
-          // Weekly contribution — juicy foods contribute more tea
-          weeklyContrib += 0.001 + (tc2.t.liq || 0) * 0.0008;
           if (pSegs.length < 8 && pEaten % 12500 === 0) pSegs.push({x: tail0.x, y: tail0.y});
           pSEG = pSegs.length;
           pSR = 4; // radius locked — worms grow in length only
@@ -3229,7 +3223,6 @@ function updatePlayer() {
           }
         }
         pEaten++;
-        weeklyContrib += 0.0005 + (s.t ? (s.t.liq || 0) * 0.0004 : 0);
         if (pSegs.length < 8 && pEaten % 12500 === 0) pSegs.push({x: tail0.x, y: tail0.y});
         pSEG = pSegs.length;
         pSR = 4; // radius locked — worms grow in length only
@@ -7427,7 +7420,6 @@ function tryPoop() {
       castingEnrichment = Math.min(1, castingEnrichment + enrichGain);
       var bonusScore = Math.round(enrichGain * 1000 * (1 + castingEnrichment));
       karma += bonusScore;
-      weeklyContrib += enrichGain * 0.5;
     }
 
     pGut = pGut * 0.5;
