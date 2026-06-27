@@ -3396,6 +3396,12 @@ function updatePhysics() {
 
 
   var cs = cSurf();
+  // Hoisted out of the per-drop scan below: the bucket index is rebuilt once per frame
+  // (before this loop) and is read-only here, so this non-empty test is loop-invariant.
+  // It used to run Object.keys(_pPathBuckets) — a full key-array allocation — for EVERY
+  // unattached drop EVERY frame. With a deep tunnel and lots of live tea (tut=2's full
+  // economy at the down-drain step) that was a 70x/frame allocation storm that crushed FPS.
+  var _bucketsNonEmpty = Object.keys(_pPathBuckets).length > 0;
   for (var i = drops.length - 1; i >= 0; i--) {
     var d = drops[i];
     if (!d.active) continue;
@@ -3700,7 +3706,7 @@ function updatePhysics() {
         // only visits points near this drop instead of all 2,000.
         // Restricted scans (upDrain / stalled poop) already have a tight index range
         // and skip the bucket pass — the range walk is already O(segment size).
-        var _useBuckets = !_scanRestricted && Object.keys(_pPathBuckets).length > 0;
+        var _useBuckets = !_scanRestricted && _bucketsNonEmpty;
         var _bucketCandidates = null;
         if (_useBuckets) {
           _bucketCandidates = [];
