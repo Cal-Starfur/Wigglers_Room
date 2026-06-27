@@ -18,6 +18,16 @@ window.addEventListener('error', function(e) {
 var root = document.getElementById('root');
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
+// PERF TEST (default-OFF): ?noblur=1 globally neutralizes shadowBlur (the tutorial's
+// per-frame Gaussian-blur passes are the iPad-Safari paint bottleneck). Confirms the
+// cause before the permanent halo conversion.
+// PERF TEST (default-OFF): ?fast=1 draws tunnels in 1 pass instead of 2 (halves tunnel paint).
+var _FAST = /[?&]fast=1/.test(window.location.search || '');
+if (/[?&]noblur=1/.test(window.location.search || '')) {
+  try {
+    Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });
+  } catch(e) {}
+}
 
 // ── Compatibility shims ───────────────────────────────────────────────────
 // roundRect polyfill — available in Chrome 99+, Safari 15.4+, but not all Devvit webviews
@@ -3877,7 +3887,7 @@ function drawPath(path) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  for (var pass = 0; pass < 2; pass++) {
+  for (var pass = 0; pass < (_FAST ? 1 : 2); pass++) {
     var inSeg = false;
     var lastTi = -1;
     var lastAlpha = -1;
