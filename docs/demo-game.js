@@ -2344,71 +2344,6 @@ function saveSession() { /* demo build: ephemeral — no session persistence */ 
 
 function loadSession() { return null; /* demo build: ephemeral */ }
 
-function applyOfflineDrain(saved) {
-  if (!saved || !saved.ts) return;
-  var elapsedSec = (Date.now() - saved.ts) / 1000;
-  if (elapsedSec < 10) return; // ignore if <10s (page refresh, etc.)
-
-  
-  // Drain pGut — hunger is derived from gut fill, so this is the correct target.
-  // Draining pHunger directly was a bug: it got overwritten by the first updatePlayer tick.
-  var drain = Math.min(MAX_OFFLINE_DRAIN, elapsedSec * OFFLINE_DRAIN_PER_SEC);
-  if (generation >= 2) drain *= 0.85; // Gen 2+ perk: −15% offline drain
-  // drain is on a 0-1 scale matching the old pHunger range; convert to gut units
-  var gutDrain = drain * pGutMax;
-  pGut = Math.max(0, pGut - gutDrain); // clamp at 0 — never go negative
-  // If drain was severe, also tick HP down a little
-  if (drain > 0.5) pHP = Math.max(0.1, pHP - (drain - 0.5) * 0.4);
-
-  // Build an accurate return-status message from the actual restored state.
-  // This runs after pGut, pHP, pSleeping, tLvl, cocoons etc. are all loaded —
-  // so every condition below reflects reality, not a stale assumption.
-  if (elapsedSec > 60) {
-    var _timeAway = formatOfflineTime(elapsedSec);
-    var _gutFrac  = pGutMax > 0 ? pGut / pGutMax : 0;
-    var _msgs     = [];
-
-    // ── Worm condition ──────────────────────────────────────────────────────
-    if (pSleeping) {
-      _msgs.push('💤 Worm is still sleeping');
-    } else if (pHP < 0.25) {
-      _msgs.push('❤️ Worm is badly hurt');
-    } else if (_gutFrac === 0) {
-      _msgs.push('⚠ Worm is starving');
-    } else if (_gutFrac < 0.25) {
-      _msgs.push('🪱 Worm is very hungry');
-    } else if (_gutFrac < 0.55) {
-      _msgs.push('🪱 Worm is a little hungry');
-    } else if (_gutFrac >= 0.98) {
-      _msgs.push('💩 Worm needs to poop!');
-    } else {
-      _msgs.push('🪱 Worm is doing well');
-    }
-
-
-
-    if (scrapsEmpty) {
-      _msgs.push('🍂 Scraps bin is empty');
-    }
-
-    // ── Cocoon news ─────────────────────────────────────────────────────────
-    var _myCocoons = cocoons.filter(function(c) { return c.owner === username; });
-    var _matured   = _myCocoons.filter(function(c) { return c.matured; });
-    if (_matured.length) {
-      _msgs.push('🪱 Cocoon' + (_matured.length > 1 ? 's' : '') + ' ready to hatch!');
-    }
-
-    // ── Drain rate info (only if away a meaningful time) ───────────────────
-    if (drain > 0.05 && !pSleeping) {
-      var _drainPct = Math.round(drain * 100);
-      _msgs.push('(' + _drainPct + '% gut drained in ' + _timeAway + ')');
-    }
-
-    window._offlineDrainMsg = 'Back after ' + _timeAway + ' — ' + _msgs.join(' · ');
-  } else {
-    window._offlineDrainMsg = null;
-  }
-}
 
 function formatOfflineTime(sec) {
   if (sec < 3600) return Math.round(sec/60) + 'm';
@@ -2539,84 +2474,7 @@ function setup() {
   // Blades are drawn at Y=0 (base of canvas); draw() stamps with offset = horizScreenY.
   _buildBladeCanvas();
 
-  // Restore persisted session
-  var saved = null;  // demo: ephemeral — fresh worm every load (no localStorage restore)
-  if (saved) {
-    // ── Client-side stat restoration with validation clamps ─────────────────
-    // DEVVIT TODO: karma, pEaten should be authoritative from server.
-    // Until then, clamp to sane ranges to prevent localStorage tampering.
-    karma   = Math.max(0, Math.min(99999,   saved.karma  || 0));
-    pEaten  = Math.max(0, Math.min(300000,   saved.pEaten || 0));
-    bornTs  = saved.bornTs || Date.now();
-    pSR     = 4; // radius always locked at 4
-    pSEG    = Math.max(4, Math.min(8,        saved.pSEG   || 4));
-    generation = Math.max(0, Math.min(99,    saved.generation || 0));
-    // ISS-14 fix: restore saved HP instead of hardcoding 1.0
-    // pHP = 1.0 only happens in respawnPlayer() — that's the intentional fresh start
-    pHP     = Math.max(0.01, Math.min(1, saved.pHP  || 1.0));
-    pAcid   = Math.max(0,    Math.min(1, saved.pAcid || 0));
-    // Compute pGutMax from restored pSR before clamping pGut — otherwise the
-    // clamp uses the stale default and silently cuts the restored gut value.
-    pGutMax = 4 + Math.floor((pSR - 4) / 3 * 4);
-    // pHunger derives from pGut each frame (1 - pGut/pGutMax) — not restored directly
-    pGut    = Math.max(0, Math.min(pGutMax, saved.pGut || 0));
-
-    // DEVVIT TODO: weekStartTs must come from server — client can fake week boundaries
-    // to claim drain bonuses repeatedly. Validate it's not in the future and not
-    // older than 2 weeks (stale data).
-    var now2 = Date.now();
-    var rawWeekStart = saved.weekStartTs || now2;
-    weekStartTs   = Math.max(now2 - WEEK_DRAIN_MS * 2, Math.min(now2, rawWeekStart));
-
-
-
-    lastCocoonLaid = saved.lastCocoonLaid || 0;
-
-    // DEVVIT TODO: cocoon laid timestamps must be server-authoritative — a client
-    // that backdates c.laid by COCOON_MATURE_MS gets an instant mature cocoon.
-    // Until server validation exists, clamp laid to be no older than 2 weeks
-    // and never in the future.
-    cocoons = [];
-    if (saved.cocoons) {
-      saved.cocoons.forEach(function(c) {
-        // Only restore cocoons belonging to this player — drop any old NPC cocoons
-        if (c.owner !== username) return;
-        var clampedLaid = Math.max(now2 - COCOON_WEEK_MS * 2, Math.min(now2, c.laid || now2));
-        // Clamp y to valid compost range using current H — prevents sump drift on resize
-        var cy = Math.max((2*H + 0.70*(cSurf()-2*H)), Math.min((2*H + 0.95*(cSurf()-2*H)), c.y || (2*H + 0.80*(cSurf()-2*H))));
-        var bRes = getBin();
-        var cx = Math.max(bRes.cx - bRes.bw2 + 10, Math.min(bRes.cx + bRes.bw2 - 10, c.x || bRes.cx));
-        cocoons.push({
-          x: cx, y: cy, owner: c.owner,
-          laid: clampedLaid, gifted: c.gifted || false,
-          matured: (now2 - clampedLaid) >= COCOON_MATURE_MS,
-          pulse: 0
-        });
-      });
-    }
-    // Flush any NPC cocoons out of storage immediately
-    try {
-      var _savedRaw = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
-      if (_savedRaw.cocoons) {
-        _savedRaw.cocoons = _savedRaw.cocoons.filter(function(c){ return c.owner === username; });
-        localStorage.setItem(SESSION_KEY, JSON.stringify(_savedRaw));
-      }
-    } catch(e) {}
-
-    // Restore sleep state — worm stays asleep if it was sleeping when you left
-    if (saved.pSleeping) {
-      pSleepX   = saved.pSleepX || saved.pX;
-      pSleepY   = saved.pSleepY || saved.pY;
-      pSleeping = true;
-    }
-
-    // They belong to the bin (KV_WORLD), not the worm. setWorldState (sent from
-    // MSG_READY handler) is authoritative and arrives after setSession — ISS-18.
-    // pooled not restored — resets to 0 each session and is rebuilt by food drops.
-  }
-
-  initPlayer(saved);
-  applyOfflineDrain(saved);   // hunger penalty for time away
+  initPlayer(null);  // demo: ephemeral — fresh worm each load
   if (tutorial.scene) { spawnTutorialScene(); } else { spawnScraps(); }
 }
 
@@ -2649,28 +2507,6 @@ function updatePlayer() {
   if (pHP <= 0 && !deathScreen) { // hunger now drives HP bleed; death is always HP-based
     deathScreen = true;
     deathFade = 0;
-    saveSession(); // persist timestamp so offline drain knows when we died
-    // ── Notify host: post death comment + queue next worm ────────────────
-    postToHost({
-      type:       'playerDied',
-      cause:      deathCause,
-      karma:      Math.floor(karma),
-      generation: generation,
-      pEaten:     pEaten,
-      username:   username,
-      bornTs:     bornTs,
-      diedTs:     Date.now()
-    });
-    // ── END notify host ──────────────────────────────────────────────────
-    // Wipe all fields that baby respawn resets — a reload must not restore pre-death progress
-    try {
-      var ds = loadSession();
-      if (ds) {
-        ds.pHP = 1.0; ds.pGut = 0; // full health on respawn, gut empty
-        ds.pEaten = 0; ds.pSR = 4; ds.pSEG = 4; ds.pGut = 0;
-        localStorage.setItem(SESSION_KEY, JSON.stringify(ds));
-      }
-    } catch(e) {}
     return;
   }
   if (deathScreen) {
