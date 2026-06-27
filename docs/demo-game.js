@@ -3227,9 +3227,11 @@ function updatePhysics() {
       tp.alpha = Math.max(0, tp.alpha - _decayRate * 10);
       // Clog self-clears over ~25 min (castings break down in rich compost)
       // But only decay if no fresh poop landed here in the last 1800 frames (~30 seconds)
-      if (tp.clog && (frame - (tp.clogTs || 0)) > 1800) {
-        var clogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
-        tp.clog = Math.max(0, tp.clog - clogDecay);
+      // Post-teardown clogs are vestigial (no tea to back up). Clear them fast so they
+      // can't accumulate in the tube and tank FPS: ~5s grace after the last poop, then
+      // decay ~0.04/tick (runs every 10 frames) -> a full clog clears in ~4s.
+      if (tp.clog && (frame - (tp.clogTs || 0)) > 300) {
+        tp.clog = Math.max(0, tp.clog - 0.04);
       }
     }
   }
@@ -6583,9 +6585,8 @@ function updateNPCSims() {
         var _ntPrev = _ntp.alpha;
         _ntp.alpha = Math.max(0, _ntp.alpha - _npcFade);
         // Clog self-clears once no fresh poop has landed for ~30s (same gate as player).
-        if (_ntp.clog && (frame - (_ntp.clogTs || 0)) > 1800) {
-          var _ntClogDecay = (0.00001 + castingEnrichment * 0.00003) * 10;
-          _ntp.clog = Math.max(0, _ntp.clog - _ntClogDecay);
+        if (_ntp.clog && (frame - (_ntp.clogTs || 0)) > 300) {
+          _ntp.clog = Math.max(0, _ntp.clog - 0.04);   // fast clear (vestigial post-teardown)
         }
         // Tube faded with clog still present. On the PLAYER's tube this bursts the clog
         // back into poop drops so it gets another shot at draining — but NPC tubes are
