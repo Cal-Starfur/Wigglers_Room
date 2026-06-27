@@ -3459,7 +3459,7 @@ function updatePhysics() {
                   // A single poop drop is enough to seal a drain: clamp to at
                   // least 0.6 (above the 0.55 tea-block threshold) immediately.
                   if (pp.clog == null) pp.clog = 0;
-                  pp.clog  = Math.min(1, Math.max(0.6, pp.clog + d.clogAmt));
+                  if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                   pp.alpha = 1.0;
                   pp.clogTs = frame;
                   d.active = false;
@@ -3576,7 +3576,7 @@ function updatePhysics() {
                   if (d.isPoop) {
                     // Poop deposits at the terminus
                     if (pp.clog == null) pp.clog = 0;
-                    pp.clog   = Math.min(1, pp.clog + d.clogAmt);
+                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                     pp.alpha  = 1.0;
                     pp.clogTs = frame;
                     d.active  = false;
@@ -3677,7 +3677,7 @@ function updatePhysics() {
                   }
                   if (!_foundSumpFwd) {
                     if (pp.clog == null) pp.clog = 0;
-                    pp.clog  = Math.min(1, pp.clog + d.clogAmt);
+                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                     pp.alpha = 1.0; // poop solidifies the tunnel point — never fades it
                     pp.clogTs = frame; // mark fresh deposit for decay gating (Bug 4)
                     d.active = false;
