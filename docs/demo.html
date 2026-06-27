@@ -1101,11 +1101,16 @@ document.addEventListener('keydown', function() {
      document.write keeps the script synchronous + in load order with the post-boot
      block below. No ?v= present -> loads bare, normal caching for production. -->
 <script>
-(function () {
-  var m = (location.search || '').match(/[?&]v=([^&]+)/);
-  var v = m ? '?v=' + encodeURIComponent(m[1]) : '';
-  document.write('<script src="demo-game.js' + v + '"><\/script>');
-})();
+// ── GAME PULLED ──────────────────────────────────────────────────────────
+// demo-game.js is intentionally not loaded here. The page renders as a shell:
+// the start screen + click-to-enter, an empty game-canvas slot, and the side
+// guide panel. To restore the live game, un-comment the cache-bust loader below.
+//
+// (function () {
+//   var m = (location.search || '').match(/[?&]v=([^&]+)/);
+//   var v = m ? '?v=' + encodeURIComponent(m[1]) : '';
+//   document.write('<script src="demo-game.js' + v + '"><\/script>');
+// })();
 </script>
 
 <!-- ── Post-boot: wrap RAF (NPC injection disabled) ────────────────────── -->
@@ -1123,6 +1128,9 @@ var _injectInterval = setInterval(function() {
     // (HUD header removed)
   }
 }, 100);
+// GAME PULLED: stop polling immediately — the game never boots, so pHP/W never
+// exist and this interval would otherwise spin forever. Clear it on first tick.
+clearInterval(_injectInterval);
 
 // NPC movement re-injection disabled (NPCs removed from demo).
 // setInterval(function() {
