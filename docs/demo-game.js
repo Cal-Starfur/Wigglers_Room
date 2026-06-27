@@ -493,7 +493,7 @@ var _debrisDirty = false; // set true whenever a debris item goes inactive — a
 var drops = [];
 // Hard cap — beyond this, oldest inactive drops are culled before new ones are added.
 // At 60fps with normal eating, steady-state is well under 80 active drops.
-var MAX_DROPS = 100;   // was 200; stalled drops now age out so this is just a safety cap
+var MAX_DROPS = 70;   // was 200; stalled drops now age out so this is just a safety cap
 // Safe push — enforces the cap by dropping the oldest entry when full.
 function dropsPush(d) {
   if (drops.length >= MAX_DROPS) {
@@ -3385,7 +3385,7 @@ function updatePhysics() {
       d._jamY = d.y; d._jamFrames = 0;         // made real progress -- reset
     } else {
       d._jamFrames = (d._jamFrames || 0) + 1;
-      if (d._jamFrames > 480) {                // stuck ~8s with no progress
+      if (d._jamFrames > 180) {                // stuck ~3s with no progress
         if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0003);
         d.active = false;
         continue;
@@ -3881,8 +3881,7 @@ function updatePhysics() {
         d.vy = Math.min(d.vy + 0.05, 3.0);
       } else {
         // Pathless leak — slow to a near-stop (culled at 3H+H*0.25)
-        d.vy *= 0.99;
-        d.vy = Math.max(0.015, d.vy);
+        d.vy = Math.max(d.vy, 1.6);   // post-economy: sink fast, cull at floor (no sump pile-up)
       }
     }
 
