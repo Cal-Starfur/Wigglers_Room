@@ -1108,23 +1108,26 @@ document.addEventListener('keydown', function() {
 })();
 </script>
 
-<!-- ── Post-boot: inject NPCs and wrap RAF ─────────────────────────────── -->
+<!-- ── Post-boot: wrap RAF (NPC injection disabled) ────────────────────── -->
 <script>
-// Wait for game setup() to complete, then inject NPCs
+// Wait for game setup() to complete, then wrap RAF for the demo state machine.
+// NPC injection is intentionally disabled: _injectNPCs()/_updateNPCPositions()
+// are the ONLY things that populate otherPlayers in the demo, so leaving them
+// uncalled means no NPCs spawn and the sim/draw loops idle on an empty list.
 var _injectInterval = setInterval(function() {
   // setup() sets pHP to 1.0 and creates pSegs
   if (typeof pHP !== 'undefined' && typeof W !== 'undefined' && W > 0) {
     clearInterval(_injectInterval);
-    _injectNPCs();
+    // _injectNPCs();   // NPCs removed from demo
     _wrapRAF();
     // (HUD header removed)
   }
 }, 100);
 
-// Re-inject NPCs every 2 seconds to keep them moving
-setInterval(function() {
-  if (typeof W !== 'undefined' && W > 0) _updateNPCPositions();
-}, 2000);
+// NPC movement re-injection disabled (NPCs removed from demo).
+// setInterval(function() {
+//   if (typeof W !== 'undefined' && W > 0) _updateNPCPositions();
+// }, 2000);
 </script>
 
 
