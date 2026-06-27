@@ -718,6 +718,12 @@ body::before {
   <div class="guide-panel">
 
     <div class="section">
+      <h2>Dev shortcut</h2>
+      <button class="btn-s" onclick="window.showDemoEnd()" style="font-family:inherit;border-color:var(--amber);color:var(--text);">&rarr; Jump to end screen</button>
+      <p style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;">Or load with <code>?end=1</code> to open the end screen on start.</p>
+    </div>
+
+    <div class="section">
       <h2>Hi, I'm Wiggler.</h2>
       <p>I'm an earthworm. I live in this compost bin. Take control of me and dig in.</p>
       <p>My whole life is about eating food scraps, digging tunnel networks, and dropping castings to enrich the compost around me.</p>
@@ -897,11 +903,6 @@ body::before {
       </div>
     </div>
 
-    <div class="section">
-      <h2>Dev shortcut</h2>
-      <button class="btn-s" onclick="window.showDemoEnd()" style="font-family:inherit;">&rarr; Jump to end screen</button>
-    </div>
-
   </div><!-- /guide-panel -->
 
 </div><!-- /layout -->
@@ -1073,6 +1074,16 @@ window.showDemoEnd = function() {
   var es = document.getElementById('end-screen');
   if (es) es.classList.add('show');
 };
+
+// Dev shortcut: ?end=1 jumps straight to the end screen on load — no UI to find,
+// nothing to scroll, can't be clipped by the guide panel. Works on mobile and
+// stacks with ?v= cache-busting. #end-screen is already in the DOM at this point.
+if (/[?&]end=1(?:&|$)/.test(location.search || '')) {
+  _introDismissed = true;
+  var _introEl = document.getElementById('intro-screen');
+  if (_introEl) _introEl.classList.add('hidden');
+  window.showDemoEnd();
+}
 // Keyboard also dismisses intro
 document.addEventListener('keydown', function() {
   if (!_introDismissed) _enterBin();
