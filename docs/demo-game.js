@@ -2511,50 +2511,9 @@ function initPlayer(saved) {
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
-function saveSession() {
-  try {
-    var data = {
-      ts:                Date.now(),
-      bornTs:            bornTs,
-      karma:             Math.floor(karma),
-      pEaten:            pEaten,
-      pSR:               pSR,
-      pSEG:              pSEG,
-      generation:        generation,
-      pHP:               pHP,
-      pAcid:             pAcid,
-      // pHunger not saved — it is derived each frame as 1 - (pGut/pGutMax)
-      pGut:              pGut,
-      pX:                pSegs.length ? pSegs[0].x : null,
-      pY:                pSegs.length ? pSegs[0].y : null,
-      pSleeping:         pSleeping,
-      pSleepX:           pSleepX,
-      pSleepY:           pSleepY,
-      cocoons:           cocoons.map(function(c) {
-        return { x: c.x, y: c.y, owner: c.owner, laid: c.laid, gifted: c.gifted || false };
-      }),
-      lastCocoonLaid:    lastCocoonLaid,
-      weekStartTs:       weekStartTs,
-      weeklyContrib:     weeklyContrib,
-      // ── World-state (tLvl, castingEnrichment) NOT saved here ──────────
-      // These belong to the bin (KV_WORLD), not the worm (KV_WORM_SESSION).
-      // setWorldState from KV_WORLD is the authoritative source on open — ISS-18.
-    };
-    // Always write localStorage — works for local dev and as a fallback
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
-    // Also send to Devvit host when running inside Reddit iframe.
-    // Host receives this and writes to KV store for cross-device persistence.
-    postToHost({ type: 'saveSession', session: data });
-  } catch(e) { }
-}
+function saveSession() { /* demo build: ephemeral — no session persistence */ }
 
-function loadSession() {
-  try {
-    var raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch(e) { return null; }
-}
+function loadSession() { return null; /* demo build: ephemeral */ }
 
 function applyOfflineDrain(saved) {
   if (!saved || !saved.ts) return;
@@ -2774,7 +2733,7 @@ function setup() {
   _buildBladeCanvas();
 
   // Restore persisted session
-  var saved = loadSession();
+  var saved = null;  // demo: ephemeral — fresh worm every load (no localStorage restore)
   if (saved) {
     // ── Client-side stat restoration with validation clamps ─────────────────
     // DEVVIT TODO: karma, pEaten should be authoritative from server.
