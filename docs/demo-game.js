@@ -800,7 +800,7 @@ var pLastX = -999, pLastY = -999;
 var MAX_PPATH = 130;
 var MAX_NPC_PATH = 130;          // NPC tunnels capped far below the player's so the shared
                                  // spatial index stays small and cheap to rebuild/scan.
-var NPC_SIM_CAP = (function(){ var m=(window.location.search||'').match(/[?&]cap=(\d+)/); return m ? Math.max(0, +m[1]) : 10; })();            // max NPCs simulated/drawn at once (demo mode). Thins the
+var NPC_SIM_CAP = (function(){ var m=(window.location.search||'').match(/[?&]cap=(\d+)/); return m ? Math.max(0, +m[1]) : 5; })();            // max NPCs simulated/drawn at once (demo mode, was 10). ?cap=N overrides. Thins the
                                  // ~25-strong presence list so a single page stays smooth;
                                  // the real game would cap concurrent sims the same way.
 
