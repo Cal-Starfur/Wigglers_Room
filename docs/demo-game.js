@@ -497,8 +497,6 @@ var gardenFlowers = []; // pre-generated static flowers
 var _bladeCanvas = null; // PERF-3: offscreen pre-render of blade fringe — rebuilt in setup()
 var bugs = [];   // fruit flies / gnats in tier 0 empty airspace
 var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by pooping in compost
-var pooled = 0;
-var tapReady = false;
 
 // ── Weekly drain bonus system ──────────────────────────────────────────────
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
@@ -762,7 +760,6 @@ window.addEventListener('message', function(e) {
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     _dbgWorldState = msg; // debug
-    // pooled intentionally excluded — derived at runtime from active drops, not shared via KV
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
     if (msg.scrapsLevel      != null) window._hostScrapsLevel = Math.max(0, Math.min(1, +msg.scrapsLevel || 1));
@@ -2498,7 +2495,6 @@ function updateScrapsLevel() {
   scrapsLevel = total > 0 ? alive / total : 0;
   if (scrapsLevel <= 0 && total > 0 && !scrapsEmpty) {
     scrapsEmpty = true;
-    tapReady = true;  // feed button unlocks when bin is empty — independent of flood/drain
   }
 }
 
@@ -2602,15 +2598,6 @@ function applyOfflineDrain(saved) {
     }
 
 
-    // Clog warning — only show when pooled is meaningful AND a tunnel is actually blocked
-    if (pooled > 0.5) {
-      var _hasClog = false;
-      for (var _ci = 0; _ci < pPath.length; _ci++) {
-        var _cp2 = pPath[_ci];
-        if (_cp2 && (_cp2.clog || 0) >= 0.55) { _hasClog = true; break; }
-      }
-      if (_hasClog) _msgs.push('🪱 Tunnel clogged! Dig deeper to clear.');
-    }
 
     if (scrapsEmpty) {
       _msgs.push('🍂 Scraps bin is empty');
@@ -2741,7 +2728,6 @@ function setup() {
   resizeCanvas();
   pPath = []; drops = []; bugs = []; trashChunks = []; debris = []; weatherQueue = [];
   scraps = []; cocoons = []; drainBonusPopups = [];
-  tapReady = false;
   drainDownTimer = 0; drainUpTimer = 0; drainDownCooldown = 0;
   window._sumpHadDown = null; window._upDrainBonusFired = false;
   pGut = 0; pHP = 1.0; pPooping = false; pAcid = 0;
@@ -2861,7 +2847,6 @@ function setup() {
       pSleeping = true;
     }
 
-    // tLvl and castingEnrichment intentionally NOT restored from session save.
     // They belong to the bin (KV_WORLD), not the worm. setWorldState (sent from
     // MSG_READY handler) is authoritative and arrives after setSession — ISS-18.
     // pooled not restored — resets to 0 each session and is rebuilt by food drops.
@@ -3602,7 +3587,7 @@ function updatePhysics() {
   // next frame's threshold checks — values never approach flood (tLvl>=0.9) or drowning
   // (pooled>0.6). Drops still fall/render; only the totals are held at baseline.
   if (tutorial.active) {
-    castingEnrichment = 0; pooled = 0; window._moisture = 0;
+    castingEnrichment = 0;
   }
   // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
   // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
@@ -3809,11 +3794,6 @@ function updatePhysics() {
     if (d.pathIdx == null && !d.clogStalled) d.y += d.vy;
 
     if (inCompost(d.y)) {
-      // On first entry into compost — increment shared pooled value (tea only)
-      if (!d.enteredCompost) {
-        d.enteredCompost = true;
-        if (!d.isPoop) pooled = Math.min(1, pooled + 0.005);
-      }
 
       // Follow P — attach to nearest path point at or below drop, then walk forward
       if (d.pathIdx != null) {
@@ -4288,7 +4268,6 @@ function updatePhysics() {
       // Entered sump zone
       if (!d.inSump) {
         d.inSump = true;
-        if (!d.inTunnel && !d.isPoop) pooled = Math.max(0, pooled - 0.005);
       }
       if (d.inTunnel) {
         // Tunnel drop — accelerate under gravity into the tea, no drag
@@ -4310,31 +4289,6 @@ function updatePhysics() {
   }
   drops = drops.filter(function(d) { return d.active; });
 
-  // ISS-13 Bug B: evaporation loop REMOVED — it silently drained saturation with no player
-  // visibility, undermining the drain mechanic and confusing cause/effect. Drainage via
-  // tunnels (now fixed by ISS-13 Bug A) is the intended way to reduce moisture.
-  pooled = Math.max(0, Math.min(1, pooled));
-
-  // Broadcast pooled when it has drifted by ≥ 0.02 since last sync
-  // Keeps all clients in agreement without spamming the host every drop event.
-  if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
-  if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
-    window._lastBroadcastPooled = pooled;
-    postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
-  }
-
-  // (Rain removed — saturation driven by tea drops from food only)
-
-  var moistureTarget = pooled;
-  if (window._moisture === undefined) window._moisture = moistureTarget;
-  window._moisture += (moistureTarget - window._moisture) * 0.003;
-
-    // ── Oversaturation HP pressure — direct, no flood event needed ─────────
-  // Worm suffocates slowly in waterlogged compost above pooled=0.6.
-  if (pSegs.length && inCompost(pSegs[0].y) && pooled > 0.6) {
-    if (pHP > 0) deathCause = 'drowning';
-    pHP = Math.max(0, pHP - (pooled - 0.6) * 0.00005);
-  }
 
   
 
@@ -4967,7 +4921,7 @@ function draw() {
       var t12VisBottom = Math.min(t12Bottom, H + 4);
       if (t12VisBottom > t12VisTop) {
         var e  = castingEnrichment;
-        var mw = Math.min(1, window._moisture || 0);
+        var mw = 0; // moisture removed (saturation gone)
         // Gradient spans tier1(H..2H) + compost(2H..cSurf()) + sump(cSurf()..cSurf()+0.25H).
         // Boundary fractions are computed from the LIVE geometry so the colour lines track
         // cSurf() (they used to be hardcoded for the old 3H sump and drifted when compost halved).
@@ -4988,33 +4942,7 @@ function draw() {
         ctx.fillStyle = t12Grad;
         ctx.fillRect(b.cx-b.bw2, t12VisTop, b.bw, t12VisBottom - t12VisTop);
 
-        // Moisture sheen overlay
-        if (mw > 0.1) {
-          ctx.globalAlpha = mw * 0.13;
-          ctx.fillStyle = '#4a8860';
-          ctx.fillRect(b.cx-b.bw2, t12VisTop, b.bw, t12VisBottom - t12VisTop);
-          ctx.globalAlpha = 1;
-        }
 
-        // Pooled liquid near the old tier 1/2 boundary — gradient only, no dotted line
-        if (pooled > 0) {
-          var poolBoundY = 2*H - camY;
-          var poolDepth  = pooled * H * 0.22;
-          var poolTop    = poolBoundY - poolDepth;
-          var pvTop = Math.max(t12VisTop, poolTop);
-          var pvBot = Math.min(t12VisBottom, poolBoundY + 6);
-          if (pvBot > pvTop) {
-            var poolGrad = ctx.createLinearGradient(0, pvTop, 0, pvBot);
-            // Sharper edge at top so the color shift reads clearly without a line
-            poolGrad.addColorStop(0,    'rgba(40,100,65,0)');
-            poolGrad.addColorStop(0.18, 'rgba(40,100,65,' + (pooled * 0.18).toFixed(2) + ')');
-            poolGrad.addColorStop(0.45, 'rgba(38,95,60,'  + (pooled * 0.38).toFixed(2) + ')');
-            poolGrad.addColorStop(0.75, 'rgba(25,80,52,'  + (pooled * 0.55).toFixed(2) + ')');
-            poolGrad.addColorStop(1,    'rgba(15,60,40,'  + (pooled * 0.65).toFixed(2) + ')');
-            ctx.fillStyle = poolGrad;
-            ctx.fillRect(b.cx-b.bw2, pvTop, b.bw, pvBot - pvTop);
-          }
-        }
 
 
       }
@@ -5934,29 +5862,6 @@ function draw() {
     ctx.lineWidth = 1;
   }
 
-  // ── Oversaturation visual — driven by pooled, always active ───────────
-  if (pooled > 0.1 && castingEnrichment > 0) {
-    var saturBase  = 2*H - camY;
-    var saturReach = pooled * H * 1.2;
-    var saturTop   = saturBase - saturReach;
-    var svTop = Math.max(0, saturTop);
-    var svBot = Math.min(H + 4, 2*H - camY);
-    if (svBot > svTop) {
-      var saturGrad = ctx.createLinearGradient(0, svTop, 0, svBot);
-      saturGrad.addColorStop(0,   'rgba(30,80,55,0)');
-      saturGrad.addColorStop(0.4, 'rgba(30,80,55,' + (pooled * 0.12).toFixed(2) + ')');
-      saturGrad.addColorStop(1,   'rgba(20,65,45,' + (pooled * 0.28).toFixed(2) + ')');
-      ctx.fillStyle = saturGrad;
-      ctx.fillRect(b.cx-b.bw2, svTop, b.bw, svBot - svTop);
-      if (saturTop > 0 && saturTop < H) {
-        ctx.strokeStyle = 'rgba(80,180,100,' + (pooled * 0.35).toFixed(2) + ')';
-        ctx.lineWidth = 1; ctx.setLineDash([4, 8]);
-        ctx.beginPath();
-        ctx.moveTo(b.cx-b.bw2+8, saturTop); ctx.lineTo(b.cx+b.bw2-8, saturTop);
-        ctx.stroke(); ctx.setLineDash([]);
-      }
-    }
-  }
 
   // ── Drain bonus popups ────────────────────────────────────────────────────
   for (var dbi = drainBonusPopups.length - 1; dbi >= 0; dbi--) {
@@ -6900,7 +6805,6 @@ function drawDeathScreen() {
     hunger:       { text: '💀 Slowly starved',                 sub: 'Hunger wore the worm down. Keep that gut filled.' },
     constipation: { text: '💩 Died of constipation',          sub: 'Too full to move. Find compost and poop!' },
     acidity:      { text: '⚗ Dissolved by acid',              sub: 'Too many acidic scraps. Eat egg shells to neutralise.' },
-    drowning:     { text: '💧 Suffocated in waterlogged soil', sub: 'The compost was too saturated. Move to drier ground.' },
     natural:      { text: '🌱 Full life, well lived',          sub: 'Your worm completed its natural lifespan. A new worm is ready.' },
   };
   var _cause = _causeMap[deathCause] || { text: '💀 HP depleted', sub: 'Something wore the worm down.' };
@@ -7458,8 +7362,6 @@ function respawnPlayer(usedKarma) {
     pEaten = 0; pSR = 4; pSEG = 4;
     bornTs = Date.now(); // new life — stamp birth time
     // Reset the worm state — bin world persists (persistent game)
-    tapReady = false;
-    window._moisture = pooled;
   }
 
   pSegs = []; pHist = []; pPath = []; pLastX = -999; pLastY = -999;
