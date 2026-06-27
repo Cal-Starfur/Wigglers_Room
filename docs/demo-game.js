@@ -3199,6 +3199,28 @@ function updatePhysics() {
   // Filter eaten scraps — only every 60 frames to avoid allocation pressure
   if (frame % 60 === 0) scraps = scraps.filter(function(s) { return !s.eaten; });
 
+  // ── Compact trashChunks — eaten/decayed chunks are flagged `gone` but were never
+  // removed, so the array grew unbounded for the whole session and EVERY per-frame pass
+  // over it (incl. the layers×chunks nested draw loop) got heavier the longer you played.
+  // Felt as progressive lag that surfaced when the compost pile scrolled on-screen.
+  // Rebuild without the dead ones every 120 frames. weatherQueue stores chunk INDICES,
+  // so remap them in the same pass: a queued shed whose chunk was removed gets chunkIdx
+  // -1, which the fire loop already skips via `if (!pd || pd.gone) continue;`. The tutorial
+  // holds chunk OBJECT refs (not indices), so those survive the rebuild untouched.
+  if (frame % 120 === 0 && trashChunks.length) {
+    var _tcMap = {}, _tcKeep = [];
+    for (var _tcj = 0; _tcj < trashChunks.length; _tcj++) {
+      if (!trashChunks[_tcj].gone) { _tcMap[_tcj] = _tcKeep.length; _tcKeep.push(trashChunks[_tcj]); }
+    }
+    if (_tcKeep.length !== trashChunks.length) {   // something was dead → remap queue + swap
+      for (var _wqi = 0; _wqi < weatherQueue.length; _wqi++) {
+        var _nm = _tcMap[weatherQueue[_wqi].chunkIdx];
+        weatherQueue[_wqi].chunkIdx = (_nm === undefined ? -1 : _nm);
+      }
+      trashChunks = _tcKeep;
+    }
+  }
+
   // --- Castings enrichment slow decay ---
   castingEnrichment = Math.max(0, castingEnrichment - ENRICH_DECAY);
 
