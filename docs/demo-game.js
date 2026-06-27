@@ -500,7 +500,6 @@ var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by 
 
 // ── Weekly drain bonus system ──────────────────────────────────────────────
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
-var weekStartTs        = 0;       // timestamp of current week start
 var drainBonusPopups   = [];      // [{text, x, y, alpha, vy}] floating bonus text
 var scrapsLevel = 1.0;
 var scrapsEmpty = false;
@@ -518,9 +517,6 @@ var deathFade = 0;           // 0→1 fade-in alpha
 // We record a timestamp on every session-save. On next load we compute
 // elapsed seconds and drain hunger accordingly (capped so the player
 // can't die offline, just arrive very hungry).
-var OFFLINE_DRAIN_PER_SEC = 1 / (24 * 3600); // matches live rate exactly
-var MAX_OFFLINE_DRAIN = 0.85;        // can arrive very hungry but never quite dead offline
-var SESSION_KEY = 'wigglers_session_v2';
 
 // ── Weather system — simulated bin environment ───────────────────────────────
 // Seasonal baseline + slow random drift + occasional weather events.
@@ -2340,9 +2336,7 @@ function initPlayer(saved) {
 }
 
 // ── Session persistence ───────────────────────────────────────────────────
-function saveSession() { /* demo build: ephemeral — no session persistence */ }
 
-function loadSession() { return null; /* demo build: ephemeral */ }
 
 
 function formatOfflineTime(sec) {
@@ -2354,19 +2348,7 @@ function formatOfflineTime(sec) {
 // FEAT-2: Cross-device session continuity constants
 var deviceConflictActive = false;  // true if another device is currently active
 
-// Auto-save every 30 seconds while alive
-setInterval(function() { if (!deathScreen && pSegs.length) saveSession(); }, 30000);
 
-// ISS-14 fix: save on exit so active worm position/HP/gut persist across sessions
-// Fires on tab switch, app background, and most close events (mobile and desktop)
-document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'hidden') {
-    if (!deathScreen && pSegs.length) saveSession();
-    // FEAT-2: Do NOT release token on visibility hidden — mobile app-switch fires this
-    // and would tombstone the token while the session is still active.
-    // Token expiry is handled purely by 45s TTL (heartbeat stops when backgrounded).
-  }
-});
 
 
 
@@ -5959,7 +5941,6 @@ function drawDebugOverlay() {
     'DBG user=' + (username || '?'),
     'karma=' + Math.floor(karma) + ' sesTs=' + (_dbgSessionTs ? new Date(_dbgSessionTs).toISOString().slice(11,19) : 'none'),
     'cast=' + castingEnrichment.toFixed(3) + ' scraps=' + scrapsLevel.toFixed(2),
-    'wkTs=' + (weekStartTs ? new Date(weekStartTs).toISOString().slice(5,16) : 'none'),
     'token=' + _dbgTokenState,
     'conflict=' + deviceConflictActive,
   ];
@@ -6941,7 +6922,6 @@ function respawnPlayer(usedKarma) {
   mX = respawnX; mY = respawnY;
   camX = (W >= WORLD_W) ? 0 : Math.max(0, respawnX - W/2); // snap camera to worm on respawn
   deathScreen = false; deathFade = 0;
-  saveSession();
 }
 
 function tryLayCocoon() {
@@ -6981,7 +6961,6 @@ function tryLayCocoon() {
   // Cost — hunger drain + brief slowdown
   pGut = Math.max(0, pGut - pGutMax * 0.20); // laying a cocoon costs gut energy
   window._cocoonMsg = '🪱 Cocoon laid!'; window._cocoonMsgT = frame;
-  saveSession();
 }
 
 
@@ -7007,7 +6986,6 @@ function trySleep() {
     mX = pSegs[0].x;
     mY = pSegs[0].y;
     viewMode = false;
-    saveSession();
     return;
   }
 
@@ -7027,7 +7005,6 @@ function trySleep() {
   pZzz = [];
   viewMode = true;
   viewCamY = camY; // start scroll at current camera position
-  saveSession();
 }
 
 function tryPoop() {
@@ -7614,7 +7591,7 @@ window.addEventListener('keydown', function(e) {
   }
   if (!DEBUG_MODE) return;
     // DEBUG — Shift+C wipes saved session and reloads fresh.
-  if (e.code === 'KeyC' && e.shiftKey) { localStorage.removeItem(SESSION_KEY); location.reload(); }
+  if (e.code === 'KeyC' && e.shiftKey) { location.reload(); }
   // DEBUG — ] key increments generation
   if (e.code === 'BracketRight') { generation = Math.min(99, generation + 1); }
   // DEBUG — [ key decrements generation
