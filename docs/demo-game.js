@@ -2531,26 +2531,7 @@ function updatePlayer() {
       var _pp2 = pPath[pi2];
       if (!_pp2) continue;
       if (_pp2.alpha == null) _pp2.alpha = 1;
-      var _prevAlpha = _pp2.alpha;
       _pp2.alpha = Math.max(0, _pp2.alpha - 0.003);
-      if (_prevAlpha > 0 && _pp2.alpha === 0 && (_pp2.clog || 0) > 0) {
-        // Tube faded — burst the clog back into poop drops
-        var _clogStrength = _pp2.clog;
-        var _numBurst = 1 + Math.floor(_clogStrength * 3); // 1–4 drops depending on clog density
-        for (var _bi = 0; _bi < _numBurst; _bi++) {
-          dropsPush({
-            x:              _pp2.x + (Math.random() - 0.5) * (_pp2.r || pSR) * 2,
-            y:              _pp2.y,
-            vy:             0.4 + Math.random() * 0.5,
-            sz:             (_pp2.r || pSR) * (0.5 + Math.random() * 0.5),
-            active:         true,
-            isPoop:         true,
-            clogAmt:        0.08 + (_clogStrength / _numBurst) * 0.12,
-            enteredCompost: inCompost(_pp2.y)
-          });
-        }
-        _pp2.clog = 0; // clear so no double-burst next frame
-      }
     }
     // HP regen in safe zone
     if (inCompost(pSleepY)) {
@@ -3225,14 +3206,6 @@ function updatePhysics() {
       if (tp.alpha == null) tp.alpha = 1;
       var _decayRate = _segConn[tdi] ? TUNNEL_DECAY : TUNNEL_DECAY_UNCONNECTED;
       tp.alpha = Math.max(0, tp.alpha - _decayRate * 10);
-      // Clog self-clears over ~25 min (castings break down in rich compost)
-      // But only decay if no fresh poop landed here in the last 1800 frames (~30 seconds)
-      // Post-teardown clogs are vestigial (no tea to back up). Clear them fast so they
-      // can't accumulate in the tube and tank FPS: ~5s grace after the last poop, then
-      // decay ~0.04/tick (runs every 10 frames) -> a full clog clears in ~4s.
-      if (tp.clog && (frame - (tp.clogTs || 0)) > 300) {
-        tp.clog = Math.max(0, tp.clog - 0.04);
-      }
     }
   }
 
@@ -4699,62 +4672,7 @@ function draw() {
   }
   if (!_NOTUBE) drawPath(pPath);
 
-  // Clog deposits — stroked line clipped to its own tunnel segment so it can never
-  // bleed outside the tube walls or past the segment endpoints.
-  // Strategy per clogged point:
-  //   1. Walk to the null boundaries to find the full segment.
-  //   2. Build a clip region by stroking the segment polyline at lineWidth = r*2.6
-  //      (same as the tunnel outer pass) into a Path2D, then ctx.clip() it.
-  //   3. Draw the clog stroke — same lineWidth, growing length — inside that clip.
-  ctx.lineCap  = 'round';
-  ctx.lineJoin = 'round';
-  // Clog deposits render for EVERY registered path (player + NPC tubes).
-  for (var _crpi = 0; !_NOCLOG && _crpi < pathRegistry.length; _crpi++) {
-    var _CP = pathRegistry[_crpi];
-  for (var _ci = 0; _ci < _CP.length; _ci++) {
-    var _cp = _CP[_ci];
-    if (!_cp || !_cp.clog || _cp.clog <= 0) continue;
-    var _csy = _cp.y - camY;
-    if (_csy < -20 || _csy > H + 20) continue;
-
-    var _cr = _cp.r || 4;
-
-    // PERF: clog stroke is a tube-width, round-capped capsule along the local
-    // tunnel axis, so on straight/gently-curved runs it already sits inside the
-    // tube. We skip the old per-point tube-outline clip (segment-boundary walk +
-    // offset-polygon rebuild + ctx.clip()) which cost ~everything here and scaled
-    // with poop count. Tradeoff: at very sharp bends a clog may bleed a few px.
-    var _prevP = (_ci > 0 && _CP[_ci - 1]) ? _CP[_ci - 1] : null;
-    var _nextP = (_ci < _CP.length - 1 && _CP[_ci + 1]) ? _CP[_ci + 1] : null;
-    var _angle = Math.PI / 2;
-    if (_prevP || _nextP) {
-      var _dx = (_nextP ? _nextP.x : _cp.x) - (_prevP ? _prevP.x : _cp.x);
-      var _dy = (_nextP ? _nextP.y : _cp.y) - (_prevP ? _prevP.y : _cp.y);
-      if (_dx !== 0 || _dy !== 0) _angle = Math.atan2(_dy, _dx);
-    }
-    var _ax = Math.cos(_angle), _ay = Math.sin(_angle);
-    var _halfLen = _cr * _cp.clog * 4;
-
-    ctx.globalAlpha = Math.min(1, 0.55 + _cp.clog * 0.45);
-    ctx.strokeStyle = '#2a1000';
-    ctx.lineWidth   = _cr * 2.6;
-    ctx.beginPath();
-    ctx.moveTo(_cp.x - _ax * _halfLen, _csy - _ay * _halfLen);
-    ctx.lineTo(_cp.x + _ax * _halfLen, _csy + _ay * _halfLen);
-    ctx.stroke();
-
-    if (_cp.clog > 0.2) {
-      ctx.globalAlpha = Math.min(1, (_cp.clog - 0.2) * 0.7);
-      ctx.strokeStyle = '#5a2800';
-      ctx.lineWidth   = _cr * 1.4;
-      ctx.beginPath();
-      ctx.moveTo(_cp.x - _ax * _halfLen * 0.7, _csy - _ay * _halfLen * 0.7);
-      ctx.lineTo(_cp.x + _ax * _halfLen * 0.7, _csy + _ay * _halfLen * 0.7);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-  }
-  }
+  // Clog rendering removed (clog mechanic torn out).
 
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
   {
@@ -6582,23 +6500,7 @@ function updateNPCSims() {
         var _ntp = sim.path[_ntd];
         if (!_ntp || _ntp.ti !== 2) continue;
         if (_ntp.alpha == null) _ntp.alpha = 1;
-        var _ntPrev = _ntp.alpha;
         _ntp.alpha = Math.max(0, _ntp.alpha - _npcFade);
-        // Clog self-clears once no fresh poop has landed for ~30s (same gate as player).
-        if (_ntp.clog && (frame - (_ntp.clogTs || 0)) > 300) {
-          _ntp.clog = Math.max(0, _ntp.clog - 0.04);   // fast clear (vestigial post-teardown)
-        }
-        // Tube faded with clog still present. On the PLAYER's tube this bursts the clog
-        // back into poop drops so it gets another shot at draining — but NPC tubes are
-        // DEAD-ENDS with no sump/drain. A burst here just re-attaches to the same dead end
-        // and re-deposits (which re-solidifies the point to alpha 1.0), so it bursts again
-        // next fade — an endless drop source (the "tea regenerating in NPC tubes" mess).
-        // Instead let faded NPC clog decompose silently into castings — the same fate as
-        // poop that falls past the sump floor. No new drops, so the loop can't close.
-        if (_ntPrev > 0 && _ntp.alpha === 0 && (_ntp.clog || 0) > 0) {
-          castingEnrichment = Math.min(1, castingEnrichment + 0.0005);
-          _ntp.clog = 0; // cleared as castings — no burst, no re-deposit loop
-        }
       }
     }
 
