@@ -25,6 +25,7 @@ var ctx = canvas.getContext('2d');
 var _FAST = /[?&]fast=1/.test(window.location.search || '');
 var _NODRAW   = /[?&]nodraw=1/.test(window.location.search || '');
 var _NOCLOG   = /[?&]noclog=1/.test(window.location.search || '');
+var _NOTUBE   = /[?&]notube=1/.test(window.location.search || '');
 if (/[?&]noblur=1/.test(window.location.search || '')) {
   try {
     Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });
@@ -4691,10 +4692,10 @@ function draw() {
   if (window._demoMode) {
     for (var _npd = 0; _npd < otherPlayers.length; _npd++) {
       var _nopp = otherPlayers[_npd];
-      if (_nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
+      if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
     }
   }
-  drawPath(pPath);
+  if (!_NOTUBE) drawPath(pPath);
 
   // Clog deposits — stroked line clipped to its own tunnel segment so it can never
   // bleed outside the tube walls or past the segment endpoints.
