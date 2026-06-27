@@ -6127,31 +6127,6 @@ function draw() {
   ctx.textAlign = 'center';
   ctx.fillText(clockStr, W/2, 26);
 
-  // Bin Refresh countdown — centred directly under clock
-  var _refreshStr;
-  if (weekStartTs > 0 && (weekStartTs + WEEK_DRAIN_MS) <= Date.now()) {
-    // Cinematic running OR week already expired (drain fires this frame) — show refreshing
-    _refreshStr = (frame % 40 < 20) ? '\uD83E\uDEA3 Refreshing now!' : '\uD83E\uDEA3 Refreshing now\u2026';
-    ctx.fillStyle = 'rgba(255,220,100,' + (0.7 + Math.sin(frame * 0.15) * 0.3) + ')';
-  } else {
-    var _msLeft = (weekStartTs + WEEK_DRAIN_MS) - Date.now();
-    var _totalSec = Math.floor(_msLeft / 1000);
-    var _rDays    = Math.floor(_totalSec / 86400);
-    var _rHrs     = Math.floor((_totalSec % 86400) / 3600);
-    var _rMins    = Math.floor((_totalSec % 3600) / 60);
-    if (_rDays > 0) {
-      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rDays + 'd ' + _rHrs + 'h ' + _rMins + 'm';
-    } else if (_rHrs > 0) {
-      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rHrs + 'h ' + _rMins + 'm';
-    } else {
-      _refreshStr = '\uD83E\uDEA3 Refresh in ' + _rMins + 'm';
-    }
-    ctx.fillStyle = 'rgba(200,210,160,0.75)';
-  }
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(_refreshStr, W/2, 38);
-
   // --- Cocoon status in HUD ---
   var myCocHUD = cocoons.filter(function(c){ return c.owner === username; });
   var matHUD   = myCocHUD.filter(function(c){ return c.matured; }).length;
