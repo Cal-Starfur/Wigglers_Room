@@ -493,7 +493,7 @@ var _debrisDirty = false; // set true whenever a debris item goes inactive — a
 var drops = [];
 // Hard cap — beyond this, oldest inactive drops are culled before new ones are added.
 // At 60fps with normal eating, steady-state is well under 80 active drops.
-var MAX_DROPS = 200;
+var MAX_DROPS = 100;   // was 200; stalled drops now age out so this is just a safety cap
 // Safe push — enforces the cap by dropping the oldest entry when full.
 function dropsPush(d) {
   if (drops.length >= MAX_DROPS) {
@@ -3374,6 +3374,24 @@ function updatePhysics() {
   for (var i = drops.length - 1; i >= 0; i--) {
     var d = drops[i];
     if (!d.active) continue;
+
+    // Drops jammed behind clogs/junctions used to be flushed by the weekly sump drain
+    // (removed in the economy teardown). Now they pile up to MAX_DROPS and tank FPS as
+    // the count climbs (overdraw + per-frame rescans). Cull any drop that hasn't made
+    // vertical progress for ~8s. Progress-based so it ignores the 40-frame clog-retry
+    // toggle and never collides with d._stallAge.
+    if (d._jamY == null) d._jamY = d.y;
+    if (Math.abs(d.y - d._jamY) > (d.r || 4) * 3) {
+      d._jamY = d.y; d._jamFrames = 0;         // made real progress -- reset
+    } else {
+      d._jamFrames = (d._jamFrames || 0) + 1;
+      if (d._jamFrames > 480) {                // stuck ~8s with no progress
+        if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0003);
+        d.active = false;
+        continue;
+      }
+    }
+
     var P = d.pathArr || pPath;   // the path this drop is currently bound to (defaults to player)
 
     // Free-fall move — only applied when NOT on a path tunnel.
