@@ -405,6 +405,9 @@ function drawTutorialHighlight() {
   }
 }
 var frame = 0;
+// PERF DIAGNOSTIC (default-OFF): append ?perf=1 to show an FPS / sim-ms / draw-ms HUD.
+var _PERF = /[?&]perf=1/.test(window.location.search || '');
+var _perf = { sim: 0, draw: 0, fps: 60, last: 0 };
 var username = 'u/You';   // player username — will come from Devvit auth in production
 // dayTime is derived live from the real wall clock each frame — 0=midnight, 0.5=noon, 1=midnight
 // This means all players worldwide see the same sky phase simultaneously.
@@ -751,7 +754,7 @@ var pLastX = -999, pLastY = -999;
 var MAX_PPATH = 2000;
 var MAX_NPC_PATH = 280;          // NPC tunnels capped far below the player's so the shared
                                  // spatial index stays small and cheap to rebuild/scan.
-var NPC_SIM_CAP = 10;            // max NPCs simulated/drawn at once (demo mode). Thins the
+var NPC_SIM_CAP = (function(){ var m=(window.location.search||'').match(/[?&]cap=(\d+)/); return m ? Math.max(0, +m[1]) : 10; })();            // max NPCs simulated/drawn at once (demo mode). Thins the
                                  // ~25-strong presence list so a single page stays smooth;
                                  // the real game would cap concurrent sims the same way.
 
@@ -6831,6 +6834,7 @@ function updateNPCSims() {
 function loop() {
   window._loopRunning = true;
   if (!W || !H) { requestAnimationFrame(loop); return; }
+  var _pt0 = _PERF ? performance.now() : 0;
   frame++;
   // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
   // Throttle the new Date() allocation to every 60 frames instead of every frame.
@@ -6859,7 +6863,22 @@ function loop() {
     camY += (viewCamY - camY) * 0.12;
     camY = Math.round(camY);
   }
+  var _pt1 = _PERF ? performance.now() : 0;
   try { draw(); } catch(e) { showErr('draw: '+e.message); }
+  if (_PERF) {
+    var _pt2 = performance.now();
+    _perf.sim  = _perf.sim  * 0.9 + (_pt1 - _pt0) * 0.1;
+    _perf.draw = _perf.draw * 0.9 + (_pt2 - _pt1) * 0.1;
+    if (_perf.last) _perf.fps = _perf.fps * 0.9 + (1000 / Math.max(1, _pt2 - _perf.last)) * 0.1;
+    _perf.last = _pt2;
+    var _na = 0, _i; for (_i = 0; _i < otherPlayers.length; _i++) if (otherPlayers[_i].sim && !otherPlayers[_i]._dormant) _na++;
+    var _txt = 'FPS ' + _perf.fps.toFixed(0) + '  sim ' + _perf.sim.toFixed(1) + '  draw ' + _perf.draw.toFixed(1) + '  npc ' + _na + '/' + otherPlayers.length + '  drops ' + drops.length;
+    ctx.save(); ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    var _w = ctx.measureText(_txt).width + 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(4, 4, _w, 18);
+    ctx.fillStyle = (_perf.fps < 45 ? '#ff6b6b' : '#7CFC00'); ctx.fillText(_txt, 10, 17);
+    ctx.restore();
+  }
   requestAnimationFrame(loop);
 }
 function showErr(msg) {
