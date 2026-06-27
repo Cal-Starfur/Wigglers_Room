@@ -3374,7 +3374,7 @@ function updatePhysics() {
     // When d.pathIdx is set, the steering block below handles all movement;
     // applying d.y += d.vy here as well was double-moving the drop and
     // pushing it out of the tube on shallow or horizontal segments.
-    if (d.pathIdx == null && !d.clogStalled) d.y += d.vy;
+    if (d.pathIdx == null) d.y += d.vy;
 
     if (inCompost(d.y)) {
 
@@ -3395,14 +3395,7 @@ function updatePhysics() {
           // Target point is clogged: stall the drop at its CURRENT position so it
           // never moves into or past the clog art. No jumping back to prevPt needed
           // because we intercept before any movement toward the clog happens.
-          if (!d.isPoop && (pp.clog || 0) >= 0.55) {
-            // Clog blocks this drop — detach and pool in place.
-            // When the clog decays the drop re-enters normal compost fall logic.
-            d.pathIdx     = null;
-            d.vy          = 0;
-            d.stalled     = true;
-            d.clogStalled = true;
-          } else {
+
 
           var angle = ptdist > 0 ? Math.abs(ptdy / ptdist) : 0; // 0=horizontal, 1=vertical
           var targetVy = 0.05 + angle * 0.45; // 0.05 horizontal → 0.5 vertical
@@ -3451,12 +3444,6 @@ function updatePhysics() {
                     if (_uaea > 0) { d.prevPathIdx = d.pathIdx; d.pathIdx = _uae; break; }
                   }
                 }
-              } else if ((pp.clog || 0) >= (pp.sumpExit ? 0.3 : 0.55)) {
-                // Clog at sumpExit — pool in place and wait for decay.
-                d.pathIdx     = null;
-                d.vy          = 0;
-                d.stalled     = true;
-                d.clogStalled = true;
               } else {
                 d.inTunnel = true;
                 d.pathIdx = null;
@@ -3493,21 +3480,11 @@ function updatePhysics() {
               }
               if (_jBest >= 0) {
                 // Tea must not hop into a clogged connected drain — stall at the junction point.
-                var _jBestClog = (_jarr[_jBest].clog || 0);
-                var _jBestIsSumpExit = !!(_jarr[_jBest].sumpExit);
-                if (!d.isPoop && _jBestClog >= (_jBestIsSumpExit ? 0.3 : 0.55)) {
-                  // Connected drain is clogged — block here at the junction stamp point.
-                  d.pathIdx     = null;
-                  d.vy          = 0;
-                  d.stalled     = true;
-                  d.clogStalled = true;
-                } else {
-                  d.prevPathIdx = d.pathIdx;
-                  d.pathArr = _jarr;   // hop ACROSS to the target's path
-                  d.pathIdx = _jBest;
-                  d.x = _jarr[_jBest].x;
-                  d.y = _jarr[_jBest].y;
-                }
+                d.prevPathIdx = d.pathIdx;
+                d.pathArr = _jarr;   // hop ACROSS to the target's path
+                d.pathIdx = _jBest;
+                d.x = _jarr[_jBest].x;
+                d.y = _jarr[_jBest].y;
               } else {
                 // Target segment gone — free-fall
                 d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
@@ -3529,17 +3506,8 @@ function updatePhysics() {
                   if (ua <= 0) continue;
                   if (upp.y < pp.y) {
                     // Tea: stop BEFORE a clogged next point — stall at current point.
-                    if (!d.isPoop && (upp.clog || 0) >= 0.55) {
-                      // Clog ahead on up-drain — pool in place and wait for decay.
-                      d.pathIdx     = null;
-                      d.vy          = 0;
-                      d.stalled     = true;
-                      d.clogStalled = true;
-                      advanced = true;
-                    } else {
                       d.prevPathIdx = d.pathIdx;
                       d.pathIdx = pi8; advanced = true;
-                    }
                     break;
                   }
                   if (upp.y === pp.y) { nextIsHorizontal = true; }
@@ -3553,18 +3521,11 @@ function updatePhysics() {
                     pp.alpha  = 1.0;
                     pp.clogTs = frame;
                     d.active  = false;
-                  } else if ((pp.clog || 0) >= 0.55) {
-                    // Clog at up-drain terminus — pool in place and wait for decay.
-                    d.pathIdx     = null;
-                    d.vy          = 0;
-                    d.stalled     = true;
-                    d.clogStalled = true;
                   } else {
                     // No clog — tea exits the top of the up-drain and free-falls from here
                     d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
-                  }
                 }
               } else {
               // ── Normal: advance toward deeper points ───────────────────────────
@@ -3575,28 +3536,8 @@ function updatePhysics() {
                 if (na <= 0) continue;
                 if (npp.y > pp.y || (d.isPoop && npp.sumpExit)) {
                   // Fix 3: poop reaches a fully-packed next point — deposit at the bottleneck (npp), not upstream (pp)
-                  if (d.isPoop && (npp.clog || 0) >= 0.9) {
-                    if (npp.clog == null) npp.clog = 0;
-                    npp.clog  = Math.min(1, npp.clog + d.clogAmt * 0.5);
-                    npp.alpha = 1.0;
-                    npp.clogTs = frame;
-                    d.active = false;
-                    advanced = true;
-                  // Tea: stop BEFORE a clogged next point — stall at current point.
-                  // Must null pathIdx so the drop exits the on-path steering loop;
-                  // leaving pathIdx set caused vy to oscillate (+=0.02 each frame,
-                  // "arrive", stall, reset to 0, repeat) freezing the drop in place.
-                  } else if (!d.isPoop && (npp.clog || 0) >= 0.55) {
-                    // Clog ahead — pool in place and wait for decay.
-                    d.pathIdx     = null;
-                    d.vy          = 0;
-                    d.stalled     = true;
-                    d.clogStalled = true;
-                    advanced = true;    // suppress further scanning this frame
-                  } else {
                     d.prevPathIdx = d.pathIdx;
                     d.pathIdx = pi3; advanced = true;
-                  }
                   break;
                 }
                 if (npp.y === pp.y) { nextIsHorizontal = true; } // flat section ahead
@@ -3657,25 +3598,9 @@ function updatePhysics() {
                     if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Poop deposited at DEAD-END (not sumpExit!) clog='+pp.clog.toFixed(3)+' y='+pp.y.toFixed(1)+' sumpExit='+!!pp.sumpExit);
                   }
                 } else {
-                  // Check if any point in this segment is clogged
-                  var _segHasClog = (pp.clog || 0) > 0;
-                  if (!_segHasClog) {
-                    var _chkS = _dropSegStart(P, d.pathIdx), _chkE = _dropSegEnd(P, d.pathIdx);
-                    for (var _chk = _chkS; _chk < _chkE; _chk++) {
-                      var _chkP = P[_chk];
-                      if (_chkP && (_chkP.clog || 0) >= 0.55) { _segHasClog = true; break; }
-                    }
-                  }
-                  if (_segHasClog) {
-                    // Clog somewhere in segment — pool in place and wait for decay.
-                    d.pathIdx     = null;
-                    d.vy          = 0;
-                    d.stalled     = true;
-                    d.clogStalled = true;
-                  } else {
-                    d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
-                    d.pathIdx = null;
-                    d.vy = Math.max(0.05, d.vy);
+                  d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
+                  d.pathIdx = null;
+                  d.vy = Math.max(0.05, d.vy);
                   }
                 }
               }
@@ -3690,22 +3615,10 @@ function updatePhysics() {
             // Decay lateral boost
             if (d.vx) d.vx *= 0.85;
           }
-          } // end not-clogged else
         }
       } else {
         // Detached (pathIdx == null) — free percolation, or clog-stalled backpressure.
-        if (d.clogStalled) {
-          // Clog-stalled: pool in place as backpressure, but PERIODICALLY re-test whether the
-          // blockage has cleared — the clog decayed, or the NPC tube it was waiting on dissolved.
-          // Previously clogStalled was only ever cleared inside the scan below, which stalled
-          // drops never reached, so tea stayed frozen forever ("holding the tea") and these
-          // frozen drops piled up toward the cap, dragging the frame rate down over time.
-          // Clearing the flag lets the scan/fall below re-route it; if it's still blocked the
-          // on-path routing simply re-stalls it next frame (it can't leak past a live clog).
-          d.vy = 0;
-          d._stallAge = (d._stallAge || 0) + 1;
-          if (d._stallAge >= 40) { d._stallAge = 0; d.clogStalled = false; }
-        } else if (!d.isPoop) {
+        if (!d.isPoop) {
           // Assign a random stall depth on first entry so drops pool at varied heights
           // rather than creeping all the way to 3H. Deeper stalls are rarer (percolation
           // gets harder the more compacted the soil is lower down).
@@ -3715,7 +3628,6 @@ function updatePhysics() {
             var _maxFrac = 0.90 - castingEnrichment * 0.30; // 0.90 bare → 0.60 rich
             var _minFrac = 0.05;
             d.stallDepth = 2*H + (_minFrac + Math.random() * (_maxFrac - _minFrac)) * (cSurf() - 2*H);
-            d.clogStalled = false; // percolation stall — NOT a blockage, re-attach cap must not fire
           }
 
           if (d.y >= d.stallDepth) {
@@ -3739,7 +3651,7 @@ function updatePhysics() {
         // rest of the way down. Skipped for clog-stalled drops (they pool until their recheck);
         // RESTING pooled drops only re-scan ~once every 8 frames (staggered by index) instead of
         // every frame — a falling drop still scans every frame so it attaches promptly.
-        if (!d.clogStalled && (!d.stalled || ((frame + i) & 7) === 0)) {
+        if (!d.stalled || ((frame + i) & 7) === 0) {
         var _bestArr = null, _bestIdx = -1, _bestDist = 999999;
         var _scanX = d.x, _scanY = d.y;
         // Poop scans only the current active segment — prevents snapping to distant
@@ -3839,7 +3751,6 @@ function updatePhysics() {
           d.x            = _bestArr[_bestIdx].x;
           d.y            = _bestArr[_bestIdx].y;
           d.stalled      = false;  // tunnel found — resume flowing
-          d.clogStalled  = false;  // clear blockage flag
           d.stallDepth   = null;   // allow re-stall if it detaches again deeper down
           d.lastSegStart = null;   // clear segment lock — fresh attachment
           d.lastSegEnd   = null;
