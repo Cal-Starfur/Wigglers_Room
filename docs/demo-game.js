@@ -23,6 +23,8 @@ var ctx = canvas.getContext('2d');
 // cause before the permanent halo conversion.
 // PERF TEST (default-OFF): ?fast=1 draws tunnels in 1 pass instead of 2 (halves tunnel paint).
 var _FAST = /[?&]fast=1/.test(window.location.search || '');
+var _NODRAW   = /[?&]nodraw=1/.test(window.location.search || '');
+var _NOCLOG   = /[?&]noclog=1/.test(window.location.search || '');
 if (/[?&]noblur=1/.test(window.location.search || '')) {
   try {
     Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });
@@ -4294,6 +4296,7 @@ var _starPos = [
 var _segPtsScratch = [];
 
 function draw() {
+  if (_NODRAW) { ctx.clearRect(0, 0, W, H); return; }
   if (!W || !H) return;
   ctx.clearRect(0, 0, W, H);
   // centreOffsetX: on wide screens, shift world right so bin is centred.
@@ -4686,7 +4689,7 @@ function draw() {
   ctx.lineCap  = 'round';
   ctx.lineJoin = 'round';
   // Clog deposits render for EVERY registered path (player + NPC tubes).
-  for (var _crpi = 0; _crpi < pathRegistry.length; _crpi++) {
+  for (var _crpi = 0; !_NOCLOG && _crpi < pathRegistry.length; _crpi++) {
     var _CP = pathRegistry[_crpi];
   for (var _ci = 0; _ci < _CP.length; _ci++) {
     var _cp = _CP[_ci];
