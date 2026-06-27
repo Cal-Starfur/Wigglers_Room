@@ -24,7 +24,6 @@ var ctx = canvas.getContext('2d');
 // PERF TEST (default-OFF): ?fast=1 draws tunnels in 1 pass instead of 2 (halves tunnel paint).
 var _FAST = /[?&]fast=1/.test(window.location.search || '');
 var _NODRAW   = /[?&]nodraw=1/.test(window.location.search || '');
-var _NOCLOG   = /[?&]noclog=1/.test(window.location.search || '');
 var _NOTUBE   = /[?&]notube=1/.test(window.location.search || '');
 if (/[?&]noblur=1/.test(window.location.search || '')) {
   try {
@@ -2524,9 +2523,6 @@ function updatePlayer() {
       pSegs[si].y += (pSleepY + Math.sin(coilAngle) * coilR * 0.6 - pSegs[si].y) * 0.18;
     }
     // Fade path closed while sleeping — tunnel fills back in.
-    // When a clogged point's tunnel finishes fading, give it a downward
-    // velocity so it settles through compost like a poop drop — keeping
-    // its clog art shape the whole way down.
     for (var pi2 = 0; pi2 < pPath.length; pi2++) {
       var _pp2 = pPath[pi2];
       if (!_pp2) continue;
@@ -3210,9 +3206,6 @@ function updatePhysics() {
   }
 
 
-  // --- Settling clog art removed --- clogs now burst into isPoop drops when their
-  // tunnel alpha hits 0 (see the alpha fade loop above). The clogVy settling path
-  // is no longer needed; drops re-enter normal poop physics from there.
 
   // --- Settled scraps slowly sink deeper into tier 1, then fade into compost ---
   for (var i = scraps.length - 1; i >= 0; i--) {
@@ -3343,8 +3336,6 @@ function updatePhysics() {
     return arr.length;
   }
 
-  // Returns the {x,y} where a drop should stall on the clog-facing side.
-  // queueOffset (px) staggers multiple queued drops along the tube axis.
 
   var cs = cSurf();
   for (var i = drops.length - 1; i >= 0; i--) {
@@ -3391,10 +3382,6 @@ function updatePhysics() {
           var ptdx = pp.x - d.x, ptdy = pp.y - d.y;
           var ptdist = Math.sqrt(ptdx*ptdx + ptdy*ptdy);
 
-          // ── Clog check — tea blocked by poop deposit ─────────────────────────
-          // Target point is clogged: stall the drop at its CURRENT position so it
-          // never moves into or past the clog art. No jumping back to prevPt needed
-          // because we intercept before any movement toward the clog happens.
 
 
           var angle = ptdist > 0 ? Math.abs(ptdy / ptdist) : 0; // 0=horizontal, 1=vertical
@@ -3403,9 +3390,6 @@ function updatePhysics() {
           if (ptdist <= d.vy + 1) {
             // Reached this point
             d.x = pp.x; d.y = pp.y;
-            if (d.isPoop && typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE && (frame % 6 === 0)) {
-              console.log('[POOP-ARRIVE] y='+pp.y.toFixed(1)+' sumpExit='+!!pp.sumpExit+' junctionTarget='+pp.junctionTarget+' clog='+(pp.clog||0).toFixed(3)+' pathIdx='+d.pathIdx+' pPathLen='+P.length);
-            }
             // If this is the sealed sump exit point — drop into sump OR deposit clog
             if (pp.sumpExit) {
               if (d.isPoop) {
@@ -3424,12 +3408,9 @@ function updatePhysics() {
                   // Down-drain terminus — deposit clog and stop.
                   // A single poop drop is enough to seal a drain: clamp to at
                   // least 0.6 (above the 0.55 tea-block threshold) immediately.
-                  if (pp.clog == null) pp.clog = 0;
                   if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                   pp.alpha = 1.0;
-                  pp.clogTs = frame;
                   d.active = false;
-                  if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Poop deposited at sumpExit, clog='+pp.clog.toFixed(3)+' pathIdx='+d.pathIdx+' y='+pp.y.toFixed(1));
                 } else {
                   // Up-drain entry — advance to the next live point so poop travels up the tube
                   d.upDrain = true; // switch advance direction: poop now climbs toward shallower points
@@ -3449,7 +3430,6 @@ function updatePhysics() {
                 d.pathIdx = null;
                 d.y = cSurf();
                 d.vy = 0.5;
-                if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Tea passed sumpExit — clog='+((pp.clog||0).toFixed(3))+' pathIdx='+d.pathIdx);
               }
             } else if (pp.junctionTarget != null && pp.junctionTarget.arr) {
               // Junction point — hop to the connected drain segment, which may live on a
@@ -3516,10 +3496,8 @@ function updatePhysics() {
                   // Top of the up-drain dead-end
                   if (d.isPoop) {
                     // Poop deposits at the terminus
-                    if (pp.clog == null) pp.clog = 0;
                     castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                     pp.alpha  = 1.0;
-                    pp.clogTs = frame;
                     d.active  = false;
                   } else {
                     // No clog — tea exits the top of the up-drain and free-falls from here
@@ -3590,12 +3568,9 @@ function updatePhysics() {
                     if (_sfp.sumpExit) { d.prevPathIdx = d.pathIdx; d.pathIdx = _sf; _foundSumpFwd = true; break; }
                   }
                   if (!_foundSumpFwd) {
-                    if (pp.clog == null) pp.clog = 0;
                     castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
                     pp.alpha = 1.0; // poop solidifies the tunnel point — never fades it
-                    pp.clogTs = frame; // mark fresh deposit for decay gating (Bug 4)
                     d.active = false;
-                    if (typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE) console.log('[CLOG] Poop deposited at DEAD-END (not sumpExit!) clog='+pp.clog.toFixed(3)+' y='+pp.y.toFixed(1)+' sumpExit='+!!pp.sumpExit);
                   }
                 } else {
                   d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
@@ -3756,7 +3731,7 @@ function updatePhysics() {
           d.lastSegEnd   = null;
           d.vy           = Math.max(0.05, d.vy);
         }
-        } // end scan wrapper — skipped while clog-stalled
+        }
       }
     } else if (d.y >= cSurf() && d.y < cSurf() + H*0.25) {
       // Entered sump zone
@@ -4196,8 +4171,6 @@ var _starPos = [
   [0.79,0.20],[0.38,0.28],[0.61,0.31],[0.88,0.27],[0.05,0.30],[0.95,0.12]
 ];
 
-// Reusable scratch array for clog-clip segment point building — avoids per-point allocation.
-var _segPtsScratch = [];
 
 function draw() {
   if (_NODRAW) { ctx.clearRect(0, 0, W, H); return; }
@@ -6556,7 +6529,6 @@ function updateNPCSims() {
         sz:             sim.sr * (0.5 + Math.random() * 0.4),
         active:         true,
         isPoop:         true,
-        clogAmt:        0.12 + _npGutFrac * 0.16,
         enteredCompost: inCompost(_ptail.y)
       });
       sim.gut = Math.max(0, sim.gut - sim.gutMax * 0.6);
@@ -6903,7 +6875,6 @@ function tryPoop() {
         sz:             _sz,
         active:         true,
         isPoop:         true,
-        clogAmt:        0.12 + gutFrac * 0.16,
         enteredCompost: _alreadyInCompost
       });
     }
