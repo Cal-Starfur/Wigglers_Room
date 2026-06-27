@@ -795,8 +795,9 @@ function weatherTempF() { return Math.round(20 + weather.temp * 90); }
 var pPath = [];
 var pLastX = -999, pLastY = -999;
 // Hard cap on tunnel path length — prune oldest COMPLETE segments when exceeded.
-// 2000 points ≈ several minutes of digging; keeps O(pPath) work bounded.
-var MAX_PPATH = 2000;
+// Player tube now matched to NPC treatment (was 2000) — same cap as MAX_NPC_PATH so the
+// player tunnel paints as cheaply as a background worm's. Shortens persistent tunnel length.
+var MAX_PPATH = 130;
 var MAX_NPC_PATH = 130;          // NPC tunnels capped far below the player's so the shared
                                  // spatial index stays small and cheap to rebuild/scan.
 var NPC_SIM_CAP = (function(){ var m=(window.location.search||'').match(/[?&]cap=(\d+)/); return m ? Math.max(0, +m[1]) : 10; })();            // max NPCs simulated/drawn at once (demo mode). Thins the
@@ -4584,7 +4585,7 @@ function draw() {
       if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path, true);
     }
   }
-  if (!_NOTUBE) drawPath(pPath);
+  if (!_NOTUBE) drawPath(pPath, true);   // singlePass — matched to NPC tube treatment (was 2-pass)
 
 
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
