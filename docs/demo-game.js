@@ -496,11 +496,9 @@ var gardenTufts = [];  // pre-generated static grass tufts — never recomputed
 var gardenFlowers = []; // pre-generated static flowers
 var _bladeCanvas = null; // PERF-3: offscreen pre-render of blade fringe — rebuilt in setup()
 var bugs = [];   // fruit flies / gnats in tier 0 empty airspace
-var tLvl = 0;
 var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by pooping in compost
 var pooled = 0;
 var tapReady = false;
-var teaSplashes = []; // [{x, y, age, maxAge, r}] ripple animations
 
 // ── Weekly drain bonus system ──────────────────────────────────────────────
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
@@ -764,7 +762,6 @@ window.addEventListener('message', function(e) {
   // { type: 'setWorldState', tLvl: 0–1, pooled: 0–1, castingEnrichment: 0–1, scrapsLevel: 0–1, weekStartTs: ms }
   if (msg.type === 'setWorldState') {
     _dbgWorldState = msg; // debug
-    if (msg.tLvl             != null) tLvl              = Math.max(0, Math.min(1, +msg.tLvl             || 0));
     // pooled intentionally excluded — derived at runtime from active drops, not shared via KV
     if (msg.castingEnrichment!= null) castingEnrichment  = Math.max(0, Math.min(1, +msg.castingEnrichment|| 0));
     // scrapsLevel drives trash chunk density — stored for setup() to use
@@ -1075,7 +1072,6 @@ function getTier(wy) {
 }
 
 function cSurf() { return 2.5*H; } // sump line / compost bottom. Compost = [2H..cSurf()] (half-depth).
-function tSurf() { return cSurf() + H*0.25 + H*0.5 - tLvl*(H-8); }
 
 // ── Compost layer (tier 2, y = 2H..cSurf()) ─
 function inCompost(wy) { return wy >= 2*H && wy < cSurf(); }
@@ -2605,12 +2601,6 @@ function applyOfflineDrain(saved) {
       _msgs.push('🪱 Worm is doing well');
     }
 
-    // ── World / bin state ───────────────────────────────────────────────────
-    if (tLvl >= 0.9) {
-      _msgs.push('⚠ Sump is flooding!');
-    } else if (tLvl >= 0.65) {
-      _msgs.push('🫗 Sump is nearly full');
-    }
 
     // Clog warning — only show when pooled is meaningful AND a tunnel is actually blocked
     if (pooled > 0.5) {
@@ -2750,7 +2740,7 @@ function _buildBladeCanvas() {
 function setup() {
   resizeCanvas();
   pPath = []; drops = []; bugs = []; trashChunks = []; debris = []; weatherQueue = [];
-  scraps = []; cocoons = []; teaSplashes = []; drainBonusPopups = [];
+  scraps = []; cocoons = []; drainBonusPopups = [];
   tapReady = false;
   drainDownTimer = 0; drainUpTimer = 0; drainDownCooldown = 0;
   window._sumpHadDown = null; window._upDrainBonusFired = false;
@@ -2883,7 +2873,7 @@ function setup() {
   // ISS-18: Prime KV_WORLD immediately after setup so any joining device gets
   // current bin state. Without this, KV_WORLD stays empty until the first
   // food drop / valve fill / drain — which may be many minutes away.
-  postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
+  postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
 }
 
 function updateCocoons() {
@@ -3612,7 +3602,7 @@ function updatePhysics() {
   // next frame's threshold checks — values never approach flood (tLvl>=0.9) or drowning
   // (pooled>0.6). Drops still fall/render; only the totals are held at baseline.
   if (tutorial.active) {
-    castingEnrichment = 0; pooled = 0; tLvl = 0; window._moisture = 0;
+    castingEnrichment = 0; pooled = 0; window._moisture = 0;
   }
   // Rebuild the shared path bucket index at most ONCE per frame if any path pruned since the
   // last frame. Previously every prune triggered a full O(all-points) rebuild, so once NPC
@@ -3806,7 +3796,7 @@ function updatePhysics() {
   // Returns the {x,y} where a drop should stall on the clog-facing side.
   // queueOffset (px) staggers multiple queued drops along the tube axis.
 
-  var cs = cSurf(), ts = tSurf();
+  var cs = cSurf();
   for (var i = drops.length - 1; i >= 0; i--) {
     var d = drops[i];
     if (!d.active) continue;
@@ -4310,22 +4300,7 @@ function updatePhysics() {
       }
     }
 
-    // Hit the tea surface — use the same world Y the renderer uses so splash lands on the fill line
     var _sumpFloor  = cSurf() + H*0.25;
-    var _teaSurfWY  = (window._teaSurfWorldY !== undefined) ? window._teaSurfWorldY : _sumpFloor;
-    var _teaHit = d.inTunnel && !d.counted && (d.y >= _teaSurfWY || d.y >= _sumpFloor - 1);
-    if (_teaHit) {
-      d.counted = true;
-      tLvl = Math.min(1, tLvl + 0.001);
-      karma += 1;
-      // ISS-13 Bug A fix: tunnel drops must decrement pooled when they hit the tea surface.
-      // Previously guarded by !d.inTunnel at sump entry, so tunnel drops never reduced saturation.
-      if (!d.isPoop) pooled = Math.max(0, pooled - 0.005);
-      // Clamp splash Y to the actual fill line — not wherever the drop happened to be
-      var splashWY = Math.min(d.y, _teaSurfWY);
-      teaSplashes.push({ x: d.x, wy: splashWY, age: 0, maxAge: 44, r: 0, sz: d.sz, vy: d.vy });
-      d.active = false;
-    }
 
     // Drop fell past sump floor — poop deposits castings, tea removed silently
     if (d.y > _sumpFloor) {
@@ -4345,7 +4320,7 @@ function updatePhysics() {
   if (window._lastBroadcastPooled == null) window._lastBroadcastPooled = pooled;
   if (Math.abs(pooled - window._lastBroadcastPooled) >= 0.02) {
     window._lastBroadcastPooled = pooled;
-    postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
+    postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
   }
 
   // (Rain removed — saturation driven by tea drops from food only)
@@ -5560,44 +5535,12 @@ function draw() {
       ctx.beginPath(); ctx.moveTo(b.cx+b.bw2-3, sumpDrawTop); ctx.lineTo(b.cx+b.bw2-3, sumpDrawTop+sumpDrawH); ctx.stroke();
 
       // Worm tea — fills from the floor upward
-      var teaFloor  = sumpBottom;
-      if (tLvl > 0) {
-        var teaHeight = tLvl * (sumpBottom - sumpTop);
-        var teaSurf   = teaFloor - teaHeight;
-        // Store world-Y of actual tea surface for splash positioning
-        window._teaSurfWorldY = teaSurf + camY;
-        var teaSurfClipped = Math.max(sumpDrawTop, teaSurf);
-        var teaDrawH  = Math.min(sumpBottom, H+4) - teaSurfClipped;
-        if (teaDrawH > 0) {
-          var teaGrad = ctx.createLinearGradient(0, teaSurf, 0, teaFloor);
-          teaGrad.addColorStop(0,   'rgba(120,160,40,0.82)');
-          teaGrad.addColorStop(0.4, 'rgba(100,140,30,0.88)');
-          teaGrad.addColorStop(1,   'rgba(70,110,20,0.95)');
-          ctx.fillStyle = teaGrad;
-          ctx.fillRect(b.cx-b.bw2+4, teaSurfClipped, b.bw-8, teaDrawH);
-          if (teaSurf > sumpDrawTop && teaSurf < H) {
-            var rippleA = 0.25 + Math.sin(frame * 0.04) * 0.1;
-            ctx.strokeStyle = 'rgba(200,240,100,' + rippleA + ')';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(b.cx - b.bw2*0.3, teaSurf + 3);
-            ctx.bezierCurveTo(b.cx - b.bw2*0.1, teaSurf, b.cx + b.bw2*0.1, teaSurf + 5, b.cx + b.bw2*0.3, teaSurf + 2);
-            ctx.stroke();
-          }
-          if (teaSurf > sumpDrawTop + 8 && teaSurf < H - 4) {
-            ctx.fillStyle = 'rgba(200,240,120,0.7)';
-            ctx.font = '9px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(Math.round(tLvl * 100) + '% full', b.cx, teaSurf - 4);
-          }
-        }
-      } else {
-        var puddle = ctx.createRadialGradient(b.cx, sumpBottom-8, 4, b.cx, sumpBottom-8, b.bw2*0.6);
-        puddle.addColorStop(0,   'rgba(100,160,200,0.15)');
-        puddle.addColorStop(1,   'rgba(100,160,200,0)');
-        ctx.fillStyle = puddle;
-        ctx.fillRect(b.cx-b.bw2, sumpBottom-30, b.bw, 30);
-      }
+      // Empty sump - faint bottom sheen
+      var puddle = ctx.createRadialGradient(b.cx, sumpBottom-8, 4, b.cx, sumpBottom-8, b.bw2*0.6);
+      puddle.addColorStop(0,   'rgba(100,160,200,0.15)');
+      puddle.addColorStop(1,   'rgba(100,160,200,0)');
+      ctx.fillStyle = puddle;
+      ctx.fillRect(b.cx-b.bw2, sumpBottom-30, b.bw, 30);
 
 
     }
@@ -5617,87 +5560,6 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
-  // Tea splashes — crown + cavity + ripple rings on drop impact
-  for (var si3 = teaSplashes.length - 1; si3 >= 0; si3--) {
-    var sp = teaSplashes[si3];
-    sp.age++;
-    if (sp.age > sp.maxAge) { teaSplashes.splice(si3, 1); continue; }
-    var spFrac  = sp.age / sp.maxAge;
-    var spy     = sp.wy - camY;
-    if (spy < -20 || spy > H + 20) continue;
-    var impactR = (sp.sz || 3) * 2.2;   // scales with drop size
-    var impV    = Math.min(2.5, sp.vy || 1); // impact velocity, capped
-
-    ctx.save();
-
-    // ── Cavity — surface dips then springs back (first 30% of life) ─────────
-    if (spFrac < 0.30) {
-      var cavT   = spFrac / 0.30;
-      var cavD   = Math.sin(cavT * Math.PI) * impactR * 0.55; // depth peaks at midpoint
-      var cavW   = impactR * (0.5 + cavT * 0.5);
-      ctx.globalAlpha = (1 - cavT) * 0.55;
-      ctx.fillStyle = 'rgba(60,90,20,0.9)';
-      ctx.beginPath();
-      ctx.ellipse(sp.x, spy + cavD * 0.35, cavW, cavD * 0.22 + 1, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // ── Crown droplets — 5 jets shooting up and arcing back ─────────────────
-    if (spFrac < 0.55) {
-      var crownT  = spFrac / 0.55;
-      var nJets   = 5;
-      ctx.fillStyle = 'rgba(180,230,80,0.92)';
-      for (var ji = 0; ji < nJets; ji++) {
-        var jAng  = (ji / nJets) * Math.PI * 2 + Math.PI * 0.1;
-        var jSpd  = impactR * (0.55 + (ji % 2) * 0.22);
-        var jX    = sp.x + Math.cos(jAng) * jSpd * crownT;
-        // parabolic arc: rises then falls
-        var jY    = spy - (impV * 5 + impactR * 0.9) * crownT * (1 - crownT) * 2.2;
-        var jAlpha = (1 - crownT) * 0.88;
-        var jR    = (sp.sz || 3) * (0.28 + (1 - crownT) * 0.22);
-        ctx.globalAlpha = jAlpha;
-        ctx.beginPath(); ctx.arc(jX, jY, Math.max(0.5, jR), 0, Math.PI * 2); ctx.fill();
-      }
-      // Centre column — thin upward spike at the moment of impact
-      if (spFrac < 0.18) {
-        var colT  = spFrac / 0.18;
-        var colH  = (1 - colT) * impactR * 1.8;
-        ctx.globalAlpha = (1 - colT) * 0.7;
-        ctx.strokeStyle = 'rgba(200,245,100,1)';
-        ctx.lineWidth   = (sp.sz || 3) * 0.35;
-        ctx.lineCap     = 'round';
-        ctx.beginPath();
-        ctx.moveTo(sp.x, spy);
-        ctx.lineTo(sp.x, spy - colH);
-        ctx.stroke();
-      }
-    }
-
-    // ── Ripple rings — two expanding ellipses ────────────────────────────────
-    // First ring starts at impact, second starts slightly later
-    var ringMaxR = impactR * 4.5;
-    // Ring 1
-    var r1Frac = spFrac;
-    var r1R    = r1Frac * ringMaxR;
-    var r1A    = (1 - r1Frac) * 0.60;
-    ctx.globalAlpha = r1A;
-    ctx.strokeStyle = 'rgba(180,230,80,1)';
-    ctx.lineWidth   = 1.2 * (1 - r1Frac * 0.6);
-    ctx.beginPath(); ctx.ellipse(sp.x, spy, r1R, r1R * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
-    // Ring 2 — starts at 20% in, slightly smaller max
-    if (spFrac > 0.20) {
-      var r2Frac = (spFrac - 0.20) / 0.80;
-      var r2R    = r2Frac * ringMaxR * 0.7;
-      var r2A    = (1 - r2Frac) * 0.40;
-      ctx.globalAlpha = r2A;
-      ctx.strokeStyle = 'rgba(220,255,130,1)';
-      ctx.lineWidth   = 0.8;
-      ctx.beginPath(); ctx.ellipse(sp.x, spy, r2R, r2R * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
-    }
-
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
 
 
 
@@ -6624,7 +6486,7 @@ function drawDebugOverlay() {
   var lines = [
     'DBG user=' + (username || '?'),
     'karma=' + Math.floor(karma) + ' sesTs=' + (_dbgSessionTs ? new Date(_dbgSessionTs).toISOString().slice(11,19) : 'none'),
-    'tLvl=' + tLvl.toFixed(3) + ' cast=' + castingEnrichment.toFixed(3) + ' scraps=' + scrapsLevel.toFixed(2),
+    'cast=' + castingEnrichment.toFixed(3) + ' scraps=' + scrapsLevel.toFixed(2),
     'wkTs=' + (weekStartTs ? new Date(weekStartTs).toISOString().slice(5,16) : 'none'),
     'token=' + _dbgTokenState,
     'conflict=' + deviceConflictActive,
@@ -7759,7 +7621,7 @@ function tryPoop() {
       weeklyContrib += enrichGain * 0.5;
       if (!tryPoop._lastEnrich || Math.abs(castingEnrichment - tryPoop._lastEnrich) >= 0.01) {
         tryPoop._lastEnrich = castingEnrichment;
-        postToHost({ type: 'worldUpdate', tLvl: tLvl, castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
+        postToHost({ type: 'worldUpdate', castingEnrichment: castingEnrichment, scrapsLevel: scrapsLevel });
       }
     }
 
