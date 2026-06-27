@@ -764,7 +764,7 @@ var pLastX = -999, pLastY = -999;
 // Hard cap on tunnel path length — prune oldest COMPLETE segments when exceeded.
 // 2000 points ≈ several minutes of digging; keeps O(pPath) work bounded.
 var MAX_PPATH = 2000;
-var MAX_NPC_PATH = 280;          // NPC tunnels capped far below the player's so the shared
+var MAX_NPC_PATH = 130;          // NPC tunnels capped far below the player's so the shared
                                  // spatial index stays small and cheap to rebuild/scan.
 var NPC_SIM_CAP = (function(){ var m=(window.location.search||'').match(/[?&]cap=(\d+)/); return m ? Math.max(0, +m[1]) : 10; })();            // max NPCs simulated/drawn at once (demo mode). Thins the
                                  // ~25-strong presence list so a single page stays smooth;
@@ -3756,12 +3756,12 @@ function updatePhysics() {
 }
 
 
-function drawPath(path) {
+function drawPath(path, singlePass) {
   if (!path.length) return;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  for (var pass = 0; pass < (_FAST ? 1 : 2); pass++) {
+  for (var pass = 0; pass < ((_FAST || singlePass) ? 1 : 2); pass++) {
     var inSeg = false;
     var lastTi = -1;
     var lastAlpha = -1;
@@ -4548,7 +4548,7 @@ function draw() {
   if (window._demoMode) {
     for (var _npd = 0; _npd < otherPlayers.length; _npd++) {
       var _nopp = otherPlayers[_npd];
-      if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);
+      if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path, true);
     }
   }
   if (!_NOTUBE) drawPath(pPath);
