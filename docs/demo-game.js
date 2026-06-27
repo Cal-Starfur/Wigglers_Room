@@ -3058,6 +3058,7 @@ function updatePlayer() {
           drainBonusPopups.push({ text: 'Down drain connected! +100', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
           pPath.push({x: head.x, y: cSurf(), r: pSR, ti: 2, sumpExit: true});
           pPath.push(null);
+          _pPathBucketsDirty = true;   // sumpExit pushed raw (bypasses _pPathBucketInsert) — reindex next frame so draining drops can find it instead of rescanning every frame
           pLastX = -999; pLastY = -999;
           var _dsSegTop = false;
           var _dsScanStart = pPath.length - 3;
@@ -3089,6 +3090,7 @@ function updatePlayer() {
             drainDownCooldown = JUNCTION_HOLD_FRAMES; // cooldown after each up drain too
             window._sumpHadDown = true; // keep flag so further holds make more up drains
             pPath.push({x: head.x, y: cSurf(), r: pSR, ti: 2, sumpExit: true});
+            _pPathBucketsDirty = true;   // sumpExit pushed raw — reindex next frame (same fix as the down drain)
             pLastX = head.x; pLastY = cSurf();
             window._upDrainBonusFired = false;
             drainBonusPopups.push({ text: '🌿 Up drain ready!', x: head.x, wy: head.y - pSR*3, alpha: 1, vy: -0.55 });
