@@ -501,7 +501,6 @@ var castingEnrichment = 0;  // 0–1 how rich the compost layer is — built by 
 var pooled = 0;
 var tapReady = false;
 var teaSplashes = []; // [{x, y, age, maxAge, r}] ripple animations
-var valveDrips  = []; // screen-space tea drips falling from spout to grass [{x,y,vy,sz,splashed,splashAge}]
 
 // ── Weekly drain bonus system ──────────────────────────────────────────────
 var WEEK_DRAIN_MS      = 7 * 24 * 60 * 60 * 1000;
@@ -924,15 +923,6 @@ function weatherTempF() { return Math.round(20 + weather.temp * 90); }
 
 
 
-// ── Tap drain flood relief ────────────────────────────────────────────────
-var DRAIN_TAP_KARMA_REWARD = 8;   // karma awarded to worm who opens the drain
-var drainTapCooldown = 0;         // frames since last drain tap — prevent spam
-var drainTapActive = false;       // legacy flag (kept for compat)
-var drainTapT = 0;                // legacy timer
-var valveOpen = false;            // TRUE while player has the tap open
-var VALVE_DRAIN_RATE = 0.0008;    // tLvl drained per frame while valve open (~21s to drain full sump)
-var valveDropTimer = 0;           // spawns tea drops out of spout while open
-var drainOwner = null;            // 'valve' | 'cinematic' | null — mutual exclusion: only one system drains tLvl at a time
 
 // Tunnel paths - one array per worm
 var pPath = [];
@@ -2760,8 +2750,7 @@ function _buildBladeCanvas() {
 function setup() {
   resizeCanvas();
   pPath = []; drops = []; bugs = []; trashChunks = []; debris = []; weatherQueue = [];
-  scraps = []; cocoons = []; teaSplashes = []; valveDrips = []; drainBonusPopups = [];
-  valveOpen = false; window._valveOpenState = false; window._valveDrainedTotal = 0;
+  scraps = []; cocoons = []; teaSplashes = []; drainBonusPopups = [];
   tapReady = false;
   drainDownTimer = 0; drainUpTimer = 0; drainDownCooldown = 0;
   window._sumpHadDown = null; window._upDrainBonusFired = false;
@@ -4373,32 +4362,6 @@ function updatePhysics() {
   }
 
   
-  // ── Valve open — continuous tea drain while player holds it open ──────────
-  if (valveOpen && drainOwner === 'valve') { // guard: only drain if this system owns tLvl
-    if (tLvl > 0) {
-      var drainAmt = VALVE_DRAIN_RATE;
-      tLvl = Math.max(0, tLvl - drainAmt);
-      window._valveDrainedTotal = (window._valveDrainedTotal || 0) + drainAmt;
-      valveDropTimer++;
-      if (valveDropTimer % 4 === 0) {
-        var _vb = getBinCached();
-        var _spoutWorldX = _vb.cx;
-        var _spoutWorldY = cSurf() + H*0.25 + 22; // world Y of spout nub tip
-        valveDrips.push({
-          x:        _spoutWorldX + (Math.random()-0.5) * 3,
-          wy:       _spoutWorldY,   // world Y — converted to screen at render
-          vy:       1.5 + Math.random() * 1.0,
-          sz:       2 + Math.random() * 1.5,
-          splashed: false,
-          splashAge: 0
-        });
-      }
-    } else {
-      // Sump fully emptied — auto-close
-      tLvl = 0;
-      closeDrainTap();
-    }
-  }
 
 }
 
@@ -5736,61 +5699,6 @@ function draw() {
     ctx.restore();
   }
 
-  // ── Valve drain drips — world-space tea drops from spout to grass ────────
-  // Spout nub is at world Y = cSurf() + H*0.25 + 22; stand legs are 80px tall,
-  // so the ground (splash target) is at cSurf() + H*0.25 + 80.
-  // Using cSurf() here caused every drop to be born already past the threshold
-  // and get instantly splashed without ever rendering a visible fall.
-  var _grassWY = cSurf() + H*0.25 + 80; // world Y of ground under stand legs
-  for (var vdi = valveDrips.length - 1; vdi >= 0; vdi--) {
-    var vd = valveDrips[vdi];
-    if (!vd.splashed) {
-      vd.vy += 0.18;
-      vd.wy += vd.vy;
-      var _vdSY = vd.wy - camY; // screen Y
-      if (_vdSY > H + 40) { valveDrips.splice(vdi, 1); continue; } // off-screen below
-      ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = '#78a028'; // green worm tea — matches sump gradient mid-tone
-      ctx.beginPath();
-      var _dropH = Math.min(vd.sz * 2.2, vd.sz + vd.vy * 0.5);
-      ctx.ellipse(vd.x, _vdSY, vd.sz * 0.55, _dropH * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.restore();
-      if (vd.wy >= _grassWY) {
-        vd.wy = _grassWY;
-        vd.splashed = true;
-        vd.splashAge = 0;
-      }
-    } else {
-      vd.splashAge++;
-      var _sf = vd.splashAge / 22;
-      if (_sf >= 1) { valveDrips.splice(vdi, 1); continue; }
-      var _vdSY2 = vd.wy - camY;
-      ctx.save();
-      ctx.globalAlpha = (1 - _sf) * 0.7;
-      ctx.strokeStyle = '#4a7818'; // dark green splash ring
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(vd.x, _vdSY2, vd.sz * 2.5 * _sf, vd.sz * 0.7 * _sf, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      if (_sf < 0.45) {
-        ctx.strokeStyle = '#a0d040'; // bright green tea jet highlight
-        ctx.lineWidth = 0.8;
-        for (var _ji2 = 0; _ji2 < 4; _ji2++) {
-          var _ja = (_ji2 / 4) * Math.PI * 2;
-          var _jLen = vd.sz * 1.8 * (1 - _sf / 0.45);
-          ctx.beginPath();
-          ctx.moveTo(vd.x, _vdSY2);
-          ctx.lineTo(vd.x + Math.cos(_ja) * _jLen, _vdSY2 - Math.sin(Math.abs(_ja)) * _jLen * 0.9);
-          ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
-  }
 
 
   // ── Vermicompost bin lid ──────────────────────────────────────────────────
@@ -5942,8 +5850,7 @@ function draw() {
   }
 
   var bsy = cSurf() + H*0.25 - camY;
-  // Bin floor and legs — null the valve hit rect when sump is off-screen
-  if (bsy <= -10 || bsy >= H + 130) window._valveBtn = null;
+  // Bin floor and legs
   if (bsy > -10 && bsy < H + 130) {
     // Bin base plate
     ctx.fillStyle = '#2e3d58';
@@ -6023,49 +5930,6 @@ function draw() {
       ctx.fillRect(sFx + 2 + splay, lBot + 1, sFootW - 4, 2);
     }
 
-    // Tap / drain spigot — matches the drain cinematic tap exactly
-    var _tx = b.cx, _ty = bsy + 8;
-
-    // Valve is "open / hot" when flood is active OR tapReady (weekly feed)
-    var _valveOpen = valveOpen;
-    // Pipe and handle always gold — never grey
-    var _col1 = '#c8a870';
-    var _col2 = '#e0c890';
-    var _col3 = '#a07848';
-    var _hColBase = '#d4b050';
-    var _hHubBase = '#c8a040';
-    // Orange shadowBlur glow only during an active flood
-    var _glowStrength = (valveOpen)
-      ? 6 + Math.sin(frame * 0.13) * 6
-      : 0;
-
-    // Register valve hit rect for both click and touch — includes handle reach
-    var _valveHitX = _tx - 9;
-    var _valveHitY = _ty - 16;
-    var _valveHitW = 34;
-    var _valveHitH = 40;
-    window._valveBtn = { x: _valveHitX, y: _valveHitY, w: _valveHitW, h: _valveHitH };
-
-    // Pipe body
-    ctx.fillStyle = _col1; ctx.fillRect(_tx-4, _ty-10, 10, 22);
-    // Collar
-    ctx.fillStyle = _col2; ctx.fillRect(_tx-7, _ty-13, 16, 6);
-    // Spout nub
-    ctx.fillStyle = _col3; ctx.fillRect(_tx-2, _ty+12, 5, 10);
-    // Handle — rotated open during flood drain open state, normal otherwise
-    // Pulses orange when actionable; no separate glow ring or tooltip label
-    ctx.save();
-    ctx.translate(_tx+2, _ty-6);
-    var _handleRot = (_valveOpen ? Math.PI*0.82 : 0);
-    ctx.rotate(_handleRot - Math.PI*0.08);
-    if (_glowStrength > 0) {
-      ctx.shadowColor = '#ff7010';
-      ctx.shadowBlur  = _glowStrength;
-    }
-    ctx.fillStyle = _hColBase; ctx.fillRect(-3,-3,22,6);
-    ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fillStyle = _hHubBase; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.restore();
   }
 
   // Player worm — pass pure gen color; drawWorm handles acid and HP pale internally
@@ -6728,16 +6592,6 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
-  // "tap the tap" hint is now shown as a tooltip on the valve itself — no floating banner.
-
-  // Flood drain button is now the valve itself (window._valveBtn), not a floating HUD pill.
-  // _drainBtn kept as alias for legacy click/touch handlers that check it.
-  // _drainBtn alias — set whenever flood is active OR valve is open
-  if (valveOpen) {
-    window._drainBtn = window._valveBtn || null;
-  } else {
-    window._drainBtn = null;
-  }
 
   // Long-press ring — gesture feedback
   drawLongPressRing();
@@ -7671,7 +7525,6 @@ function loop() {
   if (frame % 600 === 0) updateWeatherSim();
   try { updateCocoons(); } catch(e) { showErr('updateCocoons: '+e.message); }
   try { updatePendingWorms(); } catch(e) { showErr('updatePendingWorms: '+e.message); }
-  if (drainTapCooldown > 0) drainTapCooldown--;
   try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
   try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
   try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
@@ -7801,36 +7654,7 @@ function tryLayCocoon() {
   saveSession();
 }
 
-function triggerDrainTap() {
-  // Opens the physical valve — tea drains continuously each frame in updatePhysics.
-  // Player must click/tap again to close it. Karma is awarded when they close it.
-  // Claims drainOwner so the weekly cinematic cannot fire simultaneously.
-  valveOpen = true;
-  window._valveOpenState = true;
-  drainTapActive = true; drainTapT = 0;
-  drainTapCooldown = 0; // no cooldown — they control it manually now
-  drainOwner = 'valve'; // claim exclusive tLvl ownership
-}
 
-function closeDrainTap() {
-  if (!valveOpen) return;
-  valveOpen = false;
-  window._valveOpenState = false;
-  drainTapActive = false;
-  drainOwner = null; // release tLvl ownership — weekly cinematic may now fire
-  // Award karma proportional to how much they drained
-  var drained = window._valveDrainedTotal || 0;
-  if (drained > 0.01) {
-    var reward = Math.round(drained * DRAIN_TAP_KARMA_REWARD * 10); // up to 8 karma for full drain
-    karma += reward;
-    drainBonusPopups.push({
-      text: '🚰 Drain closed! +' + reward + ' ☯',
-      x: pSegs.length ? pSegs[0].x : W/2, wy: pSegs.length ? pSegs[0].y - 20 : H/2, alpha: 1, vy: -0.6
-    });
-  }
-  window._valveDrainedTotal = 0;
-  drainTapCooldown = 60; // short cooldown so accidental double-tap doesn't re-open immediately
-}
 
 function trySleep() {
   if (!pSegs.length) return;
@@ -7990,20 +7814,6 @@ root.addEventListener('click', function(e) {
     }
   }
 
-  // Flood drain tap — click the valve itself (window._valveBtn)
-  if (!deathScreen && window._valveBtn) {
-    var db = window._valveBtn;
-    if (cx >= db.x && cx <= db.x+db.w && cy >= db.y && cy <= db.y+db.h) {
-      if (valveOpen) {
-        if (!valveOpen && drainTapCooldown <= 0) {
-          triggerDrainTap();
-        } else if (valveOpen) {
-          closeDrainTap();
-        }
-        return;
-      }
-    }
-  }
 
 
   // Wake from sleep on any tap
@@ -8055,7 +7865,6 @@ root.addEventListener('click', function(e) {
     return;
   }
 
-  // tapReady click is now handled via the valve hit check above.
 });
 
 // Touch: single finger = move worm, two fingers = poop
@@ -8281,20 +8090,6 @@ root.addEventListener('touchend', function(e) {
       var dxT  = Math.abs(_gesture.swipeStartX - ex0);
       var dtT  = now - _gesture.swipeStartT;
       var isTap = dyT < 20 && dxT < 20 && dtT < 350;
-      if (isTap && window._valveBtn) {
-        var db2 = window._valveBtn;
-        if (ex0 >= db2.x && ex0 <= db2.x+db2.w && ey0 >= db2.y && ey0 <= db2.y+db2.h) {
-          if (valveOpen) {
-            if (!valveOpen && drainTapCooldown <= 0) {
-              triggerDrainTap();
-            } else if (valveOpen) {
-              closeDrainTap();
-            }
-          }
-          _gesture.swipeLive = false;
-          return;
-        }
-      }
     }
 
     if (peak === 3) {
