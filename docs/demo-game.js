@@ -3823,11 +3823,11 @@ function drawPath(path, singlePass) {
       if (p.ti !== lastTi || qAlpha !== lastAlpha) {
         if (inSeg) { ctx.stroke(); inSeg = false; }
         if (pass === 0) {
-          ctx.strokeStyle = p.ti === 2 ? '#3a2010' : '#2a1808';
+          ctx.strokeStyle = p.ti === 2 ? '#241204' : '#1c1004';   // darker rim — separates from soil (#3a2810)
           ctx.lineWidth = p.r * 2.6;
           ctx.globalAlpha = 0.90 * qAlpha;
         } else {
-          ctx.strokeStyle = p.ti === 2 ? '#6a4020' : '#4a2c10';
+          ctx.strokeStyle = p.ti === 2 ? '#7e4e26' : '#5e3a18';   // lighter core — clear channel against the dark rim
           ctx.lineWidth = p.r * 1.4;
           ctx.globalAlpha = 0.95 * qAlpha;
         }
