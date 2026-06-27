@@ -4582,10 +4582,10 @@ function draw() {
   if (window._demoMode) {
     for (var _npd = 0; _npd < otherPlayers.length; _npd++) {
       var _nopp = otherPlayers[_npd];
-      if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path, true);
+      if (!_NOTUBE && _nopp.sim && !_nopp._dormant && _nopp.sim.path && _nopp.sim.path.length) drawPath(_nopp.sim.path);   // 2-pass (dark edge + lighter core); ?fast=1 forces 1-pass
     }
   }
-  if (!_NOTUBE) drawPath(pPath, true);   // singlePass — matched to NPC tube treatment (was 2-pass)
+  if (!_NOTUBE) drawPath(pPath);   // 2-pass (dark edge + lighter core); ?fast=1 forces 1-pass. Cap stays 130 (NPC-matched).
 
 
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
