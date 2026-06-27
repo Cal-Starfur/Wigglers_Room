@@ -3781,20 +3781,24 @@ function drawPath(path) {
         continue;
       }
       var pAlpha = (p.alpha != null ? p.alpha : 1);
-      // Re-set style whenever tier OR alpha changes meaningfully
-      if (p.ti !== lastTi || Math.abs(pAlpha - lastAlpha) > 0.02) {
+      // Quantize alpha to 5 steps so long runs of tube batch into ONE stroke. The smooth
+      // per-point fade gradient was defeating batching -> a separate wide round-capped
+      // stroke per point, whose caps overlap into heavy paint overdraw (low JS draw time
+      // but tanked FPS). Stepped alpha collapses thousands of strokes into a handful.
+      var qAlpha = Math.ceil(pAlpha * 5) / 5;
+      if (p.ti !== lastTi || qAlpha !== lastAlpha) {
         if (inSeg) { ctx.stroke(); inSeg = false; }
         if (pass === 0) {
           ctx.strokeStyle = p.ti === 2 ? '#3a2010' : '#2a1808';
           ctx.lineWidth = p.r * 2.6;
-          ctx.globalAlpha = 0.90 * pAlpha;
+          ctx.globalAlpha = 0.90 * qAlpha;
         } else {
           ctx.strokeStyle = p.ti === 2 ? '#6a4020' : '#4a2c10';
           ctx.lineWidth = p.r * 1.4;
-          ctx.globalAlpha = 0.95 * pAlpha;
+          ctx.globalAlpha = 0.95 * qAlpha;
         }
         lastTi = p.ti;
-        lastAlpha = pAlpha;
+        lastAlpha = qAlpha;
       }
       if (!inSeg) { ctx.beginPath(); ctx.moveTo(p.x, sy); inSeg = true; }
       else ctx.lineTo(p.x, sy);
