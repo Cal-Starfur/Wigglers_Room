@@ -3342,11 +3342,10 @@ function updatePhysics() {
     var d = drops[i];
     if (!d.active) continue;
 
-    // Drops jammed behind clogs/junctions used to be flushed by the weekly sump drain
+    // Drops jammed behind junctions used to be flushed by the weekly sump drain
     // (removed in the economy teardown). Now they pile up to MAX_DROPS and tank FPS as
     // the count climbs (overdraw + per-frame rescans). Cull any drop that hasn't made
-    // vertical progress for ~8s. Progress-based so it ignores the 40-frame clog-retry
-    // toggle and never collides with d._stallAge.
+    // vertical progress for ~8s. Progress-based, so it never collides with d._stallAge.
     if (d._jamY == null) d._jamY = d.y;
     if (Math.abs(d.y - d._jamY) > (d.r || 4) * 3) {
       d._jamY = d.y; d._jamFrames = 0;         // made real progress -- reset
@@ -3390,13 +3389,13 @@ function updatePhysics() {
           if (ptdist <= d.vy + 1) {
             // Reached this point
             d.x = pp.x; d.y = pp.y;
-            // If this is the sealed sump exit point — drop into sump OR deposit clog
+            // If this is the sealed sump exit point: drop into sump or deposit castings
             if (pp.sumpExit) {
               if (d.isPoop) {
                 // ── Poop at sumpExit: only deposit here if this is the tube terminus ──
                 // For a down-drain the sumpExit is the last point (null follows it) — deposit.
                 // For an up-drain the sumpExit is the entry at the bottom and live points
-                // continue upward — poop should advance past it, not clog the entry.
+                // continue upward: poop should advance past it, not seal the entry.
                 var _nextAfterExit = false;
                 for (var _nae = d.pathIdx + 1; _nae < P.length; _nae++) {
                   var _naep = P[_nae];
@@ -3405,10 +3404,8 @@ function updatePhysics() {
                   if (_naea > 0) { _nextAfterExit = true; break; }
                 }
                 if (!_nextAfterExit) {
-                  // Down-drain terminus — deposit clog and stop.
-                  // A single poop drop is enough to seal a drain: clamp to at
-                  // least 0.6 (above the 0.55 tea-block threshold) immediately.
-                  if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
+                  // Down-drain terminus: poop deposits castings and stops.
+                  if (d.isPoop) castingEnrichment = Math.min(1, castingEnrichment + 0.0005);
                   pp.alpha = 1.0;
                   d.active = false;
                 } else {
@@ -3459,7 +3456,7 @@ function updatePhysics() {
                 _jBest = _jDeepI;
               }
               if (_jBest >= 0) {
-                // Tea must not hop into a clogged connected drain — stall at the junction point.
+                // Junction: hop across to the connected drain segment.
                 d.prevPathIdx = d.pathIdx;
                 d.pathArr = _jarr;   // hop ACROSS to the target's path
                 d.pathIdx = _jBest;
@@ -3485,7 +3482,7 @@ function updatePhysics() {
                   var ua = upp.alpha != null ? upp.alpha : 1;
                   if (ua <= 0) continue;
                   if (upp.y < pp.y) {
-                    // Tea: stop BEFORE a clogged next point — stall at current point.
+                    // Advance to the next point up the up-drain.
                       d.prevPathIdx = d.pathIdx;
                       d.pathIdx = pi8; advanced = true;
                     break;
@@ -3496,11 +3493,11 @@ function updatePhysics() {
                   // Top of the up-drain dead-end
                   if (d.isPoop) {
                     // Poop deposits at the terminus
-                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
+                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);
                     pp.alpha  = 1.0;
                     d.active  = false;
                   } else {
-                    // No clog — tea exits the top of the up-drain and free-falls from here
+                    // Tea exits the top of the up-drain and free-falls from here
                     d.lastSegStart = _dropSegStart(P, d.pathIdx); d.lastSegEnd = _dropSegEnd(P, d.pathIdx);
                     d.pathIdx = null;
                     d.vy = Math.max(0.05, d.vy);
@@ -3551,11 +3548,7 @@ function updatePhysics() {
               if (!advanced && !nextIsHorizontal) {
                 // Truly no deeper point in either direction.
                 // Poop deposits here and stops.
-                // Tea: if this dead-end segment contains ANY clog (not just at pp),
-                //      the drop is trapped — stall it here (downstream backpressure case,
-                //      e.g. the far arm of a V-tube where pp itself is clean but a clog
-                //      sits elsewhere in the same segment blocking the exit).
-                //      Otherwise detach and free-fall as normal.
+                // Tea detaches and free-falls from here.
                 if (d.isPoop) {
                   // Before depositing, scan forward for a sumpExit still ahead in this segment.
                   // Poop may have stalled on a flat/upward section before reaching the drain mouth.
@@ -3568,7 +3561,7 @@ function updatePhysics() {
                     if (_sfp.sumpExit) { d.prevPathIdx = d.pathIdx; d.pathIdx = _sf; _foundSumpFwd = true; break; }
                   }
                   if (!_foundSumpFwd) {
-                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);  // clog removed
+                    castingEnrichment = Math.min(1, castingEnrichment + 0.0005);
                     pp.alpha = 1.0; // poop solidifies the tunnel point — never fades it
                     d.active = false;
                   }
@@ -3592,7 +3585,7 @@ function updatePhysics() {
           }
         }
       } else {
-        // Detached (pathIdx == null) — free percolation, or clog-stalled backpressure.
+        // Detached (pathIdx == null): free percolation.
         if (!d.isPoop) {
           // Assign a random stall depth on first entry so drops pool at varied heights
           // rather than creeping all the way to 3H. Deeper stalls are rarer (percolation
@@ -3623,7 +3616,7 @@ function updatePhysics() {
         }
 
         // Even while stalled, keep scanning for a nearby tunnel that could carry this drop the
-        // rest of the way down. Skipped for clog-stalled drops (they pool until their recheck);
+        // rest of the way down.
         // RESTING pooled drops only re-scan ~once every 8 frames (staggered by index) instead of
         // every frame — a falling drop still scans every frame so it attaches promptly.
         if (!d.stalled || ((frame + i) & 7) === 0) {
@@ -3706,13 +3699,13 @@ function updatePhysics() {
             }
           }
           // Poop attaches to any point in a dead-end tube (no deeper point needed) —
-          // it will walk to the end and deposit clog there. Tea still requires a deeper
+          // it will walk to the end and deposit castings there. Tea still requires a deeper
           // point to flow toward, or a sumpExit to drain through.
           if (!_segHasDeeper && !d.isPoop && !(_sp.sumpExit)) continue;
           // Both poop and tea use nearest-point attachment.
-          // Poop previously used deepest-point to avoid clogging the tube entry, but that
+          // Poop previously used deepest-point to avoid sealing the tube entry, but that
           // caused instant teleport to the drain. The sumpExit pass-through fix already
-          // prevents entry-clogging, so nearest is correct for both.
+          // prevents entry-sealing, so nearest is correct for both.
           var _ddx = _sp.x - _scanX, _ddy = _sp.y - _scanY;
           var _dist = Math.sqrt(_ddx*_ddx + _ddy*_ddy);
           // Poop: hard cap on snap distance — never teleport more than ~2 worm radii away
@@ -4556,7 +4549,6 @@ function draw() {
   }
   if (!_NOTUBE) drawPath(pPath);
 
-  // Clog rendering removed (clog mechanic torn out).
 
   // --- Tier 0 pile: dark soil fill + straw blanket, drawn before trash so items sit in it ---
   {
@@ -6323,8 +6315,8 @@ function updateNPCSims() {
   // ── PERF/correctness: rebuild the carve-able path registry from LIVE paths only ──
   // pathRegistry never had a removal path. Each NPC sim pushes a fresh sim.path on init,
   // so re-inited sims (presence re-sends recreate sims) leaked dead arrays into the
-  // registry forever. Every per-frame consumer — the Y-bucket index rebuild, the clog
-  // render, nearestPathIdx — walked that growing junk (progressive lag over a session),
+  // registry forever. Every per-frame consumer (the Y-bucket index rebuild and
+  // nearestPathIdx) walked that growing junk (progressive lag over a session),
   // and stale tunnels polluted routing so drops/junctions attached to tubes that no longer
   // exist. Reset to just the player here; each active (non-dormant) sim re-registers its own
   // path below, so dead/dormant paths fall out and the registry stays bounded to NPC_SIM_CAP+1.
@@ -6334,7 +6326,7 @@ function updateNPCSims() {
   // ── Thin the herd ──────────────────────────────────────────────────────
   // A single page can't carry a whole server's worth of worms. We SIMULATE (and draw)
   // at most NPC_SIM_CAP of them; the rest are marked dormant and skipped here AND in the
-  // draw loops, so sim cost + the shared drop/clog/junction scans scale to the cap.
+  // draw loops, so sim cost + the shared drop/junction scans scale to the cap.
   // We do NOT remove dormant entries: the teaser re-sends presence for every NPC ~every
   // 2s, so a removed one would be re-added without a .sim and render as a GHOST worm.
   // Demo-only (this whole function is _demoMode-gated); real presence is untouched.
@@ -6371,10 +6363,9 @@ function updateNPCSims() {
     // reset to [pPath] at the top). Each active sim is visited once, so a plain push is safe.
     if (sim.path) pathRegistry.push(sim.path);
 
-    // ── Tube fade + clog lifecycle (mirrors the player's tubes) ──────────────
-    // NPC tunnels fill back in over time. When a CLOGGED point fades to alpha 0 it
-    // bursts its clog back into poop drops — exactly like the player's tubes. Runs
-    // for awake AND sleeping NPCs so tubes always progress toward closing.
+    // -- Tube fade (mirrors the player's tubes) --
+    // NPC tunnels fill back in over time. Runs for awake AND sleeping NPCs so tubes
+    // always progress toward closing.
     // While ASLEEP the tunnel fills in fast (0.003/frame, every frame) so it visibly
     // closes behind a sleeping worm — exactly like the player's sleep fade. Awake, it
     // decays at the slow background rate, throttled to every 10th frame.
