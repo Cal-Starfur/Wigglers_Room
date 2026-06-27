@@ -2514,12 +2514,8 @@ function updateCocoons() {
   clitellumReady = karma >= COCOON_KARMA_REQ &&
                    (lastCocoonLaid === 0 || (now - lastCocoonLaid) >= COCOON_WEEK_MS) &&
                    cocoons.filter(function(c){ return c.owner === username; }).length < COCOON_MAX;
-  for (var i = 0; i < cocoons.length; i++) {
-    var c = cocoons[i];
-    var _matureMs = (generation >= 4 && c.owner === username) ? 5 * 24 * 60 * 60 * 1000 : COCOON_MATURE_MS;
-    c.matured = (now - c.laid) >= _matureMs;
-    c.pulse = c.matured ? (Math.sin(frame * 0.06) * 0.5 + 0.5) : 0;
-  }
+  // Demo trim: cocoon maturity/pulse system removed — laying is all the demo needs.
+  // No per-cocoon per-frame work; cocoons never mature (matured stays undefined => falsy).
 }
 
 function updatePlayer() {
@@ -5371,23 +5367,8 @@ function draw() {
     var csy = co.y - camY;
     if (csy < -30 || csy > H + 30) continue;
 
-    // Maturity colour: pale yellow → amber → warm brown
-    var now3 = Date.now();
-    var ageFrac = Math.min(1, (now3 - co.laid) / COCOON_MATURE_MS);
-    var cr = Math.round(220 + (139 - 220) * ageFrac);
-    var cg = Math.round(200 + (90  - 200) * ageFrac);
-    var cb = Math.round(100 + (30  - 100) * ageFrac);
-    var cocoonCol = 'rgb('+cr+','+cg+','+cb+')';
-
-    // Glow when matured — subtle, half radius
-    if (co.matured) {
-      var glowA = 0.08 + co.pulse * 0.12;
-      var glow = ctx.createRadialGradient(csx, csy, 1, csx, csy, 11);
-      glow.addColorStop(0, 'rgba(255,220,80,'+glowA+')');
-      glow.addColorStop(1, 'rgba(255,180,40,0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(csx, csy, 11, 0, Math.PI*2); ctx.fill();
-    }
+    // Demo trim: static cocoon — no maturity colour progression, no matured glow gradient.
+    var cocoonCol = 'rgb(220,200,100)';
 
     // Lemon shape — halved: was 7×10, now 3.5×5
     ctx.save();
@@ -5519,26 +5500,7 @@ function draw() {
   }
 
   // ── Clitellum indicator + cocoon feedback msg ─────────────────────────
-  if (clitellumReady && pSegs.length && !deathScreen) {
-    // Clitellum sits on segment ~30% back from head — same as a real earthworm
-    var cSeg = pSegs[Math.min(Math.floor(pSegs.length * 0.30), pSegs.length - 1)];
-    var csx = cSeg.x, csy = cSeg.y - camY;
-    // Angle the band perpendicular to the worm body direction
-    var cPrev = pSegs[Math.max(0, Math.floor(pSegs.length * 0.30) - 1)];
-    var cNext = pSegs[Math.min(pSegs.length - 1, Math.floor(pSegs.length * 0.30) + 1)];
-    var cAng  = Math.atan2(cNext.y - cPrev.y, cNext.x - cPrev.x);
-    ctx.save();
-    ctx.translate(csx, csy);
-    ctx.rotate(cAng);
-    ctx.globalAlpha = 0.55 + Math.sin(frame * 0.09) * 0.2;
-    ctx.fillStyle = '#f090a8';
-    ctx.beginPath();
-    // Band is slightly wider than the worm, very thin — hugs the body
-    ctx.ellipse(0, 0, pSR * 1.15, pSR * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
+  // Demo trim: clitellum "ready to lay" glow band removed (the glow visible at lay time).
   if (window._cocoonMsg && (frame - window._cocoonMsgT) < 180) {
     var msgA = Math.max(0, 1 - (frame - window._cocoonMsgT) / 180);
     ctx.globalAlpha = msgA;
