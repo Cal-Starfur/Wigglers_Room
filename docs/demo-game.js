@@ -18,9 +18,10 @@ window.addEventListener('error', function(e) {
 var root = document.getElementById('root');
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
-// PERF TEST (default-OFF): ?noblur=1 globally neutralizes shadowBlur (the tutorial's
-// per-frame Gaussian-blur passes are the iPad-Safari paint bottleneck). Confirms the
-// cause before the permanent halo conversion.
+// ?noblur=1 globally neutralizes shadowBlur. The tutorial overlays' per-frame Gaussian-blur
+// passes were the iPad-Safari paint bottleneck; they are now PERMANENTLY halo-converted
+// (wide low-alpha amber strokes, no GPU blur). This flag is retained as a no-op kill-switch
+// in case any future shadowBlur is added.
 // PERF TEST (default-OFF): ?fast=1 draws tunnels in 1 pass instead of 2 (halves tunnel paint).
 var _FAST = /[?&]fast=1/.test(window.location.search || '');
 var _NODRAW   = /[?&]nodraw=1/.test(window.location.search || '');
@@ -207,17 +208,21 @@ function drawTutorialPanel() {
   var cx2 = cardX + cardW / 2;
 
   ctx.save();
-  ctx.fillStyle = 'rgba(12,28,12,0.92)';
-  ctx.strokeStyle = 'rgba(255,176,48,0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.shadowColor = 'rgba(255,176,48,0.35)';
-  ctx.shadowBlur = 12;
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(cardX, cardY, cardW, cardH, 10);
   else ctx.rect(cardX, cardY, cardW, cardH);
-  ctx.fill();
+  // Outer amber halo (wide, low alpha) — replaces shadowBlur (amber = glow token)
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,176,48,0.18)';
+  ctx.lineWidth = 9;
   ctx.stroke();
-  ctx.shadowBlur = 0;
+  // Card fill — covers the inner half of the halo, leaving an outer glow ring
+  ctx.fillStyle = 'rgba(12,28,12,0.92)';
+  ctx.fill();
+  // Sharp amber border
+  ctx.strokeStyle = 'rgba(255,176,48,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#eaf2dc';
@@ -258,14 +263,20 @@ function drawTutorialDone() {
   var cx2 = W/2, cy2 = H/2;
   var panelW = Math.min(W * 0.85, 360), panelH = 188;
   var px = cx2 - panelW/2, py = cy2 - panelH/2;
-  ctx.fillStyle = '#0a1f0a';
-  ctx.strokeStyle = 'rgba(255,176,48,0.6)';
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = 'rgba(255,176,48,0.4)'; ctx.shadowBlur = 16;
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(px, py, panelW, panelH, 14); else ctx.rect(px, py, panelW, panelH);
-  ctx.fill(); ctx.stroke();
-  ctx.shadowBlur = 0;
+  // Outer amber halo — replaces shadowBlur
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,176,48,0.20)';
+  ctx.lineWidth = 12;
+  ctx.stroke();
+  // Panel fill
+  ctx.fillStyle = '#0a1f0a';
+  ctx.fill();
+  // Sharp amber border
+  ctx.strokeStyle = 'rgba(255,176,48,0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
   ctx.textAlign = 'center';
   ctx.fillStyle = '#eaf2dc';
   ctx.font = 'bold 24px sans-serif';
@@ -331,24 +342,31 @@ function drawTutorialHighlight() {
     var _lineSY = (2 * H) - camY;
     if (_lineSY > -24 && _lineSY < H + 24) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
-      ctx.lineWidth = 3 + 4 * _prox;
-      ctx.shadowColor = 'rgba(255,176,48,0.9)';
-      ctx.shadowBlur = 10 + 8 * pulse + 6 * _prox;
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(_bz.cx - _bz.bw2, _lineSY);
       ctx.lineTo(_bz.cx + _bz.bw2, _lineSY);
+      // Outer amber halo — replaces shadowBlur
+      ctx.strokeStyle = 'rgba(255,176,48,' + (0.22 + 0.12 * pulse) + ')';
+      ctx.lineWidth = (3 + 4 * _prox) + 8;
+      ctx.stroke();
+      // Sharp line
+      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
+      ctx.lineWidth = 3 + 4 * _prox;
       ctx.stroke();
       ctx.restore();
     }
   } else if (onScreen) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
-    ctx.lineWidth = 2.5 + 5 * _prox;
-    ctx.shadowColor = 'rgba(255,176,48,0.9)';
-    ctx.shadowBlur = 10 + 8 * pulse + 6 * _prox;
     ctx.beginPath();
     ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
+    // Outer amber halo — replaces shadowBlur
+    ctx.strokeStyle = 'rgba(255,176,48,' + (0.22 + 0.12 * pulse) + ')';
+    ctx.lineWidth = (2.5 + 5 * _prox) + 7;
+    ctx.stroke();
+    // Sharp ring
+    ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.55 + 0.4 * pulse + 0.3 * _prox) + ')';
+    ctx.lineWidth = 2.5 + 5 * _prox;
     ctx.stroke();
     ctx.restore();
 
@@ -357,11 +375,16 @@ function drawTutorialHighlight() {
     // put your point on the dot at the floor and the hold connects).
     if (tgt._tutBeacon && !tgt._zoneR) {   // precise dot for point beacons only — zones get the big ring, no dot
       ctx.save();
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(255,176,48,0.95)';
-      ctx.shadowBlur = 8 + 4 * _prox;
+      var _dotR = 3.5 + 0.6 * pulse + 1.5 * _prox;
+      // Amber halo behind the dot — replaces shadowBlur
+      ctx.fillStyle = 'rgba(255,176,48,' + (0.30 + 0.15 * pulse) + ')';
       ctx.beginPath();
-      ctx.arc(tx, ty, 3.5 + 0.6 * pulse + 1.5 * _prox, 0, Math.PI * 2);
+      ctx.arc(tx, ty, _dotR + 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Sharp white centre
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(tx, ty, _dotR, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -383,9 +406,16 @@ function drawTutorialHighlight() {
     ctx.translate(ax, ay);
     ctx.rotate(Math.atan2(uy, ux));                     // tip (+x) toward the target
     ctx.globalAlpha = alpha;
+    // Amber halo triangle (scaled up, low alpha) — replaces shadowBlur
+    ctx.fillStyle = 'rgba(255,176,48,0.30)';
+    ctx.beginPath();
+    ctx.moveTo(aSize * 1.45, 0);
+    ctx.lineTo(-aSize * 1.0, aSize * 1.0);
+    ctx.lineTo(-aSize * 1.0, -aSize * 1.0);
+    ctx.closePath();
+    ctx.fill();
+    // Sharp arrow
     ctx.fillStyle = 'rgba(255,176,48,1)';
-    ctx.shadowColor = 'rgba(255,176,48,0.85)';
-    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(aSize, 0);
     ctx.lineTo(-aSize * 0.7, aSize * 0.7);
@@ -405,12 +435,15 @@ function drawTutorialHighlight() {
       if (_exy < -_exbR || _exy > H + _exbR) continue;
       var _exR = _exbR * (1.7 + 0.35 * pulse);
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.45 + 0.35 * pulse) + ')';
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = 'rgba(255,176,48,0.9)';
-      ctx.shadowBlur = 9 + 6 * pulse;
       ctx.beginPath();
       ctx.arc(_ex.x, _exy, _exR, 0, Math.PI * 2);
+      // Outer amber halo — replaces shadowBlur
+      ctx.strokeStyle = 'rgba(255,176,48,' + (0.20 + 0.12 * pulse) + ')';
+      ctx.lineWidth = 2.5 + 7;
+      ctx.stroke();
+      // Sharp ring
+      ctx.strokeStyle = 'rgba(255,176,48,' + Math.min(1, 0.45 + 0.35 * pulse) + ')';
+      ctx.lineWidth = 2.5;
       ctx.stroke();
       ctx.restore();
     }
