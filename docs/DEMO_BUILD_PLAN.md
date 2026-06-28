@@ -173,7 +173,7 @@ Steps built by `spawnTutorialScene()` in `tutorial-module.js`:
 ---
 
 ### T-00 — Demo Death Screen
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE — in local artifact, not yet pushed`
 **Skills:** every-ticket skills above only
 
 **What it is:** A demo-specific death overlay — not the Devvit death/respawn system. When `pHP <= 0` the game pauses and shows a canvas-drawn card encouraging the player to try again. The only path to the end screen is finishing the tutorial.
@@ -220,7 +220,7 @@ var _demoDeadBtn  = null; // {x,y,w,h} set each frame death screen draws, used f
 ---
 
 ### T-01 — Canvas, Bin, Worm Movement
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE — in local artifact, not yet pushed`
 **Skills:** every-ticket skills + `wigglers-architecture` (reference for `pPath`, `getBin`, tier geometry)
 
 **Load wigglers-architecture:**
@@ -437,3 +437,25 @@ ARCH
 - T-01 through T-06 each result in a working demo at that capability level
 - T-07 is the integration ticket — by that point every system the tutorial touches exists
 - After every push: lead with cache-busted demo URL `https://cal-starfur.github.io/Wigglers_Room/demo.html?v=SHA`
+
+---
+
+## Session Log
+
+### Session — 2026-06-28
+**Completed:** T-00 + T-01 built and iterated locally as self-contained `wigglers-demo-t01.html`
+
+**Bugs fixed during build:**
+- `draw()` skip ranges cutting through open brace blocks (valve tap range 6722–6768 had delta=-1)
+- `getLowestScrapY()` stub `H*2` capping worm to tier 1 — fixed to `H*0.5`
+- Camera missing `camX` + wrong lerp rate (0.08→0.04)
+- Cursor dot in skip range — re-added in screen space
+- `function draw()` duplicated, `updatePlayer` declared inside `draw()` — brace counting fixed
+- Sleeping/seg-hist extract ranges off by 1 line each
+
+**Design decisions:**
+- Demo worm color: `#ff4d8f` (hot pink) — intentional tutorial deviation from game.js gen palette
+- `spawnScraps()` stubbed empty — tutorial replaces with `spawnTutorialScene()` in T-07
+- `drawPath()` pulled in T-01 (not T-05 as planned) — tunnels visible immediately
+
+**Next:** Push T-01 as `docs/demo-game.js` + wire `demo.html` _enterBin(), then start T-02
