@@ -6375,8 +6375,14 @@ function updateNPCSims() {
   // and stale tunnels polluted routing so drops/junctions attached to tubes that no longer
   // exist. Reset to just the player here; each active (non-dormant) sim re-registers its own
   // path below, so dead/dormant paths fall out and the registry stays bounded to NPC_SIM_CAP+1.
-  pathRegistry.length = 1;        // keep pPath at index 0
-  _pPathBucketsDirty = true;      // purge stale points from the Y-bucket index this frame
+  // Guard: skip the reset + dirty when there are no players at all (e.g. tut=1 where
+  // presence is refused). Without the guard, pathRegistry.length=1 + _pPathBucketsDirty=true
+  // ran unconditionally every frame, forcing a full O(pPath) bucket rebuild at 60fps
+  // even with zero NPCs — a silent FPS killer during the tutorial.
+  if (otherPlayers.length) {
+    pathRegistry.length = 1;        // keep pPath at index 0
+    _pPathBucketsDirty = true;      // purge stale points from the Y-bucket index this frame
+  }
 
   // ── Thin the herd ──────────────────────────────────────────────────────
   // A single page can't carry a whole server's worth of worms. We SIMULATE (and draw)
