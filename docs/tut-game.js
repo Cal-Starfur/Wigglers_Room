@@ -9,7 +9,8 @@
 'use strict';
 
 // ── Canvas + context ─────────────────────────────────────────────────────────
-var canvas = document.getElementById('gameCanvas') || document.getElementById('c');
+var root   = document.getElementById('root');
+var canvas = document.getElementById('c');
 var ctx    = canvas.getContext('2d');
 
 // ── Viewport ─────────────────────────────────────────────────────────────────
@@ -20,8 +21,13 @@ var camX = 0;       // horizontal offset (unused at tutorial width, kept for get
 var centreOffsetX = 0;
 
 function resizeCanvas() {
-  W = canvas.width  = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  var vw = root ? root.offsetWidth  : window.innerWidth;
+  var vh = root ? root.offsetHeight : window.innerHeight;
+  if (!vw || !vh) { vw = window.innerWidth; vh = window.innerHeight; }
+  W = vw; H = vh;
+  canvas.width  = W; canvas.height = H;
+  canvas.style.width  = vw + 'px';
+  canvas.style.height = vh + 'px';
   centreOffsetX = W > WORLD_W ? Math.floor((W - WORLD_W) / 2) : 0;
 }
 window.addEventListener('resize', resizeCanvas);
@@ -909,6 +915,10 @@ function loop() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-spawnWorm();
-spawnTutorialScene();
-loop();
+// Defer one tick so body.playing CSS reflow completes before we measure #root
+setTimeout(function() {
+  resizeCanvas();
+  spawnWorm();
+  spawnTutorialScene();
+  loop();
+}, 50);
