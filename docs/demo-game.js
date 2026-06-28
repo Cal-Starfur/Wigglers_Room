@@ -3409,6 +3409,17 @@ function updatePhysics() {
     var d = drops[i];
     if (!d.active) continue;
 
+    // Tutorial hard age-out: with the compost economy pinned off (castingEnrichment=0) the
+    // soil never compacts, so drops keep seeking and slip past the progress-based jam-cull
+    // below — they accumulate monotonically across the poop/drain beats up to MAX_DROPS and
+    // tank FPS. A flat lifetime cap reclaims every drop regardless of motion, holding the
+    // live count to ~(spawn rate x window) instead of climbing to the cap. Tutorial-only, so
+    // free-roam (enrichment builds, drops stall + cull normally) is untouched.
+    if (tutorial.active) {
+      if (d._bornFrame == null) d._bornFrame = frame;
+      else if (frame - d._bornFrame > 540) { d.active = false; continue; }  // ~9s @60fps
+    }
+
     // Drops jammed behind junctions used to be flushed by the weekly sump drain
     // (removed in the economy teardown). Now they pile up to MAX_DROPS and tank FPS as
     // the count climbs (overdraw + per-frame rescans). Cull any drop that hasn't made
