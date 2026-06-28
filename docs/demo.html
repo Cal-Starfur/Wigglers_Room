@@ -2216,6 +2216,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var phase = 0;
     function tick() {
+      // Stop animating once the game starts — canvas is hidden and
+      // shadowBlur on a competing rAF loop tanks mobile performance.
+      if (document.body.classList.contains('playing')) return;
       // Slow sine cycle: 0 → full acid → back, ~8 second loop
       phase = (Date.now() / 8000) % 1;
       var acid = Math.abs(Math.sin(phase * Math.PI * 2)) * 0.85;
