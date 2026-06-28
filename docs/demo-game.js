@@ -7557,7 +7557,7 @@ window.addEventListener('resize', function() { setTimeout(resizeCanvas, 100); })
       window._devvitSetupPending = false;
       setup(); loop();
     }
-  }, 3000);
+  }, 400);  // short wait for demo — no Devvit host in standalone mode
 
   // On mobile the bridge may not be ready immediately — retry ready a few times
   var _retries = 0;
