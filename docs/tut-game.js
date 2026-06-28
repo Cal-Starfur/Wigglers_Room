@@ -9,7 +9,7 @@
 'use strict';
 
 // ── Canvas + context ─────────────────────────────────────────────────────────
-var canvas = document.getElementById('gameCanvas');
+var canvas = document.getElementById('gameCanvas') || document.getElementById('c');
 var ctx    = canvas.getContext('2d');
 
 // ── Viewport ─────────────────────────────────────────────────────────────────
