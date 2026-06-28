@@ -1099,7 +1099,7 @@ function _enterBin() {
     var _vm = (location.search || '').match(/[?&]v=([^&]+)/);
     var _vq = _vm ? '?v=' + encodeURIComponent(_vm[1]) : '';
     var _gs = document.createElement('script');
-    _gs.src = 'tut-game.js' + _vq;
+    _gs.src = 'demo-game.js' + _vq;
     document.body.appendChild(_gs);
   }
 }
