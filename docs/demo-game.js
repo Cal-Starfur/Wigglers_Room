@@ -907,6 +907,8 @@ var pHist = [];
 var pSR = 4;
 var pSEG = 4;
 var generation = 0; // increments on each natural death — never resets
+var _wormEmojiOfc = null;       // cached offscreen canvas for tinted 🪱 HUD emoji
+var _wormEmojiOfcGen = -1;      // generation value the cache was built for
 
 // ── Other players (presence) ──────────────────────────────────────────────
 // Each entry: { username, x, y, sleeping, size, avatarUrl, lastSeen }
@@ -5542,21 +5544,26 @@ function draw() {
   ctx.fillStyle = '#ffd700';
   ctx.fillText(' ' + Math.floor(karma), 30, 28);
 
-  // Tinted worm emoji in gen color using offscreen canvas
+  // Tinted worm emoji in gen color — cache the offscreen canvas; only rebuild when
+  // generation changes. Creating a new canvas+context every frame was a 60x/s DOM
+  // allocation storm that crushed FPS (perf bug fix).
   var _genCol = getGenColor(generation);
   var _karmaW = ctx.measureText(' ' + Math.floor(karma)).width;
   var _emojiX = 30 + _karmaW + 8;
   var _emojiSz = 16;
-  var _ofc = document.createElement('canvas');
-  _ofc.width = _emojiSz + 4; _ofc.height = _emojiSz + 4;
-  var _octx = _ofc.getContext('2d');
-  _octx.font = _emojiSz + 'px sans-serif';
-  _octx.textAlign = 'left';
-  _octx.fillText('🪱', 0, _emojiSz);
-  _octx.globalCompositeOperation = 'source-atop';
-  _octx.fillStyle = _genCol;
-  _octx.fillRect(0, 0, _ofc.width, _ofc.height);
-  ctx.drawImage(_ofc, _emojiX, 14);
+  if (_wormEmojiOfc === null || _wormEmojiOfcGen !== generation) {
+    _wormEmojiOfc = document.createElement('canvas');
+    _wormEmojiOfc.width = _emojiSz + 4; _wormEmojiOfc.height = _emojiSz + 4;
+    var _octx = _wormEmojiOfc.getContext('2d');
+    _octx.font = _emojiSz + 'px sans-serif';
+    _octx.textAlign = 'left';
+    _octx.fillText('🪱', 0, _emojiSz);
+    _octx.globalCompositeOperation = 'source-atop';
+    _octx.fillStyle = _genCol;
+    _octx.fillRect(0, 0, _wormEmojiOfc.width, _wormEmojiOfc.height);
+    _wormEmojiOfcGen = generation;
+  }
+  ctx.drawImage(_wormEmojiOfc, _emojiX, 14);
 
   // Cocoon count after tinted worm
   ctx.fillStyle = _genCol;
