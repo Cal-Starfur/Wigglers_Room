@@ -704,6 +704,10 @@ window.addEventListener('message', function(e) {
   // { type: 'setPresence', players: [{ username, x, y, sleeping, size, avatarUrl }] }
   // We filter out our own entry so we never draw a ghost of the local player.
   if (msg.type === 'setPresence' && Array.isArray(msg.players)) {
+    // Lightweight tutorial world: the staged tutorial (tut=1) runs SOLO — refuse ambient
+    // NPC presence so otherPlayers stays empty (no NPC sim, no draw, no path-registry churn).
+    // tut=2 (live merge) still accepts presence. No-op outside the tutorial.
+    if (tutorial.scene && !tutorial.live) return;
     var now = Date.now();
     msg.players.forEach(function(p) {
       // Skip self — check both current username and any pending username from setSession.
@@ -2188,8 +2192,11 @@ function spawnScraps() {
 // Positions are intentionally simple and meant to be tuned.
 function spawnTutorialScene() {
   var b = getBin();
-  if (tutorial.live) { spawnScraps(); }                              // merge mode: build the REAL field, inject curriculum on top
-  else { scraps = []; trashChunks = []; debris = []; bugs = []; }    // staged mode: strip the field down to the lesson
+  // Lightweight tutorial world: BOTH modes build the real field now (rich tut=2 look).
+  // Staged (tut=1) diverges downstream only — refill is frozen (updateScrapsLevel) and
+  // ambient NPC presence is refused (setPresence handler) — so the field is populated
+  // ONCE and frozen, with no ambient sim cost. tut=2 keeps refill + NPCs live (merge mode).
+  spawnScraps();
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
@@ -2529,7 +2536,7 @@ function updatePlayer() {
 
   // Tutorial safety: a teaching beat must never end in death. Hold a small HP floor while the
   // live tutorial is still working through its steps; normal mortality resumes once it ends.
-  if (tutorial.live && tutorial.active && tutorial.steps && tutorial.stepIndex < tutorial.steps.length && pHP < 0.08) pHP = 0.08;
+  if (tutorial.scene && tutorial.active && tutorial.steps && tutorial.stepIndex < tutorial.steps.length && pHP < 0.08) pHP = 0.08;  // death-guard: BOTH tut=1 (solo) + tut=2 (live) — no dying mid-curriculum
   // Death check — trigger death screen instead of instant respawn
   if (pHP <= 0 && !deathScreen) { // hunger now drives HP bleed; death is always HP-based
     deathScreen = true;
@@ -2865,7 +2872,7 @@ function updatePlayer() {
     if (s.eaten || s.ti !== 1) continue;
     var _openExtra = (_tutKindNow === 'cure'   && s.t && s.t.name === 'egg_shell') ||
                      (_tutKindNow === 'refuel' && s._refuelTut);
-    if (tutorial.scene && !(_tutStepNow && _tutStepNow.kind === 'freeplay') && (tutorial.live || s.tutProtected) && s !== tutorial.target && !_openExtra) continue;  // only the active target (+ open extras); live mode locks ALL scraps; free-play opens everything
+    if (tutorial.scene && !(_tutStepNow && _tutStepNow.kind === 'freeplay') && s !== tutorial.target && !_openExtra) continue;  // tutorial locks ALL non-target scraps (both modes are field-populated now); open same-type extras + free-play exempt
     var sdx2 = head.x - s.x, sdy2 = head.y - s.y;
     var sDist = Math.sqrt(sdx2*sdx2 + sdy2*sdy2);
     var sHitR = pSR + s.sz * 0.72; // tightened to match visual art (~0.7-0.9r drawn size)
