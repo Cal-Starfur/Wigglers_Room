@@ -100,12 +100,14 @@ var tutorial = {
   _doneFade:  0,     // 0->1 fade-in for the done screen
   panel:      null // current step's instruction panel — drawn by drawTutorialPanel
 };
+// Tutorial is always active — demo-game.js IS the tutorial experience.
+// ?leash=1 / ?tutdbg=1 still work for debugging the leash.
+tutorial.scene  = true;
+tutorial.active = true;
+tutorial.live   = false;
 try {
-  var _tutSearch = window.location.search || '';
-  if (/[?&](leash|tutdbg)=1/.test(_tutSearch)) { tutorial.debug = true; tutorial.active = true; }
-  if (/[?&]tut=1/.test(_tutSearch))            { tutorial.scene = true; tutorial.active = true; }
-  if (/[?&]tut=2/.test(_tutSearch))            { tutorial.scene = true; tutorial.active = true; tutorial.live = true; }  // tutorial OVER the live game (merge mode)
-} catch (e) {}
+  if (/[?&](leash|tutdbg)=1/.test(window.location.search||'')) tutorial.debug = true;
+} catch(e) {}
 
 // Soft radius leash — project the requested steering target onto the allowed
 // region. SOFT: we clamp only the TARGET, never the worm's body, so the worm can
@@ -2550,7 +2552,7 @@ function setup() {
   _buildBladeCanvas();
 
   initPlayer(null);  // demo: ephemeral — fresh worm each load
-  if (tutorial.scene) { spawnTutorialScene(); } else { spawnScraps(); }
+  spawnTutorialScene();  // tutorial is always the experience
 }
 
 function updateCocoons() {
@@ -5259,8 +5261,8 @@ function draw() {
   drawWorm(pSegs, pSR, wormCol, pSleeping, pAcid, pHP);
 
 
-  // ── Ghost worms — real players (lerp) or NPC sims (full seg chain) ────────
-  if (otherPlayers.length) {
+  // ── Ghost worms — disabled in tutorial (solo experience) ────────────────
+  if (false && otherPlayers.length) {
     ctx.save();
     var nowOP = Date.now();
     for (var op = 0; op < otherPlayers.length; op++) {
@@ -5842,7 +5844,7 @@ function draw() {
   drawLongPressRing();
 
   // Weather HUD — upper left
-  drawWeatherHUD();
+  // drawWeatherHUD removed
   drawDebugOverlay();
   // Queue system — pending cocoons and spectator HUD
   try { drawPendingWorms(); } catch(e) {}
@@ -6752,12 +6754,11 @@ function loop() {
   // dayTime changes by ~0.0000116 per frame — imperceptible to update once per second.
   // Throttle the new Date() allocation to every 60 frames instead of every frame.
   if (frame % 60 === 0) dayTime = getRealDayTime();
-  tickWeather();
-  if (frame % 600 === 0) updateWeatherSim();
+  // weather removed — not part of tutorial
   try { updateCocoons(); } catch(e) { showErr('updateCocoons: '+e.message); }
   try { updatePendingWorms(); } catch(e) { showErr('updatePendingWorms: '+e.message); }
   try { updatePlayer(); } catch(e) { showErr('updatePlayer: '+e.message); }
-  try { updateNPCSims(); } catch(e) { showErr('updateNPCSims: '+e.message); }
+  // updateNPCSims removed — tutorial runs solo
   try { updatePhysics(); } catch(e) { showErr('updatePhysics: '+e.message); }
   // ── Drift + fade ALL ZZZ particles every frame (player AND NPC sleepers) ──
   // This used to live inside the player-sleep block, so NPC z's spawned while the player
