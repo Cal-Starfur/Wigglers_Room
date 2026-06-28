@@ -519,6 +519,8 @@ function scrapsPush(s) {
     }
     if (!_removed) scraps.shift();
   }
+  // PERF-4: pre-render drawDebrisFragment to offscreen canvas at push time
+  if (typeof _prerenderScrap === 'function') _prerenderScrap(s);
   scraps.push(s);
 }
 var debris = [];   // nibble particles falling from tier 0 into tier 1
@@ -1071,6 +1073,30 @@ function _invalidateChunkImg(tc) {
   var newBucket = Math.floor(tc.hpFrac * 10);
   if (tc.img && tc._imgHpBucket === newBucket) return; // still valid
   _prerenderTrashChunk(tc);
+}
+
+// PERF-4: pre-render tier-1 scraps to offscreen canvas at spawn.
+// s.rot is static (rotSpd is set but never applied), sz/col/name never change,
+// so the cache is valid for the scrap's lifetime. alpha and eating-glow are
+// applied via globalAlpha / separate overlay loop — not baked in.
+function _prerenderScrap(s) {
+  var r = s.sz;
+  var rot = s.rot || 0;
+  var pad = Math.ceil(r * 2.0) + 2;  // generous pad for rotated corners
+  var size = pad * 2;
+  var oc;
+  try { oc = new OffscreenCanvas(size, size); }
+  catch(e) { oc = document.createElement('canvas'); oc.width = size; oc.height = size; }
+  var octx = oc.getContext('2d');
+  octx.clearRect(0, 0, size, size);
+  octx.translate(pad, pad);
+  if (Math.abs(rot) > 0.02) octx.rotate(rot);
+  try {
+    drawDebrisFragment(octx, s.name || s.t.name || 'default', r,
+                       s.col || s.t.debrisCol, s.col2 || s.t.debrisCol2 || s.col);
+  } catch(e) { s.img = null; s._imgPad = pad; return; }
+  s.img = oc;
+  s._imgPad = pad;
 }
 
 // ---- Trash chunk drawing ---- //
@@ -4918,21 +4944,30 @@ function draw() {
     if (s.eaten || s.ti !== 1) continue;
     var scy = s.y - camY;
     if (scy < -20 || scy > H + 20) continue;
-    var sRot = s.rot || 0;
-    ctx.save();
-    ctx.translate(s.x, scy);
-    // PERF-4: skip rotate() for settled scraps with near-zero rotation — saves a matrix multiply
-    if (Math.abs(sRot) > 0.02) ctx.rotate(sRot);
+    // PERF-4: use pre-rendered offscreen canvas — replaces ~6 canvas ops with one drawImage
     ctx.globalAlpha = (s.alpha != null ? s.alpha : 1.0) * 0.78;
-    drawDebrisFragment(ctx, s.name || s.t.name || 'default', s.sz, s.col || s.t.debrisCol, s.col2 || s.t.debrisCol2 || s.col);
+    if (s.img) {
+      var _sp = s._imgPad;
+      ctx.drawImage(s.img, s.x - _sp, scy - _sp, _sp * 2, _sp * 2);
+    } else {
+      // Fallback: live draw (no cached image yet)
+      var sRot = s.rot || 0;
+      ctx.save();
+      ctx.translate(s.x, scy);
+      if (Math.abs(sRot) > 0.02) ctx.rotate(sRot);
+      drawDebrisFragment(ctx, s.name || s.t.name || 'default', s.sz, s.col || s.t.debrisCol, s.col2 || s.t.debrisCol2 || s.col);
+      ctx.restore();
+    }
     if (s.eating) {
       ctx.globalAlpha = 0.7;
+      ctx.save();
+      ctx.translate(s.x, scy);
       ctx.strokeStyle = 'rgba(255,220,80,0.9)';
       ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.arc(0, 0, s.sz * 1.5, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
-    ctx.restore();
   }
 
   // ── Open sump chamber — drawn BEFORE drops so tea drops fall visibly into it ──
