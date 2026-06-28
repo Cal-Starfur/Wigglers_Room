@@ -67,6 +67,17 @@ body::before {
   .game-panel { height: 60vw; min-height: 300px; position: relative; }
 }
 
+/* ── In-play fullscreen ── */
+/* On entry (_enterBin adds body.playing), the game becomes a fixed-size,
+   full-viewport embed: it fills the screen, page scroll is locked so a steering
+   drag can't scroll the page under the canvas, and the guide panel (read before
+   play) is hidden. The intro and end screens still overlay it — they sit inside /
+   over .game-panel. Behaves the same on mobile and desktop. */
+body.playing { overflow: hidden; }
+body.playing .layout { grid-template-columns: 1fr; max-width: none; margin: 0; min-height: 0; }
+body.playing .guide-panel { display: none; }
+body.playing .game-panel { position: fixed; inset: 0; height: 100dvh; width: 100vw; }
+
 /* ── Game panel (left) ── */
 .game-panel {
   position: sticky;
@@ -1071,6 +1082,26 @@ function _enterBin() {
   setTimeout(function() {
     intro.classList.add('hidden');
   }, 520);
+
+  // Enter play mode: the game becomes a fixed-size, full-viewport embed (see the
+  // body.playing CSS) — fills the screen, page scroll locked, guide hidden — with
+  // the intro fading off it and the end screen later covering it. Added BEFORE the
+  // game boots so the panel is already full-size when the game first measures #root.
+  document.body.classList.add('playing');
+
+  // Boot the game on entry. The page is just a shell until now; clicking the worm
+  // loads demo-game.js underneath the fading intro. Mirror the page's ?v= onto the
+  // script src so the separate JS file is cache-busted too (mobile Safari has no
+  // hard-refresh). Every other param (?tut=, ?perf=, ?cap= ...) is read by the game
+  // straight from the page URL, so ?tut=1 starts the tutorial with nothing to pass.
+  if (!window._gameBooted) {
+    window._gameBooted = true;
+    var _vm = (location.search || '').match(/[?&]v=([^&]+)/);
+    var _vq = _vm ? '?v=' + encodeURIComponent(_vm[1]) : '';
+    var _gs = document.createElement('script');
+    _gs.src = 'demo-game.js' + _vq;
+    document.body.appendChild(_gs);
+  }
 }
 
 // Restart: reload the page so the full demo resets cleanly
