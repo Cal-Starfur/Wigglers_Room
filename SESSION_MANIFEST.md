@@ -68,3 +68,39 @@ Session: 33 | Branch: main | Devvit: 0.0.180 | Updated: 2026-06-28
 - Edit pattern: Python assert content.count(old)==1, node --check, stage, push --approved
 - demo.html is ~1.9MB — two-step blob fetch required (contents API SHA -> git/blobs/{sha})
 - Lead every post-push reply with cache-busted demo URL: https://cal-starfur.github.io/Wigglers_Room/demo.html?v=SHA
+
+## Repo Structure (post-cleanup)
+
+```
+Wigglers_Room/
+├── SESSION_MANIFEST.md
+├── README.md
+├── devvit.yaml
+├── package.json
+├── src/                        — Devvit host (main.tsx, frozen ISS-19)
+├── webroot/                    — Devvit webroot
+├── assets/
+├── tools/
+│   ├── bridge3.js              — codespace-bridge relay (was root)
+│   └── post-calendar.html
+└── docs/                       — GitHub Pages root
+    ├── demo.html               — game shell (no game JS currently)
+    ├── game.js                 — production (frozen ISS-19)
+    ├── tutorial-module.js      — tutorial curriculum reference
+    ├── index.html
+    ├── style.css
+    ├── ISS-19-SPEC.md
+    ├── architecture/
+    │   ├── GAME_ARCHITECTURE.md
+    │   ├── TUTORIAL_ARCHITECTURE.md
+    │   ├── WIGGLERS_AUDIT.md
+    │   └── SKILL.md
+    ├── design/
+    │   ├── WIGGLERS_DESIGN_FUTURE.md
+    │   └── WIGGLERS_ROOM_JR_DESIGN.md
+    └── marketing/
+        ├── MARKETING_MASTER_30DAY.md
+        ├── WIGGLERS_MARKETING_MASTER.md
+        ├── WIGGLERS_MARKETING_PLAN.md
+        └── WIGGLERS_PRELAUNCH_POSTS.md
+```
