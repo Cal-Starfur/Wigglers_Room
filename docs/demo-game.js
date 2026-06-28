@@ -2230,11 +2230,9 @@ function spawnScraps() {
 // Positions are intentionally simple and meant to be tuned.
 function spawnTutorialScene() {
   var b = getBin();
-  // Lightweight tutorial world: BOTH modes build the real field now (rich tut=2 look).
-  // Staged (tut=1) diverges downstream only — refill is frozen (updateScrapsLevel) and
-  // ambient NPC presence is refused (setPresence handler) — so the field is populated
-  // ONCE and frozen, with no ambient sim cost. tut=2 keeps refill + NPCs live (merge mode).
-  spawnScraps();
+  // Staged tutorial: clear everything and build only the curriculum items.
+  // No ambient scraps pile — the tutorial food IS the food.
+  scraps = []; trashChunks = []; debris = []; bugs = [];
   tutorial.foodScraps = [];
   tutorial.acidChunk  = null;
   tutorial._compostPooped = false;
