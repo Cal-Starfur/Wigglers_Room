@@ -1089,19 +1089,7 @@ function _enterBin() {
   // game boots so the panel is already full-size when the game first measures #root.
   document.body.classList.add('playing');
 
-  // Boot the game on entry. The page is just a shell until now; clicking the worm
-  // loads demo-game.js underneath the fading intro. Mirror the page's ?v= onto the
-  // script src so the separate JS file is cache-busted too (mobile Safari has no
-  // hard-refresh). Every other param (?tut=, ?perf=, ?cap= ...) is read by the game
-  // straight from the page URL, so ?tut=1 starts the tutorial with nothing to pass.
-  if (!window._gameBooted) {
-    window._gameBooted = true;
-    var _vm = (location.search || '').match(/[?&]v=([^&]+)/);
-    var _vq = _vm ? '?v=' + encodeURIComponent(_vm[1]) : '';
-    var _gs = document.createElement('script');
-    _gs.src = 'demo-game.js' + _vq;
-    document.body.appendChild(_gs);
-  }
+  // Game JS not yet assigned — placeholder until new game file is ready.
 }
 
 // Restart: reload the page so the full demo resets cleanly
