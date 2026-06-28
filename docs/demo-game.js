@@ -54,6 +54,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 var _ctxFilterSupported = (function(){
   try { var t=document.createElement('canvas').getContext('2d'); t.filter='brightness(100%)'; return true; } catch(e){ return false; }
 })();
+// OffscreenCanvas support check — tested ONCE at startup.
+// If not available, all prerender functions are skipped to avoid creating hundreds
+// of DOM canvas contexts which exhaust Safari's ~16-context limit and kill the main ctx.
+var _ofcSupported = (function(){
+  try { new OffscreenCanvas(1, 1).getContext('2d'); return true; } catch(e) { return false; }
+})();
 
 var W = 0, H = 0;
 var centreOffsetX = 0; // pixels to shift world right so bin is centred on wide screens
@@ -1038,6 +1044,7 @@ function addPoint(path, x, y, r, lastX, lastY) {
 // hpFrac crosses a 10% threshold (chunks banded into 10 buckets).
 // The draw loop replaces the 701-line drawTrashChunk() call with ctx.drawImage().
 function _prerenderTrashChunk(tc) {
+  if (!_ofcSupported) return;  // no OffscreenCanvas — skip; live draw is the safe fallback
   var r = tc.sz;
   var hpFrac = tc.hpFrac;
   var pad = Math.ceil(r * 1.4) + 2;
@@ -1080,6 +1087,7 @@ function _invalidateChunkImg(tc) {
 // so the cache is valid for the scrap's lifetime. alpha and eating-glow are
 // applied via globalAlpha / separate overlay loop — not baked in.
 function _prerenderScrap(s) {
+  if (!_ofcSupported) return;  // no OffscreenCanvas — skip; live draw is the safe fallback
   var r = s.sz;
   var rot = s.rot || 0;
   var pad = Math.ceil(r * 2.0) + 2;  // generous pad for rotated corners
@@ -2472,6 +2480,7 @@ function resizeCanvas() {
 // Blades are drawn at y=0 (base); draw() stamps with ctx.drawImage(_bladeCanvas, -centreOffsetX + camX, horizScreenY).
 // Canvas is WORLD_W wide × 20px tall (max blade height is 16px + some headroom).
 function _buildBladeCanvas() {
+  if (!_ofcSupported) return null;  // no OffscreenCanvas support — skip blade prerender
   var bladeCount = Math.floor(WORLD_W / 4);
   var oc = document.createElement('canvas');
   oc.width  = WORLD_W;
@@ -4773,9 +4782,9 @@ function draw() {
           continue;
         }
         if (_ctxFilterSupported) ctx.filter = 'none';
-        ctx.restore();
+        ctx.restore();  // end else-path save (dropping/fallback draw)
         ctx.globalAlpha = 1;
-      }
+      }  // end if(tc6.img) else
       if (!tc6.locked && tc6.hpFrac < 0.95) {
         var bw4 = curR * 2.4;
         var pad6hp = Math.ceil(curR * 1.4) + 2; // matches prerender pad
@@ -5586,7 +5595,7 @@ function draw() {
   var _karmaW = ctx.measureText(' ' + Math.floor(karma)).width;
   var _emojiX = 30 + _karmaW + 8;
   var _emojiSz = 16;
-  if (_wormEmojiOfc === null || _wormEmojiOfcGen !== generation) {
+  if (_ofcSupported && (_wormEmojiOfc === null || _wormEmojiOfcGen !== generation)) {
     _wormEmojiOfc = document.createElement('canvas');
     _wormEmojiOfc.width = _emojiSz + 4; _wormEmojiOfc.height = _emojiSz + 4;
     var _octx = _wormEmojiOfc.getContext('2d');
