@@ -2040,6 +2040,7 @@ function drawDebrisFragment(ctx, name, r, col, col2) {
 }
 
 function getLowestScrapY() {
+  if (!scraps.length) return H * 0.5;
   if (trashChunks.length === 0) return H + 50;
   var minY = H + 50; // pile base is now at H+50
   for (var i = 0; i < trashChunks.length; i++) {
@@ -4337,9 +4338,9 @@ function draw() {
   // Start at -centreOffsetX (left edge of canvas in translated world space) and span W.
   ctx.fillRect(-centreOffsetX, 0, WORLD_W, H);
 
-  // Sun/Moon are clipped to above the lid only
+  // Sun/Moon clipped to lid — skip when sky off-screen
   var skyHeight = Math.max(0, lidScreenY);
-  ctx.save();
+  if (_showSky) { ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, WORLD_W, Math.max(1, skyHeight));
   ctx.clip();
@@ -4347,7 +4348,7 @@ function draw() {
   // Stars (night only)
   var starAlpha = dayTime < 0.22 ? 1 : dayTime < 0.30 ? 1-(dayTime-0.22)/0.08
                 : dayTime > 0.78 ? 1 : dayTime > 0.70 ? (dayTime-0.70)/0.08 : 0;
-  if (starAlpha > 0.02) {
+  if (_showSky && starAlpha > 0.02) {
     ctx.globalAlpha = starAlpha;
     for (var si = 0; si < _starPos.length; si++) {
       var twinkle = 0.5 + 0.5*Math.sin(frame*0.04 + si*1.7);
@@ -4360,7 +4361,7 @@ function draw() {
 
   // Sun / Moon — arc relative to the true horizon (world cSurf() = sump line)
   var isDay = dayTime >= 0.25 && dayTime <= 0.75;
-  if (isDay) {
+  if (_showSky && isDay) {
     var sunT = (dayTime - 0.25) / 0.50; // 0=rise, 0.5=noon, 1=set
     var sunX = WORLD_W * (0.15 + sunT * 0.70);
     // Rises from and sets at horizScreenY, peaks high above
@@ -4405,7 +4406,7 @@ function draw() {
     }
   }
 
-  ctx.restore(); // end sun/moon clip
+  ctx.restore(); } // end sun/moon clip (_showSky)
 
   // ── Background ground plane — drawn right after sky, before the bin ────
   // Horizon at world cSurf(). Ground fills from horizScreenY to canvas bottom, full width.
@@ -4446,7 +4447,7 @@ function draw() {
     // _bladeCanvas is WORLD_W × 20px, blades drawn at base (y=20). Stamp at horizScreenY - 20
     // so the blade bases sit exactly on the horizon line.
     if (horizScreenY > -20 && horizScreenY < H && _bladeCanvas) {
-      ctx.drawImage(_bladeCanvas, 0, horizScreenY - 20);
+      if (_showSky) ctx.drawImage(_bladeCanvas, 0, horizScreenY - 20);
     }
 
     // Static pre-generated flowers — world Y converted to screen (only when near horizon)
@@ -5845,7 +5846,7 @@ function draw() {
   // drawWeatherHUD removed
   drawDebugOverlay();
   // Queue system — pending cocoons and spectator HUD
-  try { drawPendingWorms(); } catch(e) {}
+  // drawPendingWorms — no pending worms in tutorial
   drawQueueHUD();
   // Weather location UI — one-time setup overlay
   // Death screen drawn on top of everything
