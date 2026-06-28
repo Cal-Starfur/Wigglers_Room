@@ -4340,6 +4340,7 @@ function draw() {
 
   // Sun/Moon clipped to lid — skip when sky off-screen
   var skyHeight = Math.max(0, lidScreenY);
+  var _showSky = horizScreenY > -H * 0.1; // sky visible when horizon is near or above screen
   if (_showSky) { ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, WORLD_W, Math.max(1, skyHeight));
