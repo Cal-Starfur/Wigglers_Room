@@ -111,6 +111,55 @@ Steps built by `spawnTutorialScene()` in `tutorial-module.js`:
 
 ## Ticket Backlog
 
+### T-00 — Demo Death Screen
+**Status:** `[ ] TODO`
+
+**What it is:** A demo-specific death overlay — not the Devvit death/respawn system. When `pHP <= 0` the game pauses and shows a canvas-drawn card encouraging the player to try again. The only path to the end screen is finishing the tutorial.
+
+**Death detection — in `demo-game.js` `updatePlayer()`:**
+```js
+if (pHP <= 0 && !_demoDead) {
+  _demoDead = true;
+  _demoDeadFade = 0;
+}
+```
+`_demoDead` is a demo-only flag (not `deathScreen`). When true: `updatePlayer()` and `updatePhysics()` skip all logic — world freezes. `draw()` still runs so the frozen bin is visible behind the overlay.
+
+**Death screen draw — in `draw()`, screen-space, after HUD:**
+- Full-viewport dark overlay (same `--preview-bg` bg + `rgba(8,4,1,0.88)` tint as intro/end screens)
+- Title in Fredoka One with amber gradient: **"Your worm didn't make it."**
+- Body copy (2 lines, `--text` color):
+  - `"The bin is unforgiving at first."`
+  - `"Every worm gets better with practice."`
+- Amber-bordered restart button: **"Try Again"** → calls `_restartDemo()` (reload)
+- Fade-in driven by `_demoDeadFade` (0→1 over ~40 frames, same pattern as existing overlays)
+
+**`_demoDeadFade` increment — in `loop()` before `draw()`:**
+```js
+if (_demoDead && _demoDeadFade < 1) _demoDeadFade = Math.min(1, _demoDeadFade + 0.025);
+```
+
+**Tap/click on restart button — in mouse + touch handlers:**
+```js
+if (_demoDead) {
+  // hit-test the Try Again button rect → _restartDemo()
+}
+```
+
+**Gate on end screen** — `showDemoEnd()` in `demo.html` only fires from `_tutFinish()`. Death never calls it. The gate is already structural: death sets `_demoDead`, tutorial completion calls `_tutFinish()` → `showDemoEnd()`. Two separate code paths, no overlap.
+
+**New vars declared at top of `demo-game.js`:**
+```js
+var _demoDead     = false;  // true once pHP hits 0
+var _demoDeadFade = 0;      // 0→1 fade-in for death overlay
+```
+
+**Result:** Die → frozen bin + "Your worm didn't make it." overlay + Try Again button. Finish tutorial → end screen. No other path to end screen exists.
+
+**Ships as a standalone commit before T-01** — death detection + overlay + restart. Testable immediately by running the demo and letting HP drain to zero.
+
+---
+
 ### T-01 — Canvas, Bin, Worm Movement
 **Status:** `[ ] TODO`
 
