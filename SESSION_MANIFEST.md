@@ -1,7 +1,7 @@
 # SESSION MANIFEST — Wigglers Room
 
 ## HEAD SHA
-`dc01e42` (last repo push — DEMO_BUILD_PLAN.md; demo file is local only)
+`08f9815` (last push — DEMO_DELTA.md created)
 
 ## Active Work
 - `wigglers-demo-t05.html` — self-contained single-file demo, local only (not yet pushed to repo)
@@ -33,8 +33,8 @@
 
 ### Worm movement overhaul (this session)
 - Worm body is now a **smooth quadratic curve** (midpoint Chaikin smoothing) — no more sharp angles on turns
-- **Peristaltic stretch**: `_wormStretch = 1.0` permanently; spacing swings +55% longer on stretch phase, width thins by −40%
-- `_wormMoving` global drives wiggle and stretch — wiggle runs always, stretch only when moving
+- **Peristaltic stretch**: `_wormStretch = 1.0` permanently; spacing swings +55% longer, width thins by −40%
+- `_wormMoving` global drives stretch — wiggle runs always
 - On stopped→moving transition, `pHist` is flushed and rebuilt from current segment positions to prevent sideways snap
 - Segment placement: moving = lerp 0.18 toward history; stopped = lerp 0.06 toward behind-head rest position
 - Known open issue: resting worm collapses too small — fix not yet landed cleanly
@@ -51,25 +51,47 @@
 - These are Devvit-side features not needed for demo — need no-op stubs added
 
 ### Bugs fixed this session
-- `ctx.restore()` was missing after `drawWorm()` — HUD bars and cursor drew in world space, went invisible
-- `isMoving` was defined inside `drawWorm()` but referenced in `updatePlayer()` — ReferenceError on load
+- `ctx.restore()` missing after `drawWorm()` — HUD bars and cursor drew in world space, went invisible
+- `isMoving` defined inside `drawWorm()` but referenced in `updatePlayer()` — ReferenceError on load
 - Worm renderer switched from polyline to per-segment circles (T-05 regression) — reverted to polyline + quadratic smoothing
 
-## Next Session Start
-1. Bootstrap github-sync + set token
-2. Decide: push `wigglers-demo-t05.html` to repo as `docs/demo-game.js` + wire `demo.html`
-3. Fix resting worm size — should settle to a visible compact body, not a dot
-4. Add no-op stubs for `trySleep`, `tryLayCocoon`, `triggerSnoo`, `triggerDrainTap`, `closeDrainTap`
-5. Start T-06 — Cocoon + Sleep + View Mode
+## Delta Tracking Process
+
+Every session, any change to the demo that diverges from `game.js` must be logged
+in `DEMO_DELTA.md` at the repo root. This file is the source of truth for what
+needs to be ported back to production when the demo is retired.
+
+**Rules:**
+- New globals → add an entry with name, purpose, and port risk
+- Changes to existing game.js functions → note the function, what changed, and port notes
+- Demo-only stubs → listed under the Stubs section, explicitly flagged do-not-port
+- Open design questions → added to the Open Questions section at the bottom
+
+**When to update DEMO_DELTA.md:**
+- Any time a new feature is added to the demo
+- Any time a game.js function is modified in the demo
+- At session wrap, before updating this manifest
+
+`DEMO_DELTA.md` is updated BEFORE the manifest so the manifest can reference the latest delta SHA.
 
 ## Key Files
 | File | Location | Status |
 |------|----------|--------|
+| `SESSION_MANIFEST.md` | repo root | ✅ This file |
+| `DEMO_DELTA.md` | repo root | ✅ Created this session |
 | `DEMO_BUILD_PLAN.md` | `docs/DEMO_BUILD_PLAN.md` | ✅ In repo |
 | `wigglers-demo-t05.html` | local / Claude outputs | ⚠ Local only |
 | `game.js` | `docs/game.js` @ SHA `84343c0` | ✅ Read-only source |
 | `tutorial-module.js` | `docs/tutorial-module.js` | ✅ In repo |
 | `demo.html` | `docs/demo.html` | ✅ In repo (shell only) |
+
+## Next Session Start
+1. Bootstrap github-sync + set token
+2. Add no-op stubs: `trySleep`, `tryLayCocoon`, `triggerSnoo`, `triggerDrainTap`, `closeDrainTap`
+3. Fix resting worm size — should settle to a visible compact body, not a dot
+4. Decide: push `wigglers-demo-t05.html` to repo as `docs/demo-game.js` + wire `demo.html`
+5. Start T-06 — Cocoon + Sleep + View Mode
+6. Update `DEMO_DELTA.md` with any new divergences before updating this manifest
 
 ## PAT Note
 Token set this session — rotate if needed (GitHub → Settings → Developer settings)
