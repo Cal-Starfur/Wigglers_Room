@@ -1,70 +1,75 @@
 # SESSION MANIFEST — Wigglers Room
 
 ## HEAD SHA
-`dc01e42` (last push this session — DEMO_BUILD_PLAN.md)
+`dc01e42` (last repo push — DEMO_BUILD_PLAN.md; demo file is local only)
 
 ## Active Work
-- `docs/DEMO_BUILD_PLAN.md` — 8-ticket extraction plan for demo-game.js, skills baked into every ticket
-- `docs/demo-game.js` — **DOES NOT EXIST YET in repo** — built locally only (see below)
-- `docs/demo.html` — shell only, `_enterBin()` not yet wired to inject demo-game.js
+- `wigglers-demo-t05.html` — self-contained single-file demo, local only (not yet pushed to repo)
+- `docs/demo.html` — shell only, not yet wired
+- `docs/demo-game.js` — does not exist in repo yet
 
-## Local Build State (not yet pushed)
-T-01 + T-00 artifact built and iterated locally as `wigglers-demo-t01.html` (self-contained single file).
+## Current Demo State (`wigglers-demo-t05.html`)
 
-**What's working in the local artifact:**
-- Canvas bootstrap, bin geometry, sky, tier bands, sump chamber
-- Bin lid, walls, stand legs (verbatim from game.js)
-- `drawWorm()` — verbatim extract, worm steers to mouse/touch
-- `drawPath()` — verbatim extract, tunnels render in compost
-- Tunnel carving — `addPoint()` fires in compost tier, pPath builds correctly
-- Camera follow — Y + X axes, 0.04 lerp rate, matches game.js exactly
-- Cursor dot — white dot at mouse/touch position (screen space)
-- T-00 death screen — "Your worm didn't make it." overlay + Try Again button
-- Demo worm color: `#ff4d8f` (hot pink, tutorial-specific, intentional deviation from game.js)
-- Gen colors stubbed to fixed pink (real palette in getGenName/getGenColor stubs)
-
-**Known issues / not yet done:**
-- Worm spawns at H*1.4 (tier 1 soil) — compost is ~20s of downward steering away
-  → This is correct game.js behavior; tutorial will spawn worm at correct depth via spawnTutorialScene()
-- `demo-game.js` not yet split out as separate file in repo
-- `demo.html` _enterBin() not yet wired
-- T-02 through T-07 not started
-
-## Bugs Found & Fixed This Session
-- `draw()` skip ranges cut through open brace blocks — fixed by auditing each skip range's brace delta
-- `getLowestScrapY()` stub returned `H*2` → capped worm movement to top tier — fixed to `H*0.5`
-- Camera follow missing `camX` update — added verbatim from game.js (lines 4042–4064)
-- Camera lerp rate was 0.08 → corrected to 0.04
-- Cursor dot was in skip range 6826–7123 — re-added in screen space after ctx.restore()
-- Cursor dot screen coords had double centreOffsetX — fixed to `mX - camX`
-- `updatePlayer` sections had mismatched brace counts (sleeping +1, seg hist -1) — corrected ranges
-- valve tap skip range (6722–6768) had delta=-1 closing outer legs block — fixed to 6722–6763
-- `function draw()` duplicated in output — fixed by starting paste from line 5435 not 5434
-- `updatePlayer` was declared inside `draw()` — root cause: draw() brace delta was off by 1
-
-## Ticket Status
-- T-00 Demo Death Screen: ✅ DONE (in artifact)
-- T-01 Canvas, Bin, Worm Movement: ✅ DONE (in artifact, not yet pushed as separate file)
-- T-02 Tier-1 Scraps + Eat + Gut: [ ] TODO
-- T-03 Acid Chunk + Nibble + pAcid: [ ] TODO
-- T-04 Poop + Castings: [ ] TODO
-- T-05 Drops + pPath Tubes + Drain: [ ] TODO
+### Ticket Status
+- T-00 Demo Death Screen: ✅ DONE
+- T-01 Canvas, Bin, Worm Movement: ✅ DONE
+- T-02 Tier-1 Scraps + Eat + Gut: ✅ DONE
+- T-03 Acid Chunk + Nibble + pAcid: ✅ DONE
+- T-04 Poop + Castings: ✅ DONE (poop mechanic overhauled this session)
+- T-05 Drops + pPath Tubes + Drain: ✅ DONE
 - T-06 Cocoon + Sleep + View Mode: [ ] TODO
 - T-07 Tutorial Wire-Up: [ ] TODO
 
+### What's working
+- Full bin render: sky, tiers, lid, walls, stand legs, sump chamber
+- Worm steers to mouse/touch with smooth camera follow (X + Y)
+- Tunnel carving in compost, drawPath renders tunnels
+- Tier-0 trash chunk pile, nibble → debris → tier-1 scraps
+- Eat tier-1 scraps, gut/hunger/acid/HP system, HP + gut HUD bars
+- Poop drops + castings physics, sump drain fills tLvl, tea render
+- Junction detection + drain charge timers
+- Death screen: "Your worm didn't make it." + Try Again
+- Worm color: `#ff4d8f` hot pink (tutorial-specific)
+
+### Worm movement overhaul (this session)
+- Worm body is now a **smooth quadratic curve** (midpoint Chaikin smoothing) — no more sharp angles on turns
+- **Peristaltic stretch**: `_wormStretch = 1.0` permanently; spacing swings +55% longer on stretch phase, width thins by −40%
+- `_wormMoving` global drives wiggle and stretch — wiggle runs always, stretch only when moving
+- On stopped→moving transition, `pHist` is flushed and rebuilt from current segment positions to prevent sideways snap
+- Segment placement: moving = lerp 0.18 toward history; stopped = lerp 0.06 toward behind-head rest position
+- Known open issue: resting worm collapses too small — fix not yet landed cleanly
+
+### Poop mechanic overhaul (this session)
+- Two-finger **hold** to charge (0→1 over ~1.5s), release to fire
+- Tap = tiny single drop, full hold = large multi-lump dump
+- Gut bar shows amber pulsing charge overlay with `💩 42%` → `💩 MAX!` label while charging
+- Gut drain scales with charge (0.15→0.65 of pGut)
+- Spacebar = full charge on desktop
+
+### Known missing stubs (called but not defined — will throw on use)
+- `trySleep()`, `tryLayCocoon()`, `triggerSnoo()`, `triggerDrainTap()`, `closeDrainTap()`
+- These are Devvit-side features not needed for demo — need no-op stubs added
+
+### Bugs fixed this session
+- `ctx.restore()` was missing after `drawWorm()` — HUD bars and cursor drew in world space, went invisible
+- `isMoving` was defined inside `drawWorm()` but referenced in `updatePlayer()` — ReferenceError on load
+- Worm renderer switched from polyline to per-segment circles (T-05 regression) — reverted to polyline + quadratic smoothing
+
 ## Next Session Start
-1. Bootstrap github-sync scripts + set token
-2. Decide: push T-01 as `docs/demo-game.js` + wire `demo.html` _enterBin(), OR continue iterating locally
-3. Start T-02 — Tier-1 Scraps + Eat Logic + Gut System
+1. Bootstrap github-sync + set token
+2. Decide: push `wigglers-demo-t05.html` to repo as `docs/demo-game.js` + wire `demo.html`
+3. Fix resting worm size — should settle to a visible compact body, not a dot
+4. Add no-op stubs for `trySleep`, `tryLayCocoon`, `triggerSnoo`, `triggerDrainTap`, `closeDrainTap`
+5. Start T-06 — Cocoon + Sleep + View Mode
 
 ## Key Files
 | File | Location | Status |
 |------|----------|--------|
 | `DEMO_BUILD_PLAN.md` | `docs/DEMO_BUILD_PLAN.md` | ✅ In repo |
-| `demo-game.js` | `/tmp/demo-build/demo-game.js` + artifact | ⚠ Local only |
-| `wigglers-demo-t01.html` | outputs (self-contained artifact) | ⚠ Local only |
-| `game.js` | `docs/game.js` | ✅ Read-only source |
+| `wigglers-demo-t05.html` | local / Claude outputs | ⚠ Local only |
+| `game.js` | `docs/game.js` @ SHA `84343c0` | ✅ Read-only source |
 | `tutorial-module.js` | `docs/tutorial-module.js` | ✅ In repo |
+| `demo.html` | `docs/demo.html` | ✅ In repo (shell only) |
 
 ## PAT Note
-GitHub PAT used this session — rotate if needed (GitHub → Settings → Developer settings)
+Token set this session — rotate if needed (GitHub → Settings → Developer settings)
