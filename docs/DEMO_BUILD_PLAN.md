@@ -262,7 +262,7 @@ ARCH
 ---
 
 ### T-02 — Tier-1 Scraps + Eat Logic + Gut System
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-architecture` (eat loop, `pGut`/`pHunger` semantics)
 
 **Extracts from `game.js`:**
@@ -278,7 +278,7 @@ ARCH
 ---
 
 ### T-03 — Tier-0 Acid Chunk + Nibble + `pAcid`
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-architecture` (chunk nibble, `hpFrac`, `weatherQueue`)
 
 **Extracts from `game.js`:**
@@ -297,7 +297,7 @@ ARCH
 ---
 
 ### T-04 — Poop System + Castings
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-architecture` (poop deposit, `castingEnrichment`, `inCompost`)
 
 **Extracts from `game.js`:**
@@ -315,7 +315,7 @@ ARCH
 ---
 
 ### T-05 — Drops, pPath Tubes, Sump, Drain Hold
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-architecture` (drop physics, sump, tunnel decay, bucket index)
 
 **Extracts from `game.js`:**
@@ -342,7 +342,7 @@ ARCH
 ---
 
 ### T-06 — Cocoon + Sleep + View Mode
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-architecture` (sleep state, `viewMode`, cocoon geometry)
 
 **Extracts from `game.js`:**
@@ -356,14 +356,14 @@ ARCH
 - Swipe-up gesture → `tryLayCocoon()` / Press-and-hold or `S` → `trySleep()` / `E` → `tryLayCocoon()`
 - `_cocoonDone` latch: `if (tutorial.scene) tutorial._cocoonDone = true;` in `tryLayCocoon()`
 
-**Skip:** cocoon draw / clitellum indicator / `updateCocoons()` — tutorial only needs the latch.
+**Skip:** `updateCocoons()` maturity logic, karma gate, multiplayer owner filtering. **Update:** cocoon draw + clitellum indicator were originally skipped here but restored later (see Session Log 2026-06-29) — they're needed for player feedback, not just the latch.
 
 **Result:** Swipe up / E lays cocoon (latch fires). Press-hold / S sleeps in compost. Drag scrolls bin. Cocoon + sleep + viewscroll beats all fire.
 
 ---
 
 ### T-07 — Tutorial Wire-Up (Integration)
-**Status:** `[ ] TODO`
+**Status:** `[x] DONE`
 **Skills:** every-ticket skills + `wigglers-room-tutorial-builder` (hook call sites, step machine, eat-gate)
 
 **Load wigglers-room-tutorial-builder:**
@@ -441,6 +441,28 @@ ARCH
 ---
 
 ## Session Log
+
+### Session — 2026-06-29
+**Completed:** T-02 through T-07 all confirmed/completed locally in `wigglers-demo-t07.html` — the full tutorial demo is now feature-complete, not yet pushed to repo.
+
+**T-07 integration:**
+- Tutorial folded fully into native code (state/step-machine/render-helpers relocated next to the demo code they belong with, not kept as a separate "module")
+- `tutorial.live = true` hard-defaulted alongside `scene`/`active` — tutorial now runs over the REAL field (full pile + ambient scraps), not a stripped scene
+- Eat-gate fixed to match the documented merge-mode spec (locks all scraps in live mode, not just `tutProtected` ones)
+- Curriculum made procedural — scrap types and positions vary per spawn from category pools, except eggshell (mechanically fixed as the literal acid antidote)
+
+**Major structural change — depth cuts:**
+- Compost (tier 2) and tier 1 both cut to 1/3 depth, sump margin unchanged in absolute size
+- New `tier1Bot()`/`cSurf()` boundary functions; every hardcoded `2*H`/`3*H` tier reference and every place assuming tier1 height = flat `H` updated to match (tutorial food positions, ambient scrap generation, worm default spawn point, cocoon depth gate, etc.)
+
+**Bugs fixed:** tutorial panel mobile off-center (world/screen coordinate-space mismatch), two-finger poop gesture dragging the steering point, eggshell glow missing off-screen culling (likely lag source), acid/eggshell glow simplified to match the tutorial ring's lightweight pattern, cocoon system fully invisible (latch fired but nothing rendered — now restored with sac/clitellum band/message), long-press-to-sleep coordinate-space bug, sleep view-scroll never actually applying to the camera, tier-1+compost dirt gradient using stale hardcoded color-stop fractions after the depth cuts, duplicate `scrapsPush()`/state declarations consolidated, bin lid repositioned to track the pile instead of floating at a fixed point with a large empty gap.
+
+**Also added:** desktop `E`/`S` key bindings for cocoon/sleep (touch-only before this session), worm now spawns as a collapsed point and unfurls naturally on first movement.
+
+**Not yet done:** live device testing (this session's fixes are verified via static code/math checks only, not played), push to repo, `demo.html` wiring.
+
+**Next:** see `SESSION_MANIFEST.md` Next Session Start.
+
 
 ### Session — 2026-06-28
 **Completed:** T-00 + T-01 built and iterated locally as self-contained `wigglers-demo-t01.html`
