@@ -1,7 +1,7 @@
 # SESSION MANIFEST — Wigglers Room
 
 ## HEAD SHA
-`5e1961a` (last push — SESSION_MANIFEST delta-tracking process added)
+`f530942` (last push — T-09 ticket added to DEMO_BUILD_PLAN.md)
 
 ## Active Work
 - `wigglers-demo-t07.html` — self-contained single-file demo, **local only, not yet pushed to repo**
@@ -28,7 +28,10 @@
 - Tier-0 trash chunk pile, nibble → debris → tier-1 scraps
 - Eat tier-1 scraps, gut/hunger/acid/HP system, HP + gut HUD bars
 - Poop drops + castings physics, sump drain fills tLvl, tea render
-- Junction detection + drain charge timers
+- Junction detection + drain charge timers, now with a visible progress ring (ported from `game.js`, was previously silent)
+- Karma HUD (top-left) + real-time clock HUD (top-center), ported from `game.js`. Karma was a dead variable until this session — wired up actual accrual matching `game.js`'s amounts at every eat/nibble/junction/drain/poop action
+- Tea drops are now blocked by the compost border unless a carved tunnel actually reaches the sump — pool locally bucket-by-bucket into a visible gradient puddle instead of seeping through on their own (T-09 in the build plan covers building a real drain for this standing pool)
+- Worm fades out of visibility per-segment as it goes deep into compost, tunnels fade to match — see "Worm fade / tunnel-match visual system" below
 - Cocoon system fully visible: lemon-shaped sac render, clitellum readiness band on the worm body, fading feedback message — all ported from `game.js`, adapted to drop the karma/maturity/multiplayer parts the demo doesn't have
 - Sleep + view-scroll: drag-to-scroll while asleep now actually moves the camera (was silently broken — see Bugs Fixed)
 - Death screen: "Your worm didn't make it." + Try Again
@@ -57,6 +60,18 @@
 - Sleep view-scroll drag updated `viewCamY` correctly and the tutorial's completion check read it correctly, but nothing ever applied `viewCamY` to the actual rendering `camY` — dragging while asleep had zero visual effect. Now `camY` follows `viewCamY` (clamped to the normal scroll range) while in view-scroll mode
 - Combined tier-1+compost dirt gradient used hardcoded color-stop fractions (`0.444`, `0.889`) tuned for the old tier proportions — after the depth cuts, tier 1 occupies a different fraction of that visual band, so the dirt visually turned "compost-dark" in the wrong spot relative to where `getTier()` actually flips. Now computed dynamically from the real tier boundaries
 - Duplicate `scrapsPush()`/`trashChunks`/`scraps`/`MAX_SCRAPS` declarations (leftover from the original extraction) consolidated to one shared definition
+- Drain charge progress ring and clitellum readiness band were both silently never rendering — gated behind a worm-visibility check that's guaranteed false at the exact depths those elements activate (drain charging happens at near-max compost depth, clitellum gates at 70% depth — both past where the worm's own fade completes at 25%). Ungated both since they're gameplay feedback, not part of the worm's body
+- Tea-pooling "is there a tunnel here" check accepted any nearby carved point, including incidental carve marks left by the worm just passing through compost for unrelated reasons (sleeping, pooping, laying a cocoon). None of those lead anywhere, but the check didn't verify that — tea was bypassing the pool almost as soon as compost had been touched at all. Now requires the candidate's carved segment to actually reach the sump (a `sumpExit` stamp or a point near `cSurf()`) before counting as a real tunnel
+- Compost tunnels visually poked out above the actual compost border — a round line-cap artifact on the topmost tunnel point, not a data issue (`addPoint()` already rejects anything above the border). Fixed with a hard clip at the border line rather than changing cap style everywhere
+- Digestion-based HP regen was real but running on `game.js`'s multi-day persistent-bin pacing (5 minutes for a full gut to digest) — practically invisible within a short demo session. Sped up ~15x (full gut now digests in ~20s), same total regen amount per gut digested, just compressed into a visible window
+
+### Worm fade / tunnel-match visual system (new this session)
+- Worm now fades out **per-segment** based on each point's own depth as it crosses into compost (gradient-stroke technique, not a single whole-body alpha) — head leads the disappearance going down, leads the reappearance coming back up, matching each segment's actual position
+- Compost tunnels fade from the original two-tone look to flat dark using the *same* depth zone as the worm's fade, so both effects read as one consistent "going underground" system
+- Tea puddle visual reworked twice: first replaced the flat fill with a gradient (glossy top → soil-blend base) using a single shared gradient across all puddles; then fixed it to scale **per-puddle** to that puddle's own actual height, since the shared fixed-range version made small young puddles only sample an almost-invisible sliver near the bottom of a much taller range
+
+### ⚠ Needs re-verification next session
+- The "Constipation" tutorial card was triggering with inaccurate text when the previous beat (turning green from acid) completed before the gut was actually full. Fix: split the old single `acidfull` beat into two — `acidfull` (turn green, unchanged) and a new `gutfull` (keep eating the acid chunk until genuinely constipated) — so the Constipation card is now gated on real gut fullness, not just acid level. **This edit was flagged by Sir immediately after ("you are looking at the old game file") but we did not get clarification before session wrap — verify this change is actually correct/wanted before building further on top of it.**
 
 ### Known missing
 - None blocking — `trySleep()`, `tryLayCocoon()`, `triggerSnoo()`, `triggerDrainTap()`, `closeDrainTap()` are all implemented (the last two remain no-op stubs by design, no valve mechanic in the demo)
@@ -92,12 +107,14 @@ needs to be ported back to production when the demo is retired.
 | `demo.html` | `docs/demo.html` | ✅ In repo (shell only, not yet wired to t07) |
 
 ## Next Session Start
+0. **Re-verify the `acidfull`/`gutfull` split** (see "Needs re-verification" above) — Sir flagged it immediately after the edit and we wrapped before getting clarification on what was wrong
 1. Bootstrap github-sync + set token
 2. Decide: push `wigglers-demo-t07.html` to repo as `docs/demo-game.js` + wire `demo.html`'s `_enterBin()` to load it with `?v=` cache-bust
 3. If pushing: `docs/tutorial-module.js` is now redundant (its contents are folded directly into the t07 demo file) — decide whether to delete it or leave as historical reference
-4. Live-test on an actual mobile device — this session's fixes (gesture handling, depth cuts, cocoon system, view-scroll) have not been tested outside of static code/math verification
+4. Live-test on an actual mobile device — this session's fixes (gesture handling, depth cuts, cocoon system, view-scroll, worm-fade, tea pooling) have not been tested outside of static code/math verification
 5. Production port candidates worth a look: the long-press coordinate-space bug and the "tracked variable never applied to camera" pattern (view-scroll) may exist in `game.js` too — worth checking
-6. Update `DEMO_DELTA.md` with any new divergences before updating this manifest
+6. T-09 (Tea Drain System) is ready to build whenever — design fully captured in `docs/DEMO_BUILD_PLAN.md`
+7. Update `DEMO_DELTA.md` with any new divergences before updating this manifest
 
 ## PAT Note
 Token set this session — rotate if needed (GitHub → Settings → Developer settings)
