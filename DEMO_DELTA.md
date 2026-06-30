@@ -1,6 +1,7 @@
 # DEMO DELTA — Changes in demo vs game.js
 
-Tracks every meaningful divergence between `wigglers-demo-t05.html` and the
+Tracks every meaningful divergence between `wigglers-demo-t07.html` (formerly
+t05, superseded across T-06/T-07 work) and the
 frozen source `docs/game.js` @ SHA `84343c0`. Each entry notes what changed,
 where it lives in the demo, and what needs to happen when porting back to production.
 
@@ -150,3 +151,171 @@ Also missing and needed as no-ops before next demo session:
 - Should `_wormStretch` oscillate in production (true peristalsis) or stay constant?
 - Hold-to-poop: does charging pause worm movement? Currently it doesn't.
 - Lerp segment placement: keep in production or revert to snap for performance?
+
+---
+
+## 7. Tutorial folded into native code (architecture change)
+
+**What changed:**
+- The tutorial was previously a separate `tutorial-module.js` file, designed to be loaded
+  as a standalone block and wired into the host file via ~15 documented "hooks."
+- This session folded it fully into `wigglers-demo-t07.html` as native code: the state
+  object now sits next to other core state declarations, the step-machine functions sit
+  directly above `updatePlayer()`, the render helpers sit directly above `draw()`, and
+  `spawnTutorialScene()` sits directly after `spawnScraps()`. No separate "module" framing,
+  no porting-manifest comments — it reads as code that was always part of the file.
+- Hard defaults changed: `tutorial.scene`, `tutorial.active`, **and `tutorial.live`** are
+  all forced `true` at load (previously only `?tut=1`/`?tut=2` set these via URL param).
+  `tutorial.live = true` means `spawnTutorialScene()` calls `spawnScraps()` first to build
+  the real field (full trash pile + ambient scraps), then lays the curriculum on top —
+  this is the "tutorial OVER the live game" merge mode the architecture skill described as
+  a future goal; it's now the actual default for the demo.
+- The eat-gate was also fixed to match the originally-documented merge-mode spec: in live
+  mode it now locks down ALL scraps (not just `tutProtected` ones) except the active
+  target/extras, so the ambient real-field scraps can't be used to skip the curriculum order.
+
+**Demo location:** scattered — state object near top-of-file globals, step machine above
+`updatePlayer()`, render helpers above `draw()`, `spawnTutorialScene()` after `spawnScraps()`
+
+**Port notes:**
+- This is demo-architecture-only; nothing here is meant to port back to `game.js`,
+  since `game.js` has no tutorial system at all.
+- If `tutorial-module.js` is kept as a separate repo file going forward, it is now
+  **out of sync** with the actual demo — the demo no longer loads it as a module.
+  Decide whether to delete it or keep it as historical/reference documentation only.
+
+---
+
+## 8. Procedural curriculum
+
+**What changed:**
+- Tutorial scrap types are no longer hardcoded (`lettuce`, `watermelon_chunk`, `bread_crust`).
+  `spawnTutorialScene()` now builds three pools from `TRASH_TYPES` — `_safePool` (any
+  non-acidic type), `_juicyPool` (non-acidic, `liq >= 4`, for the tea-drip beat), and
+  `_acidPool` (any acidic type, for the tier-0 pile chunk) — and picks randomly from
+  each pool per spawn.
+- Small position jitter (±3% of bin span, ±2% for the tightly-paired eggshell beat) added
+  to every food item's spawn coordinate so layout varies slightly run to run.
+- Panel titles for the beats that used to name a specific food ("Lettuce", "Watermelon",
+  "Overripe Fruit") now read dynamically via a `_titleCase()` helper off whichever type
+  got picked. The "First Bite" panel also now names its scrap in the body text.
+- **Eggshell stays fixed** for the cure beat — it's the literal acid antidote
+  (`if (s.t.name === 'egg_shell') pAcid -= 0.15` is hardcoded by name in the eat loop,
+  not data-driven), so randomizing it would mean the "antidote" sometimes doesn't cure
+  anything. If full randomization of that beat is wanted later, it needs a generic
+  `antacid: true` flag added to one or more `TRASH_TYPES` entries and the eat loop
+  switched to check that flag instead of the name.
+
+**Demo location:** `spawnTutorialScene()`, plus the `tutorial.steps` panel definitions
+
+**Port notes:** Demo-only flavor system, no port relevance — `game.js` doesn't have a
+tutorial curriculum to vary.
+
+---
+
+## 9. Cocoon visuals restored (was fully invisible)
+
+**What changed:**
+- `tryLayCocoon()` was already pushing to `cocoons[]` and setting `window._cocoonMsg`,
+  but nothing in `draw()` ever rendered any of it — laying a cocoon was a no-op visually.
+- Ported from `game.js`: the lemon-shaped cocoon sac (3.5×5 ellipse + highlight + ridge
+  line), the clitellum readiness band (pulsing pink ellipse ~30% back from the worm's
+  head), and the fading feedback message.
+- Dropped from the `game.js` version: maturity color-shift (needs a week-long timer the
+  demo doesn't track), the owner-name label (always "You" in a single-player demo,
+  redundant), and the karma-based `clitellumReady` gate — replaced with the same depth
+  check `tryLayCocoon()` itself already used.
+- The feedback message draws in **screen space** (after the camera transform restores),
+  not world space like the `game.js` original — this matches the convention established
+  by the tutorial-panel mobile-centering fix (see Bugs Fixed) and avoids the same class
+  of bug.
+
+**Demo location:** `draw()`, cocoon draw loop + clitellum band placed right before/after
+`drawWorm()`; feedback message in the screen-space HUD section
+
+**Port notes:** Low risk if ever needed — this is closely matched to existing `game.js`
+code, just simplified for single-player/no-maturity-timer. Not actually a port candidate
+in the other direction since `game.js` already has the full version.
+
+---
+
+## 10. Compost + tier-1 depth cut to 1/3 — new boundary functions
+
+**What changed:**
+- `game.js` and the prior demo both used four uniform `H`-tall tiers (`getTier(wy) =
+  floor(wy/H)`). This session cut compost (tier 2) and tier 1 (the "active worm layer")
+  to `H/3` each, while tier 0 and the sump's own `H*0.25` margin stayed unchanged.
+- New functions, demo-only: `tier1Bot()` returns `H + H/3` (tier1/compost boundary,
+  replaces literal `2*H`); `cSurf()` now derives from `tier1Bot()` instead of a literal
+  `3*H`/`2*H+H/3`. `getTier()` switched from a uniform division to explicit boundary
+  checks since the tiers are no longer equal height.
+- Every place that hardcoded `2*H`/`3*H` as a tier boundary was swapped to the new
+  functions: `inCompost()`, `compostDepth()`, camera clamps (awake + sleeping), the
+  worm's max-depth clamp, drain-hold detection and stamp positions, the cocoon depth
+  gate + clitellum band, the down-drain "spanning tunnel" bonus margin, the up-drain
+  bonus check, the debris-settling clamp, and the tier-1+compost dirt gradient's
+  internal color-stop fractions (these were hardcoded percentages tuned for the old
+  tier proportions and silently went out of sync with the real boundary — see Bugs Fixed).
+- Separately, everything that assumed tier1's *height* equaled a flat `H` (not just its
+  *boundary* position) also needed scaling: all 8 tutorial food Y-positions
+  (`H + H*0.47` → `H + (tier1Bot()-H)*0.47`), `spawnScraps()`'s ambient tier-1 scrap
+  count and Y-span, the guaranteed-eggshell Y-span, and the worm's default spawn Y
+  (`H*1.4` → `H + (tier1Bot()-H)*0.4`, since the old constant landed inside compost
+  after the cut).
+
+**Demo location:** scattered throughout `updatePlayer()`, `updatePhysics()`, `draw()`,
+`spawnScraps()`, `spawnTutorialScene()`, `initPlayer()` — search for `tier1Bot()` and
+`cSurf()` call sites for the full list
+
+**Port notes:** **Demo-only.** `game.js` should NOT receive this change directly — it's a
+visual/pacing tuning choice for the demo's shorter session length, not a production
+design decision. If production ever wants variable tier depths, this gives a tested
+reference for what has to move together (it's more than it looks like at first).
+
+---
+
+## 11. Lid repositioning — tracks the pile instead of a fixed point
+
+**What changed:**
+- The bin lid was anchored to a fixed `H*0.5` regardless of how full the tier-0 pile
+  was, leaving a large (~426px at typical viewport heights) empty air gap between the
+  lid and the trash/blanket surface.
+- Now tracks `drawPileTopY - 36` (the same smoothed pile-top value already computed
+  for pile rendering), so the lid visually rests just above the blanket and follows
+  the pile up/down as chunks get eaten over a session.
+- Four things kept in sync to this same anchor: the sky-gradient/star-clip boundary,
+  the lid sprite, the bin wall's starting point, and the tier-0 background tint —
+  all previously also hardcoded to `H*0.5` independently.
+- Purely visual — the worm's actual movement ceiling was already tied to the pile via
+  `getLowestScrapY()`/`wormCeiling`, not to the lid or to `H`, so no physics changed.
+
+**Demo location:** `draw()`, the lid/wall/tint section (~early in the function)
+
+**Port notes:** Could be a nice visual port to `game.js` if the production bin has the
+same "lid floats with a big empty gap" issue — worth a look, low risk (pure rendering).
+
+---
+
+## Stub corrections
+
+The original stub list said `getGenColor()` was "overridden to `#ff4d8f` in demo." That
+was tried this session and explicitly reverted — `#e88aaa` is the correct/intended demo
+worm color. Disregard the `#ff4d8f` reference; it does not reflect the current file.
+
+```js
+function getGenColor(g){return '#e88aaa';}  // confirmed correct this session, do not change to ff4d8f
+```
+
+---
+
+## Open Questions for Production Port (additions this session)
+
+- The long-press-to-sleep drift-cancellation bug (comparing world-space `mX` against
+  screen-space `lpStartX`, causing near-instant false cancellation whenever the camera
+  had scrolled) — worth checking whether `game.js`'s own long-press/gesture code has
+  the same coordinate-space mismatch.
+- The view-scroll bug (a tracked drag variable, `viewCamY`, updated correctly but never
+  actually applied to the rendering camera) — same caution, worth checking `game.js` for
+  the same "computed but never consumed" pattern in its own view-mode camera code.
+- Should the depth-cut tier proportions (1/3 compost, 1/3 tier-1) ever inform a production
+  "quick session" or "compact bin" mode, or is this strictly a demo-only pacing choice?
