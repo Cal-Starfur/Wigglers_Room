@@ -431,6 +431,69 @@ beyond the one-time tutorial beat latch — it's an investment that pays off pas
 
 ---
 
+### T-09 — Tea Drain System (Pooled Tea → Tunnel Flow)
+**Status:** `[ ] TODO` — design reviewed this session, not implemented yet
+**Skills:** every-ticket skills + `wigglers-room-tutorial-builder` if any drain beat needs adjusting
+
+**Concept:**
+Build a real drain mechanic for the bucketed tea-pooling system added this session, so
+carving a tunnel near a puddle actually drains it instead of only intercepting new
+incoming drops. Ported concepts and new design from a full review of `game.js`'s drop
+physics (`updatePhysics()`, the `pathIdx`-based tunnel-following system) — see
+`DEMO_DELTA.md` for the comparison once this lands.
+
+**What `game.js` has that's directly reusable:**
+- The `pPath` data structure already carries everything needed: segments separated by
+  `null` markers, `sumpExit` flags on drain termini, `junctionTarget` links. This was
+  ported faithfully in T-05; only the "drops actually ride it" half was ever stubbed out.
+- The **pathIdx attachment model** — a drop attaches to a specific `pPath` index, advances
+  index-by-index toward deeper points each frame (speed scaled by segment angle, steeper
+  = faster), hops through junction targets, and either reaches a `sumpExit` or hits a dead
+  end. This is the core portable mechanic.
+- `game.js`'s spatial bucket index for `pPath` (`_pPathBuckets`) — worth adopting if drain
+  checks end up running every frame instead of once per drop, to avoid an O(n) scan over a
+  potentially large `pPath` array each time.
+
+**What `game.js` has that we explicitly do NOT want:**
+- No hard block at the compost border — `game.js` always lets tea seep into compost and
+  settle at a random "percolation stall" depth, tunnel or not. Our demo's new design
+  (tea hard-blocked at the surface, visibly pooling in buckets until a tunnel exists) is
+  the intended behavior going forward — do not revert to the percolation-stall model.
+- The full clog system (poop deposits blocking tunnels, clog%, decay timers, up-drain
+  direction-reversal for poop climbing back up a tube) — scoped out. A lot of machinery
+  built for multiplayer tunnel-sharing and long-session degradation with no clear payoff
+  in a short demo. Flagged here as a deliberate cut, not an oversight, in case it's
+  reconsidered later.
+
+**What needs to be invented — no `game.js` equivalent exists for this:**
+- Per-bucket (or global — open question below) check for whether a tunnel now exists near
+  a given bucket's X position, and logic to start converting that bucket's standing height
+  into flowing drops once one does, instead of the bucket staying full forever after a
+  tunnel appears nearby.
+- A drain rate — how fast a full bucket empties once a tunnel opens under it. Needs to
+  feel earned (not instant) without taking so long it never visibly empties in a normal
+  session.
+- Whether fresh drops landing after a tunnel exists keep bypassing the pool entirely
+  (current behavior) while the *already-pooled* liquid separately and more slowly drains
+  through the same tunnel — i.e. two coexisting flows rather than one unified system.
+
+**Open questions to resolve before implementation:**
+- Per-bucket drain (only buckets with a tunnel actually near them drain; consistent with
+  the local-pooling design we just built, but a single down-drain only empties the puddle
+  right around it) vs. global drain (any tunnel anywhere lets the whole pool empty —
+  simpler, but loses the spatial "puddles build up locally" idea). Leaning per-bucket.
+- Target drain rate / how long a full bucket should take to empty once tunnelled.
+- Does this connect to `tLvl` (sump tea level) the same way the current bypass-to-sump
+  flow does, or does drained pool tea get its own smaller/different contribution?
+- Should the visual puddle shrink smoothly as it drains, or step down per "released drop"
+  for a more discrete, readable effect?
+
+**Result (when implemented):** Carving a down-drain tunnel near an existing puddle visibly
+drains it over time, instead of the puddle just sitting there indefinitely once a tunnel
+exists nearby — closes the loop between the pooling system and the drain mechanic.
+
+---
+
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
 1. Sky (gradient + stars/sun/moon)
@@ -480,6 +543,8 @@ beyond the one-time tutorial beat latch — it's an investment that pays off pas
 
 ### Session — 2026-06-30
 **Documentation only** — added T-08 (Cocoon Hatch → NPC Helper Worm) to the ticket backlog per Sir's request: captured the concept (30s hatch timer, NPC worm eats/poops, contributes karma) and the open design questions that need resolving before implementation. Not built this session — explicitly deferred.
+
+**Also added T-09 (Tea Drain System — Pooled Tea → Tunnel Flow):** full review of `game.js`'s drop-following physics (`pathIdx` attachment, junction hopping, sumpExit handling) against this session's new bucketed tea-pooling system, to scope what's reusable vs. what needs inventing to make carved tunnels actually drain standing puddles. Captured as a ticket with open questions (per-bucket vs. global drain, drain rate, tLvl interaction) rather than implemented — review only, no code changed.
 
 
 ### Session — 2026-06-29
