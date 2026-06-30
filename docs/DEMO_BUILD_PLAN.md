@@ -395,6 +395,42 @@ ARCH
 
 ---
 
+### T-08 — Cocoon Hatch → NPC Helper Worm
+**Status:** `[ ] TODO` — design captured this session, explicitly NOT implemented yet (Sir's call)
+**Skills:** every-ticket skills + `wigglers-room-tutorial-builder` if any tutorial beat ends up touching it
+
+**Concept:**
+A laid cocoon hatches after **30 seconds** and becomes a **second, NPC-controlled worm**
+that lives alongside the player's worm. The NPC worm autonomously eats and poops, and its
+activity contributes **karma** to the player (passive income from having raised a helper).
+
+**Open design questions to resolve before implementation:**
+- Does the NPC worm need its own simplified AI (wander → find nearest scrap → eat → find
+  compost → poop → repeat), or can it reuse a stripped-down version of the player's own
+  `updatePlayer()` logic running on a second segment set?
+- Cap on simultaneous NPC worms — does each hatched cocoon spawn a new one indefinitely
+  (could get chaotic/expensive), or is there a max alive at once (e.g. 1, or tied to
+  `COCOON_MAX`)?
+- Does the NPC worm ever die / despawn / merge back, or persist for the rest of the session?
+- Karma accrual rate and whether it scales with anything (NPC worm size? how long it's
+  been alive? how much it's eaten?)
+- Visual differentiation from the player's worm (color, size, or just behavior) so it
+  reads clearly as "not you" — current worm color is `#e88aaa`, NPC would need its own
+  distinct color per design tokens.
+- Interaction with the existing `cocoons[]` array and `COCOON_MAX` cap (see T-06) — does
+  a hatched cocoon get removed from `cocoons[]` once it becomes a worm, freeing up a slot
+  under the cap?
+- Performance: a second full segment-physics worm running every frame is real CPU cost
+  on top of the player's own worm — needs a budget check given the demo's perf history
+  this session (see `DEMO_DELTA.md` for the glow/culling work already done).
+- Does this interact with the tutorial curriculum at all, or is it strictly a free-play
+  feature that only matters after the tutorial sequence completes?
+
+**Result (when implemented):** Laying a cocoon becomes a meaningfully rewarding action
+beyond the one-time tutorial beat latch — it's an investment that pays off passively.
+
+---
+
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
 1. Sky (gradient + stars/sun/moon)
@@ -441,6 +477,10 @@ ARCH
 ---
 
 ## Session Log
+
+### Session — 2026-06-30
+**Documentation only** — added T-08 (Cocoon Hatch → NPC Helper Worm) to the ticket backlog per Sir's request: captured the concept (30s hatch timer, NPC worm eats/poops, contributes karma) and the open design questions that need resolving before implementation. Not built this session — explicitly deferred.
+
 
 ### Session — 2026-06-29
 **Completed:** T-02 through T-07 all confirmed/completed locally in `wigglers-demo-t07.html` — the full tutorial demo is now feature-complete, not yet pushed to repo.
