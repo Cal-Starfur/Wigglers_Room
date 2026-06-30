@@ -1,59 +1,65 @@
 # SESSION MANIFEST — Wigglers Room
 
 ## HEAD SHA
-`08f9815` (last push — DEMO_DELTA.md created)
+`5e1961a` (last push — SESSION_MANIFEST delta-tracking process added)
 
 ## Active Work
-- `wigglers-demo-t05.html` — self-contained single-file demo, local only (not yet pushed to repo)
+- `wigglers-demo-t07.html` — self-contained single-file demo, **local only, not yet pushed to repo**
 - `docs/demo.html` — shell only, not yet wired
 - `docs/demo-game.js` — does not exist in repo yet
 
-## Current Demo State (`wigglers-demo-t05.html`)
+## Current Demo State (`wigglers-demo-t07.html`)
 
 ### Ticket Status
 - T-00 Demo Death Screen: ✅ DONE
 - T-01 Canvas, Bin, Worm Movement: ✅ DONE
 - T-02 Tier-1 Scraps + Eat + Gut: ✅ DONE
 - T-03 Acid Chunk + Nibble + pAcid: ✅ DONE
-- T-04 Poop + Castings: ✅ DONE (poop mechanic overhauled this session)
+- T-04 Poop + Castings: ✅ DONE
 - T-05 Drops + pPath Tubes + Drain: ✅ DONE
-- T-06 Cocoon + Sleep + View Mode: [ ] TODO
-- T-07 Tutorial Wire-Up: [ ] TODO
+- T-06 Cocoon + Sleep + View Mode: ✅ DONE
+- T-07 Tutorial Wire-Up: ✅ DONE — **all tickets complete, demo is feature-complete locally**
 
 ### What's working
-- Full bin render: sky, tiers, lid, walls, stand legs, sump chamber
+- Full bin render: sky, tiers, lid (now tracks pile top, see below), walls, stand legs, sump chamber
 - Worm steers to mouse/touch with smooth camera follow (X + Y)
+- Worm spawns as a collapsed point and unfurls into its body on first steering input (eyes suppressed until real body extent exists)
 - Tunnel carving in compost, drawPath renders tunnels
 - Tier-0 trash chunk pile, nibble → debris → tier-1 scraps
 - Eat tier-1 scraps, gut/hunger/acid/HP system, HP + gut HUD bars
 - Poop drops + castings physics, sump drain fills tLvl, tea render
 - Junction detection + drain charge timers
+- Cocoon system fully visible: lemon-shaped sac render, clitellum readiness band on the worm body, fading feedback message — all ported from `game.js`, adapted to drop the karma/maturity/multiplayer parts the demo doesn't have
+- Sleep + view-scroll: drag-to-scroll while asleep now actually moves the camera (was silently broken — see Bugs Fixed)
 - Death screen: "Your worm didn't make it." + Try Again
-- Worm color: `#ff4d8f` hot pink (tutorial-specific)
+- Worm color: `#e88aaa` (dusty rose-pink) — **note:** an earlier session note called for `#ff4d8f` hot pink; that was tried and explicitly reverted this session, `#e88aaa` is correct, please disregard the old note
+- **Tutorial fully wired and tutorial-native** — runs by default (`tutorial.scene = true; tutorial.active = true; tutorial.live = true;`), no `?tut=` param needed. Built on the REAL field (full trash pile + ambient scraps), not a stripped scene
+- **Procedural curriculum** — every tutorial scrap (except eggshell, see below) and the acid pile chunk pick randomly from type pools each spawn, with small position jitter. Panel titles read dynamically off whichever type got picked
+- **Desktop input added** — `E` lays a cocoon, `S` sleeps/wakes, alongside the existing `Space` for poop and the touch gestures
 
-### Worm movement overhaul (this session)
-- Worm body is now a **smooth quadratic curve** (midpoint Chaikin smoothing) — no more sharp angles on turns
-- **Peristaltic stretch**: `_wormStretch = 1.0` permanently; spacing swings +55% longer, width thins by −40%
-- `_wormMoving` global drives stretch — wiggle runs always
-- On stopped→moving transition, `pHist` is flushed and rebuilt from current segment positions to prevent sideways snap
-- Segment placement: moving = lerp 0.18 toward history; stopped = lerp 0.06 toward behind-head rest position
-- Known open issue: resting worm collapses too small — fix not yet landed cleanly
-
-### Poop mechanic overhaul (this session)
-- Two-finger **hold** to charge (0→1 over ~1.5s), release to fire
-- Tap = tiny single drop, full hold = large multi-lump dump
-- Gut bar shows amber pulsing charge overlay with `💩 42%` → `💩 MAX!` label while charging
-- Gut drain scales with charge (0.15→0.65 of pGut)
-- Spacebar = full charge on desktop
-
-### Known missing stubs (called but not defined — will throw on use)
-- `trySleep()`, `tryLayCocoon()`, `triggerSnoo()`, `triggerDrainTap()`, `closeDrainTap()`
-- These are Devvit-side features not needed for demo — need no-op stubs added
+### Compost + Tier-1 depth both cut to 1/3 (this session)
+- Compost (tier 2) cut from a full `H` tall to `H/3`
+- Tier 1 (the "active worm layer") also cut to `H/3`
+- Sump kept its own `H*0.25` margin unchanged in absolute size — just relocated to sit under the now-shorter layers
+- New boundary functions: `tier1Bot()` (tier1/compost boundary) and `cSurf()` (compost/sump boundary, now derives from `tier1Bot()` instead of a literal `2*H`)
+- Total bin depth is down ~41% from original; camera scroll range correspondingly shorter
+- This required touching every place that hardcoded `2*H`/`3*H` as a boundary (tier classification, camera clamps, drain detection, cocoon depth gate, tutorial beacon positions) **and** every place that assumed tier1's height equaled a flat `H` (all 8 tutorial food Y-positions, `spawnScraps()`'s ambient tier-1 scrap count/placement, the worm's default spawn Y, the lid's pile-tracking math) — see `DEMO_DELTA.md` for the full list
 
 ### Bugs fixed this session
-- `ctx.restore()` missing after `drawWorm()` — HUD bars and cursor drew in world space, went invisible
-- `isMoving` defined inside `drawWorm()` but referenced in `updatePlayer()` — ReferenceError on load
-- Worm renderer switched from polyline to per-segment circles (T-05 regression) — reverted to polyline + quadratic smoothing
+- Tutorial panel was off-center on mobile — was being drawn in screen space but using a formula meant for world-translated space (`camX`-dependent offset with no corresponding transform active)
+- Two-finger poop-charge gesture was dragging the steering point — `touchmove` updated `mX`/`mY` from `touches[0]` regardless of finger count, so a second finger landing (which shifts the first finger slightly) yanked the worm
+- Eggshell chunk glow had no off-screen culling (acid glow did) — was running two full ellipse-stroke draws per eggshell chunk per frame regardless of visibility; likely the main lag source once the full live field came back
+- Acid + eggshell chunk glow simplified from per-shape bezier-traced outlines (drawn twice each, once per glow pass) to a single-arc two-stroke ring — same lightweight pattern as the tutorial highlight ring
+- Cocoon system was completely invisible — `cocoons[]` populated and the latch fired correctly, but nothing in `draw()` ever rendered the cocoon shape, the clitellum band, or the feedback message (`window._cocoonMsg` was being set but never drawn)
+- Cocoon depth gate (`tryLayCocoon()`) was hardcoded to `head.y < 2.7*H`, assuming compost was a full `H` tall — after the compost depth cut this became unreachable (past where the worm's own clamp allows), permanently blocking cocoon-laying. Fixed to scale off the actual compost height
+- Long-press-to-sleep drift-cancellation compared world-space `mX` against screen-space `lpStartX`, causing near-instant false cancellation whenever the camera had scrolled (`camX != 0`, i.e. most of the time on a narrow mobile screen once the worm moves off-center)
+- Swipe-up-to-cocoon thresholds loosened (400ms→600ms window, 60px→90px horizontal tolerance) for more reliable real-device triggering
+- Sleep view-scroll drag updated `viewCamY` correctly and the tutorial's completion check read it correctly, but nothing ever applied `viewCamY` to the actual rendering `camY` — dragging while asleep had zero visual effect. Now `camY` follows `viewCamY` (clamped to the normal scroll range) while in view-scroll mode
+- Combined tier-1+compost dirt gradient used hardcoded color-stop fractions (`0.444`, `0.889`) tuned for the old tier proportions — after the depth cuts, tier 1 occupies a different fraction of that visual band, so the dirt visually turned "compost-dark" in the wrong spot relative to where `getTier()` actually flips. Now computed dynamically from the real tier boundaries
+- Duplicate `scrapsPush()`/`trashChunks`/`scraps`/`MAX_SCRAPS` declarations (leftover from the original extraction) consolidated to one shared definition
+
+### Known missing
+- None blocking — `trySleep()`, `tryLayCocoon()`, `triggerSnoo()`, `triggerDrainTap()`, `closeDrainTap()` are all implemented (the last two remain no-op stubs by design, no valve mechanic in the demo)
 
 ## Delta Tracking Process
 
@@ -78,19 +84,19 @@ needs to be ported back to production when the demo is retired.
 | File | Location | Status |
 |------|----------|--------|
 | `SESSION_MANIFEST.md` | repo root | ✅ This file |
-| `DEMO_DELTA.md` | repo root | ✅ Created this session |
-| `DEMO_BUILD_PLAN.md` | `docs/DEMO_BUILD_PLAN.md` | ✅ In repo |
-| `wigglers-demo-t05.html` | local / Claude outputs | ⚠ Local only |
+| `DEMO_DELTA.md` | repo root | ✅ Updated this session |
+| `DEMO_BUILD_PLAN.md` | `docs/DEMO_BUILD_PLAN.md` | ✅ In repo, all tickets marked DONE this session |
+| `wigglers-demo-t07.html` | local / Claude outputs | ⚠ Local only — supersedes the old t05 reference, not yet pushed |
 | `game.js` | `docs/game.js` @ SHA `84343c0` | ✅ Read-only source |
-| `tutorial-module.js` | `docs/tutorial-module.js` | ✅ In repo |
-| `demo.html` | `docs/demo.html` | ✅ In repo (shell only) |
+| `tutorial-module.js` | `docs/tutorial-module.js` | ✅ In repo — **stale**: the local t07 build folded this fully into native locations rather than keeping it as a separate module; repo copy still reflects the old standalone-module shape |
+| `demo.html` | `docs/demo.html` | ✅ In repo (shell only, not yet wired to t07) |
 
 ## Next Session Start
 1. Bootstrap github-sync + set token
-2. Add no-op stubs: `trySleep`, `tryLayCocoon`, `triggerSnoo`, `triggerDrainTap`, `closeDrainTap`
-3. Fix resting worm size — should settle to a visible compact body, not a dot
-4. Decide: push `wigglers-demo-t05.html` to repo as `docs/demo-game.js` + wire `demo.html`
-5. Start T-06 — Cocoon + Sleep + View Mode
+2. Decide: push `wigglers-demo-t07.html` to repo as `docs/demo-game.js` + wire `demo.html`'s `_enterBin()` to load it with `?v=` cache-bust
+3. If pushing: `docs/tutorial-module.js` is now redundant (its contents are folded directly into the t07 demo file) — decide whether to delete it or leave as historical reference
+4. Live-test on an actual mobile device — this session's fixes (gesture handling, depth cuts, cocoon system, view-scroll) have not been tested outside of static code/math verification
+5. Production port candidates worth a look: the long-press coordinate-space bug and the "tracked variable never applied to camera" pattern (view-scroll) may exist in `game.js` too — worth checking
 6. Update `DEMO_DELTA.md` with any new divergences before updating this manifest
 
 ## PAT Note
