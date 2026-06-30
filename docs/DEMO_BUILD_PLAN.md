@@ -546,6 +546,16 @@ exists nearby — closes the loop between the pooling system and the drain mecha
 
 **Also added T-09 (Tea Drain System — Pooled Tea → Tunnel Flow):** full review of `game.js`'s drop-following physics (`pathIdx` attachment, junction hopping, sumpExit handling) against this session's new bucketed tea-pooling system, to scope what's reusable vs. what needs inventing to make carved tunnels actually drain standing puddles. Captured as a ticket with open questions (per-bucket vs. global drain, drain rate, tLvl interaction) rather than implemented — review only, no code changed.
 
+**Continued same day — karma/time HUD, worm-fade-into-compost feature, tea pooling bug fixes, pacing:**
+- Ported the karma HUD pill and real-time clock HUD from `game.js`. Discovered `karma` was a dead variable (never incremented anywhere despite every tutorial panel promising rewards) — wired up real accrual matching `game.js`'s amounts at every eat/nibble/junction/down-drain/up-drain/poop action.
+- Ported the drain/junction charge progress ring from `game.js` (was completely silent before — timers counted correctly but nothing ever drew feedback).
+- New feature: worm fades out **per-segment** as it crosses into compost (gradient-stroke technique — each point fades on its own depth, not one whole-body alpha), with compost tunnels fading to match using the same depth zone, so the worm visually "goes underground" into a dark tunnel.
+- Fixed the drain ring and clitellum band silently never rendering — both were gated behind a worm-visibility check that's guaranteed false at the depths those elements actually activate at.
+- Fixed tea passing straight through the compost-border block almost immediately — the tunnel-detection check accepted any nearby carve mark, including incidental ones from the worm just passing through compost for unrelated reasons. Now requires the segment to actually reach the sump.
+- Tea puddle visual reworked twice — gradient fill (glossy top → soil-blend base) instead of a flat rectangle, then fixed to scale per-puddle to its own actual height after the first pass turned out invisible on small young puddles.
+- Sped up digestion-based HP regen ~15x — was running on `game.js`'s multi-day persistent-bin pacing (5 min per full gut), invisible within a short demo session.
+- **Constipation card fix, flagged as needing re-verification:** split the single `acidfull` beat into two (`acidfull` = turn green, new `gutfull` = keep eating until genuinely full) so the Constipation card's text is always accurate. Sir flagged this edit immediately after ("you are looking at the old game file") but session wrapped before clarification — **re-verify this is correct before building on top of it.**
+
 
 ### Session — 2026-06-29
 **Completed:** T-02 through T-07 all confirmed/completed locally in `wigglers-demo-t07.html` — the full tutorial demo is now feature-complete, not yet pushed to repo.
