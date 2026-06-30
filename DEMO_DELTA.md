@@ -296,6 +296,131 @@ same "lid floats with a big empty gap" issue — worth a look, low risk (pure re
 
 ---
 
+## 12. Worm Emoji Tint Caching (minor — only real divergence from the karma/clock/ring HUD ports)
+
+**What changed:** The karma pill, clock HUD, and drain/junction charge ring were all
+ported verbatim from `game.js` with no behavioral changes — not true deltas, so not
+documented in detail here. The one actual difference: `game.js` regenerates the
+karma pill's tinted worm emoji on an offscreen canvas every single frame; since the
+demo's `genColor` never changes, it's cached once instead (`window._wormEmojiCanvas`).
+
+Separately (not a `game.js` divergence, just worth a note): `karma` itself was a dead
+variable in the demo before this — declared, never incremented, despite every tutorial
+panel promising rewards. Wired up accrual using `game.js`'s own existing formulas (which
+were already computed in the demo's code, just never added to `karma`), so demo karma
+now matches game.js karma exactly — no divergence to track.
+
+**Demo location:** `draw()` (emoji cache), various `karma +=` call sites in
+`updatePlayer()`/`tryPoop()`.
+
+**Port notes:** None — matches `game.js` behavior, nothing to port.
+
+---
+
+## 13. Worm Fade-Into-Compost + Matching Tunnel Fade (demo-only, no game.js equivalent)
+
+**What changed:**
+- New visual feature with no production equivalent: the worm now fades out of visibility
+  **per-segment** as it crosses into compost — each point along the body fades based on
+  its own world-Y depth (full visibility at the compost surface, fully transparent by
+  25% depth into compost), not a single whole-body alpha. Implemented as a vertical
+  canvas gradient used as the stroke style for both body passes in `drawWorm()`, so it
+  costs the same as a flat color (one gradient object per draw call, not per point).
+  Eyes and the small decorative body-cap dot use the same fade curve evaluated at their
+  own specific point.
+- Compost tunnels (`drawPath()`) now fade from the original two-tone look (dark border +
+  lighter brown fill) to a flat uniform dark color using the *same* depth zone as the
+  worm's fade — built as a gradient stroke once per stroke-batch pass, not per point, to
+  stay cheap with a potentially large `pPath`.
+- Fixed a related rendering artifact: tunnels visually poked out above the actual
+  compost border due to the round line-cap on the topmost point extending past it (not a
+  data issue — `addPoint()` already rejects anything above the border). Fixed with a hard
+  clip at the border line.
+- The drain charge ring and clitellum band (§13 and an earlier session's port) were
+  initially gated behind the worm's visibility fade too, which was a bug — both activate
+  at depths well past where the fade completes, so they were silently never rendering
+  during real use. Ungated both since they're gameplay feedback, not part of the worm's
+  body.
+
+**Demo location:** `drawWorm()` (per-point fade + gradient stroke), `drawPath()`
+(matching tunnel fade + border clip), `draw()` (ring/clitellum visibility fix).
+
+**Port notes:** This is a deliberate demo-only aesthetic choice (the worm "going
+underground" into a tunnel), not something to port back to `game.js` — production's
+worm should stay fully visible regardless of depth. Flagging in case the visual is liked
+enough to reconsider for production later, but treat as demo-specific by default.
+
+---
+
+## 14. Tea Pooling System — Visual + Detection Refinements
+
+**What changed (building on the original pooling system from earlier this session):**
+- Puddle fill switched from a flat color to a gradient (glossy highlight at the liquid
+  surface → established tea color → soil-brown blend at the base, so it visually
+  "soaks into" the compost instead of reading as a hard-edged rectangle). First attempt
+  used one shared gradient scaled to the maximum possible puddle height, which made small
+  young puddles nearly invisible (only sampling a sliver near the bottom of a much taller
+  range) — fixed to scale the gradient to each puddle's own actual height instead.
+- Fixed tea passing straight through the compost-border block almost immediately: the
+  "is there a tunnel here" check accepted any nearby `pPath` point, including incidental
+  carve marks left by the worm just passing through compost for unrelated reasons
+  (sleeping, the compost-bonus poop beat, laying a cocoon). None of those lead anywhere.
+  Now requires the candidate point's carved segment to actually reach the sump (a
+  `sumpExit` stamp or a point near `cSurf()`) within a capped forward scan before
+  counting as a real tunnel.
+
+**Demo location:** `updatePhysics()` (tunnel-detection fix), `draw()` (puddle gradient
+rendering, in the world-space compost-surface section).
+
+**Port notes:** Still demo-only — `game.js` has no surface-pooling concept to compare
+against (see Open Questions below, and `docs/DEMO_BUILD_PLAN.md` T-09 for the full
+review of what `game.js`'s drop-following system could contribute to an eventual drain
+mechanic for this pool).
+
+---
+
+## 15. Digestion / HP Regen Pacing Speedup
+
+**What changed:** The digestion-to-HP-regen formula (`tryPoop()`'s neighbor logic in
+`updatePlayer()`) was real and correctly implemented but calibrated to `game.js`'s
+multi-day persistent-bin pacing — a full gut took 5 real-world minutes to fully digest,
+making the regen technically functional but practically invisible within a short demo
+session (under 0.15%/sec). Sped up the divisor so a full gut now digests in ~20 seconds
+(~2%/sec), same total HP regen per gut digested, just compressed into a window where a
+player actually notices it happening.
+
+**Demo location:** `updatePlayer()`, the digestion block (`digestRate` calculation).
+
+**Port notes:** Demo-only pacing change — production should almost certainly keep the
+original slower, realistic timescale for a bin meant to live for days.
+
+---
+
+## 16. Constipation Card Split — `acidfull` → `acidfull` + `gutfull` (⚠ unverified)
+
+**What changed:** Earlier this session the `acidfull` tutorial beat's completion was
+changed from gut-fullness (`pGut >= 98%`) to acid level (`pAcid > 0.35`, "turn green") per
+explicit direction. That created a side effect: the following beat (`pooprelief`, the
+"Constipation" card) could become active and display its "you're bleeding from a full
+gut" text before the gut was actually full, since acid crosses its threshold well before
+gut typically does. Fix: split the single `acidfull` beat into two — `acidfull` (turn
+green, unchanged) and a new `gutfull` (target stays the acid chunk, completes at
+`pGut >= 98%`) — so the Constipation card is now gated on genuine gut fullness every
+time, with no dynamic-text workaround needed.
+
+**Demo location:** `spawnTutorialScene()`'s `tutorial.steps` array, `_tutStepDone()`.
+
+**⚠ Status:** Sir flagged this edit immediately after it was made ("you are looking at
+the old game file") but the session wrapped before clarification on what was meant or
+what was actually wrong. **Re-verify this change before building anything further on top
+of it** — see `SESSION_MANIFEST.md`'s "Needs re-verification" section.
+
+**Port notes:** N/A — tutorial curriculum structure is entirely demo-specific, no
+`game.js` equivalent.
+
+
+---
+
 ## Stub corrections
 
 The original stub list said `getGenColor()` was "overridden to `#ff4d8f` in demo." That
@@ -319,3 +444,7 @@ function getGenColor(g){return '#e88aaa';}  // confirmed correct this session, d
   the same "computed but never consumed" pattern in its own view-mode camera code.
 - Should the depth-cut tier proportions (1/3 compost, 1/3 tier-1) ever inform a production
   "quick session" or "compact bin" mode, or is this strictly a demo-only pacing choice?
+- Is the worm-fades-into-compost visual (§13) worth reconsidering for production at some
+  point, or should production's worm definitely stay fully visible at all depths? Flagged
+  as demo-only by default, but it's a strong enough visual that it seemed worth a
+  deliberate "no" rather than just never coming up.
