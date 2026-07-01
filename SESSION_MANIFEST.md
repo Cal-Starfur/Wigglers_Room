@@ -1,16 +1,12 @@
 # SESSION MANIFEST — Wigglers Room
 
 ## HEAD SHA
-`TBD — update after push`
+`f39b6bac4107d9e65d3fbba23c7b76a036d46644`
 
-## Active Work
-- `wigglers-demo-t08-clean.html` — self-contained single-file demo, **local only, not yet pushed to repo**
-- `docs/demo.html` — shell only, not yet wired
-- `docs/demo-game.js` — does not exist in repo yet
+## Active Work File
+`docs/wigglers-demo-t08.html` — pushed to repo, live on GitHub Pages
 
-## Current Demo State (`wigglers-demo-t08-clean.html`)
-
-### Ticket Status
+## Ticket Status
 - T-00 Demo Death Screen: ✅ DONE
 - T-01 Canvas, Bin, Worm Movement: ✅ DONE
 - T-02 Tier-1 Scraps + Eat + Gut: ✅ DONE
@@ -24,37 +20,53 @@
 - T-10 NPC Helper — Full Simulation: `[ ] TODO`
 - T-11 View-Scroll X/Y/Diagonal: `[ ] TODO`
 
-### What's in t08-clean
-All T-07 features plus:
-- **T-08 v1 NPC helpers**: Cocoon hatches after 30s → teal helper worm. Simple AI: wander → seek food → eat → go to compost → poop → wander. Earns karma passively. 1 NPC alive at a time. Cocoon glows + shows countdown in final 10s.
-- **pGutMax restored to 8** (matching game.js — was incorrectly 4 in the demo)
-- **Digestion rate restored to `5*60*60`** base (matching game.js 5-minute pacing)
-- **Acid chunk repositioned** to `_span * 0.84` — just past the melon in the food chain, no more hard left pull
-- **`surfaceeat` beat** (new kind): replaces the single-scrap surface eat step — all scraps open, panel says "Climb up and eat anything — everything is open now.", completes at 50% gut
-- **Tutorial step order**: `… downdrain → cocoon → updrain → surfaceeat → freeplay(Helpers) → sleep → viewscroll`
-- **Freeplay card renamed "Helpers"**: explains that laying a cocoon hatches a helper worm
+## What Shipped This Session (commit f39b6ba)
 
-### Key constants matching game.js
-- `pGutMax = 8` (init) — grows with `pSR` via `4 + floor((pSR-4)/3*4)`
-- `digestRate` base = `1/(5*60*60)` — 5 min for a full gut, 2.5× faster in compost
-- `ACID_DECAY = 1/(60*180)` — same
-- `ACID_HP_DRAIN = 0.0006` — same
+All changes are in `docs/wigglers-demo-t08.html`.
 
-### Known missing / next session
-- `wigglers-demo-t08-clean.html` is local only — needs to be pushed to repo as the demo file
-- T-10: Full NPC simulation (tunnel carving, drains, acid, starvation, death) — spec in DEMO_BUILD_PLAN.md
-- T-11: View-scroll X/Y/diagonal drag — spec in DEMO_BUILD_PLAN.md
-- T-09: Tea drain system — design in DEMO_BUILD_PLAN.md
+### NPC Rendering
+- Helper worm now renders via `drawWorm()` — identical look to player (wave body, per-depth
+  compost fade, proper two-eyed head, acid tint + HP pallor support)
+- Spawns at `pSR * 0.5` (50% of player radius at hatch time) — visually clearly smaller
 
-### ⚠ Needs re-verification
+### Orientation / Resize Fix
+- `resizeCanvas()` now reads from `visualViewport` first (most reliable post-rotation source),
+  falls back to `window.innerWidth/innerHeight`, then `root.offsetWidth` as last resort
+- `_toCanvas()` now uses `canvas.getBoundingClientRect()` + scales by buffer/CSS ratio —
+  touch coords are exact regardless of CSS stretch or mid-rotation reflow state
+- `orientationchange` fires `resizeCanvas` at 100ms, 300ms, and 500ms (triple-tap)
+- `visualViewport.resize` listener added as a fourth trigger
+
+### Two-Finger Gesture Steer Freeze
+- Added `_steerFrozen` flag to `_gesture` object
+- Second finger landing sets `_steerFrozen = true` — `touchmove` steer gated behind it,
+  so finger-0 drift during poop hold/tap no longer jerks the worm
+- Two-finger lift unfreezes and snaps `mX/mY` to current finger-0 position
+- `touchcancel` also clears the flag
+
+### HP Floor Fix
+- Tutorial HP floor (`pHP < 0.08` clamp) now only applies when `tutorial.stepIndex > 0`
+- At step 0 (player hasn't taken the first bite yet) starvation kills normally
+
+### Death Screen Polish
+- Title gradient: removed `#ffd580` centre highlight stop — clean amber `#f5a623` → `#d4880a`
+- "Try Again" text button replaced with `assets/try_again_icon.png` (inlined as base64)
+  - Floats with ±9px bob (`Math.sin(frame * 0.045)`) matching demo.html's `wfloat` keyframe
+  - Amber radial glow with gentle pulse behind the icon
+  - Hit-test rect updated to cover icon bounds
+
+## ⚠ Still Needs Verification
 - `acidfull`/`gutfull` curriculum split — flagged as unverified from a prior session, still outstanding
 
 ## Next Session Start
 1. Bootstrap github-sync + set token
-2. Push `wigglers-demo-t08-clean.html` to repo (decide final filename / path)
-3. T-10: Full NPC simulation — read spec in DEMO_BUILD_PLAN.md T-10 section before starting; hoist `_fadeAt` first (see crash note)
-4. T-11: View-scroll X/Y — small surgical change, good warmup ticket
-5. Update DEMO_DELTA.md with T-08 divergences before next session wrap
+2. Fetch `docs/wigglers-demo-t08.html` pinned to SHA `f39b6ba` as working file
+3. Verify `acidfull`/`gutfull` split against current file before any tutorial edits
+4. T-10: Full NPC simulation — read DEMO_BUILD_PLAN.md T-10 spec; hoist `_fadeAt` first (see crash note in plan)
+5. T-11: View-scroll X/Y diagonal — small surgical ticket, good warmup
+
+## Demo URL
+`https://cal-starfur.github.io/Wigglers_Room/wigglers-demo-t08.html?v=f39b6ba`
 
 ## PAT Note
 Token active this session — rotate if needed (GitHub → Settings → Developer settings)
