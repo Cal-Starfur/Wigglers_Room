@@ -396,38 +396,27 @@ ARCH
 ---
 
 ### T-08 — Cocoon Hatch → NPC Helper Worm
-**Status:** `[ ] TODO` — design captured this session, explicitly NOT implemented yet (Sir's call)
-**Skills:** every-ticket skills + `wigglers-room-tutorial-builder` if any tutorial beat ends up touching it
+**Status:** `[~] IN PROGRESS` — v1 (simple wander/eat/poop AI) shipped in `wigglers-demo-t08-clean.html`. Full simulation version is T-10.
+**Skills:** every-ticket skills + `wigglers-room-tutorial-builder`
 
-**Concept:**
-A laid cocoon hatches after **30 seconds** and becomes a **second, NPC-controlled worm**
-that lives alongside the player's worm. The NPC worm autonomously eats and poops, and its
-activity contributes **karma** to the player (passive income from having raised a helper).
+**What shipped (v1 — simple AI):**
+- Cocoon hatches after 30s, spawns a teal helper worm, consumes the cocoon slot
+- Cap: 1 NPC alive at a time
+- States: `wander → seek → eat → tocompost → poop → wander`
+- Earns +1 karma on eat, +2 on poop drop
+- Teal color `#7ecfb0`, 12-segment chain-follow body, eyes + "helper" label
+- Cocoon glows and shows countdown in the final 10s before hatch
+- Tutorial `freeplay` card renamed "Helpers" — explains the mechanic
 
-**Open design questions to resolve before implementation:**
-- Does the NPC worm need its own simplified AI (wander → find nearest scrap → eat → find
-  compost → poop → repeat), or can it reuse a stripped-down version of the player's own
-  `updatePlayer()` logic running on a second segment set?
-- Cap on simultaneous NPC worms — does each hatched cocoon spawn a new one indefinitely
-  (could get chaotic/expensive), or is there a max alive at once (e.g. 1, or tied to
-  `COCOON_MAX`)?
-- Does the NPC worm ever die / despawn / merge back, or persist for the rest of the session?
-- Karma accrual rate and whether it scales with anything (NPC worm size? how long it's
-  been alive? how much it's eaten?)
-- Visual differentiation from the player's worm (color, size, or just behavior) so it
-  reads clearly as "not you" — current worm color is `#e88aaa`, NPC would need its own
-  distinct color per design tokens.
-- Interaction with the existing `cocoons[]` array and `COCOON_MAX` cap (see T-06) — does
-  a hatched cocoon get removed from `cocoons[]` once it becomes a worm, freeing up a slot
-  under the cap?
-- Performance: a second full segment-physics worm running every frame is real CPU cost
-  on top of the player's own worm — needs a budget check given the demo's perf history
-  this session (see `DEMO_DELTA.md` for the glow/culling work already done).
-- Does this interact with the tutorial curriculum at all, or is it strictly a free-play
-  feature that only matters after the tutorial sequence completes?
+**Design decisions resolved this session:**
+- Helpers are slightly smaller than player (72% of `pSR`) — visually distinct, clearly "not you"
+- Each helper has its own independent simulation loop — not shared state
+- Helpers can die (starvation, acid poisoning) — investment, not guaranteed
+- Cap tied to `COCOON_MAX` (3) — up to 3 helpers alive simultaneously
+- Colors: teal / purple / gold — one per slot
+- Free-play feature only — tutorial only introduces the mechanic via the cocoon beat
 
-**Result (when implemented):** Laying a cocoon becomes a meaningfully rewarding action
-beyond the one-time tutorial beat latch — it's an investment that pays off passively.
+**Result:** Laying a cocoon is a meaningful investment. Full simulation spec lives in T-10.
 
 ---
 
@@ -493,6 +482,54 @@ drains it over time, instead of the puddle just sitting there indefinitely once 
 exists nearby — closes the loop between the pooling system and the drain mechanic.
 
 ---
+
+---
+
+### T-10 — NPC Helper Worm — Full Simulation
+**Status:** `[ ] TODO` — spec fully captured, ready to implement on top of T-08 v1 base
+**Skills:** every-ticket skills
+
+**Concept:**
+Upgrade the v1 simple-AI helpers to full per-worm simulation loops. Each helper gets gut, acid, HP, tunnel carving, drain mechanics, and death — a real worm that just happens to be AI-driven.
+
+**Per-worm state object:** `segs[], hist[], sr, gutMax, gut, hp, acid, path[], lastX, lastY, angle, stateTimer, state, target, sumpHadDown, junctionTimer, junctionTargetIdx, junctionUsedPoints, drainDownTimer, drainUpTimer, drainDownCooldown, junctionCarveOrigin, lastHeadX, lastHeadY, dead, hatchedAt`
+
+**Physics:** Replace `_npcMoveHead` chain-follow with `_npcStep(nw, tx, ty)` — history-trail segment placement with lerp, mirroring `updatePlayer()` exactly.
+
+**Survival (all per-worm, matching player rates):**
+- Gut decay at `5*60*60` base, compost 2.5× multiplier
+- Constipation / starvation HP bleed
+- Acid HP drain when `nw.acid > 0.5`
+- Death at `hp <= 0`, culled from `npcWorms[]`
+
+**AI states:** `roam | seek | cure | tocompost | pooping | tosump | atsump | ascend`
+- `cure`: drops everything and seeks nearest eggshell when `acid > 0.35`
+- `tosump / atsump`: descends to sump, holds to stamp down drain then up drain (full `JUNCTION_HOLD_FRAMES` mechanic)
+- `ascend`: climbs back up through compost carving a tunnel, fires up-drain bonus when it clears tier-1
+- Each NPC carves its own `nw.path[]` — independent of player `pPath`, rendered as dark compost tunnels
+
+**Render:** `drawWorm(nw.segs, nw.sr, nw.color, false, nw.acid, nw.hp)` reused directly — acid tint and HP pallor automatic. NPC path tunnels drawn manually in world-translated space with `_fadeAt` depth fade. HP bar above head when HP < 75%.
+
+**Critical implementation note — _fadeAt crash:**
+`_fadeAt` is defined as a closure inside `drawWorm()`. If NPC tunnel render calls it from `draw()` scope it throws `ReferenceError` on every frame. Before implementing: hoist `_fadeAt` to a top-level function before `drawWorm`. Replace `_gTop`/`_gBot` gradient vars inside `drawWorm` with `tier1Bot() - camY` / `tier1Bot() + (cSurf()-tier1Bot())*0.25 - camY` directly.
+
+---
+
+### T-11 — View-Scroll X/Y/Diagonal Drag
+**Status:** `[ ] TODO`
+**Skills:** every-ticket skills
+
+**Concept:**
+While sleeping in view-scroll mode, extend the current Y-only camera drag to full 2D pan — horizontal, vertical, and diagonal.
+
+**Current behavior:** Only `viewCamY` is updated from finger delta. `camX` is untouched during view-scroll. Diagonal drag impossible.
+
+**Changes needed:**
+- Add `viewCamX` state variable alongside `viewCamY`
+- `touchmove`: when `viewMode && pSleeping`, read both X and Y delta from finger, update `viewCamX` and `viewCamY`
+- `updatePlayer()` sleeping branch: apply `viewCamX` to `camX` (clamped to `_camXMin`/`_camXMax`) alongside existing `viewCamY → camY`
+- Desktop: `mousemove` while `_viewDragActive` flag set (on `mousedown` in view mode, cleared on `mouseup`)
+- Check for the `_viewDragLastY` stale-anchor bug (fixed in T-06) — apply same fix to X axis: track `_viewDragLastX` and update both together
 
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
