@@ -20,53 +20,62 @@
 - T-10 NPC Helper — Full Simulation: `[ ] TODO`
 - T-11 View-Scroll X/Y/Diagonal: `[ ] TODO`
 
-## What Shipped This Session (commit f39b6ba)
+## What Shipped This Session
 
-All changes are in `docs/wigglers-demo-t08.html`.
+All changes are in `docs/wigglers-demo-t08.html` (output: `wigglers-demo-t08-v3.html`).
 
-### NPC Rendering
-- Helper worm now renders via `drawWorm()` — identical look to player (wave body, per-depth
-  compost fade, proper two-eyed head, acid tint + HP pallor support)
-- Spawns at `pSR * 0.5` (50% of player radius at hatch time) — visually clearly smaller
+### iPad Orientation / Rotation Fix (3-part)
 
-### Orientation / Resize Fix
-- `resizeCanvas()` now reads from `visualViewport` first (most reliable post-rotation source),
-  falls back to `window.innerWidth/innerHeight`, then `root.offsetWidth` as last resort
-- `_toCanvas()` now uses `canvas.getBoundingClientRect()` + scales by buffer/CSS ratio —
-  touch coords are exact regardless of CSS stretch or mid-rotation reflow state
-- `orientationchange` fires `resizeCanvas` at 100ms, 300ms, and 500ms (triple-tap)
-- `visualViewport.resize` listener added as a fourth trigger
+**Part 1 — Debounced resize + orientationchange listener** (v1)
+- Replaced bare `window.addEventListener('resize', resizeCanvas)` with a debounced
+  wrapper (`_debouncedResize`, 150ms delay) — swallows the premature mid-rotation fire
+  Safari emits before layout is stable.
+- Added `orientationchange` listener with 300ms delay (minimum Safari needs before
+  `offsetWidth/Height` reflect the new orientation).
+- Added `visualViewport.resize` listener (fires after layout is actually stable on iOS 13+).
 
-### Two-Finger Gesture Steer Freeze
-- Added `_steerFrozen` flag to `_gesture` object
-- Second finger landing sets `_steerFrozen = true` — `touchmove` steer gated behind it,
-  so finger-0 drift during poop hold/tap no longer jerks the worm
-- Two-finger lift unfreezes and snaps `mX/mY` to current finger-0 position
-- `touchcancel` also clears the flag
+**Part 2 — `_smoothPileTopY` reset on resize** (v2)
+- Root-caused blue layer-0 air-gap visible immediately after rotation: `_smoothPileTopY`
+  lerps at 8%/frame and held the old portrait/landscape `H` for ~40 frames (~650ms),
+  making `lidWorldY` stale-high and exposing the `#3a4a6a` blue band above the dirt.
+- Fix: `window._smoothPileTopY = null` added to `resizeCanvas()`, mirroring `setup()`'s
+  own init (line 1877). Forces a snap to current pile position on the very first draw
+  after rotation.
 
-### HP Floor Fix
-- Tutorial HP floor (`pHP < 0.08` clamp) now only applies when `tutorial.stepIndex > 0`
-- At step 0 (player hasn't taken the first bite yet) starvation kills normally
-
-### Death Screen Polish
-- Title gradient: removed `#ffd580` centre highlight stop — clean amber `#f5a623` → `#d4880a`
-- "Try Again" text button replaced with `assets/try_again_icon.png` (inlined as base64)
-  - Floats with ±9px bob (`Math.sin(frame * 0.045)`) matching demo.html's `wfloat` keyframe
-  - Amber radial glow with gentle pulse behind the icon
-  - Hit-test rect updated to cover icon bounds
+**Part 3 — World-Y remap on H change** (v3, root fix)
+- Root-caused persistent layer-0 bleed in portrait mode: all world-Y positions are
+  expressed as multiples of H (`tier1Bot = H + H/3`, `layerBaseY = H*0.97 + 75`, etc.).
+  `spawnScraps()` bakes `H` at call-time — after rotation H changes but every stored
+  object Y reflects the old H. `tier1Bot()` and `cSurf()` immediately use new H,
+  creating a mismatch between tier boundaries and where objects actually live.
+- Fix: capture `oldH` before updating `H` in `resizeCanvas()`. If `oldH !== H`, walk
+  every live object array and multiply all `.y` coords by `newH / oldH`:
+  - `trashChunks[i].y` and `.dropY`
+  - `scraps[i].y`
+  - `debris[i].y`
+  - `pSegs[i].y`, `pHist[i].y`, `pPath[i].y`
+  - `mY`
+- Also switched `resizeCanvas()` to read `visualViewport.width/height` first (stable
+  post-rotation on iOS), falling back to `root.offsetWidth/Height`.
 
 ## ⚠ Still Needs Verification
-- `acidfull`/`gutfull` curriculum split — flagged as unverified from a prior session, still outstanding
+- `acidfull`/`gutfull` curriculum split — flagged as unverified from a prior session,
+  still outstanding. Re-verify before any tutorial edits.
+- Tutorial beacon spots (`_poopSpot`, `_sleepSpot`, etc.) have Y values set at
+  `spawnTutorialScene()` time and are NOT remapped by the world-Y remap (they live in
+  the `scraps` array and ARE walked, but the named local refs in `tutorial.steps`
+  closures are not). If tutorial navigation feels off after rotation, those named refs
+  need the same `*= _hRatio` treatment.
 
 ## Next Session Start
 1. Bootstrap github-sync + set token
-2. Fetch `docs/wigglers-demo-t08.html` pinned to SHA `f39b6ba` as working file
+2. Fetch `docs/wigglers-demo-t08.html` pinned to HEAD SHA as working file
 3. Verify `acidfull`/`gutfull` split against current file before any tutorial edits
-4. T-10: Full NPC simulation — read DEMO_BUILD_PLAN.md T-10 spec; hoist `_fadeAt` first (see crash note in plan)
-5. T-11: View-scroll X/Y diagonal — small surgical ticket, good warmup
+4. T-09: Tea Drain System — read DEMO_BUILD_PLAN.md T-09 spec
+5. T-10: Full NPC simulation — hoist `_fadeAt` first (see crash note in plan)
 
 ## Demo URL
-`https://cal-starfur.github.io/Wigglers_Room/wigglers-demo-t08.html?v=f39b6ba`
+`https://cal-starfur.github.io/Wigglers_Room/wigglers-demo-t08.html`
 
 ## PAT Note
 Token active this session — rotate if needed (GitHub → Settings → Developer settings)
