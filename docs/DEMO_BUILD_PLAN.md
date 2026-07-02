@@ -539,13 +539,30 @@ Key additions vs v1:
 
 **PART 3 — Cocoon System Overhaul**
 
-Current `tryLayCocoon()` conditions are too loose — review and tighten:
-- Minimum gut threshold before laying is allowed (e.g. `pGut > 0.5`) — can't lay on an empty stomach
-- Minimum HP threshold (e.g. `pHP > 0.4`) — stressed worms don't lay
-- Cooldown between lays — enforce `lastCocoonLaid` gap, no rapid-fire cocoons
-- Cap: max `COCOON_MAX` (3) cocoons across `cocoons[]` at any time including unhatched
-- Hatch timer: tune for demo feel — 30s may be too fast with 3 NPCs already live; consider scaling hatch time by number of live NPCs (more helpers = longer before next hatch, so the system breathes)
-- On hatch: pick `restX` as a spread position — divide bin width into slots by `COCOON_MAX`, assign slot by cocoon index so NPCs start spatially separated
+Current `tryLayCocoon()` has no meaningful gates — a player can lay up to 6 cocoons with no clear cost or reason. Tighten to the following conditions (all must pass):
+
+- **Karma cost** — karma acts as the cooldown, not a clock. Each cocoon laid requires a cumulative karma milestone: 1st cocoon at `karma >= 15`, 2nd at `karma >= 40`, 3rd at `karma >= 80`. Track `cocoonsLaid` (total ever laid this session, not current live count). Gate: `karma >= COCOON_KARMA_THRESHOLDS[cocoonsLaid]`. This makes the karma economy the natural rate-limiter — a player simply cannot earn enough karma to lay more than 3 in a normal demo session.
+- **Gut requirement** — `pGut > 0.6` — can't lay on a hungry stomach
+- **HP requirement** — `pHP > 0.5` — stressed or wounded worms don't reproduce
+- **Depth** — must be in compost (tier 2) — existing check, leave as-is
+- **Cap** — `COCOON_MAX` stays at 3. With karma gating, hitting 6 is impossible anyway — the cap is a safety net only.
+
+```js
+var COCOON_KARMA_THRESHOLDS = [15, 40, 80]; // karma required before laying 1st, 2nd, 3rd cocoon
+var cocoonsLaid = 0; // total laid this session, incremented in tryLayCocoon() on success
+```
+
+In `tryLayCocoon()`, replace the current loose gate with:
+```js
+if (cocoonsLaid >= COCOON_MAX) return;
+if (karma < COCOON_KARMA_THRESHOLDS[cocoonsLaid]) return;
+if (pGut < 0.6) return;
+if (pHP < 0.5) return;
+// existing depth check stays
+```
+
+- **Hatch timer:** tune for demo feel — 30s may be too fast with 3 NPCs already live; consider scaling hatch time by number of live NPCs (more helpers = longer before next hatch, so the system breathes)
+- **On hatch:** pick `restX` as a spread position — divide bin width into slots by `COCOON_MAX`, assign slot by cocoon index so NPCs start spatially separated
 
 **PART 4 — Survival (per-worm, matching player rates)**
 - Gut decay at `5*60*60` base, compost 2.5× multiplier
