@@ -598,6 +598,75 @@ While sleeping in view-scroll mode, extend the current Y-only camera drag to ful
 - Desktop: `mousemove` while `_viewDragActive` flag set (on `mousedown` in view mode, cleared on `mouseup`)
 - Check for the `_viewDragLastY` stale-anchor bug (fixed in T-06) — apply same fix to X axis: track `_viewDragLastX` and update both together
 
+
+---
+
+### T-12 — Tutorial Panel Visual Fix + Copy Overhaul
+**Status:** `[ ] TODO`
+**Skills:** every-ticket skills
+
+**What's broken:**
+1. **Scrap icon has a white circle behind/over it** — renders on top of or clipping through the card boundary, looks broken
+2. **Copy is instructional and flat** — reads like a manual, not a character
+3. **Constipation card is a different size** than the scrap cards — inconsistent panel dimensions across the tutorial sequence
+
+---
+
+**PART 1 — Visual Fixes**
+
+**White circle bug:**
+- The scrap icon in the panel is rendering a background circle that shouldn't be visible (likely a canvas arc fill defaulting to white, or an offscreen canvas with a white background being stamped onto the panel)
+- Find the scrap icon draw call inside `drawTutorialPanel()` and either: clip it to the panel bounds, make the background `rgba(0,0,0,0)` / transparent, or draw it directly onto the panel canvas context with no background fill
+- The icon must not overflow the card boundary under any circumstances — add a `ctx.save()` / `ctx.clip()` around the icon draw if needed
+
+**Card size consistency:**
+- Measure all panel draw calls in `drawTutorialPanel()` — every card must share the same `panelW` and `panelH`
+- The Constipation card (`pooprelief`) has a different height — find where it diverges and normalise it to match the standard scrap card dimensions
+- If copy length varies (some cards have more text), the card height stays fixed — shorten the copy to fit, don't grow the card
+
+---
+
+**PART 2 — Copy Overhaul**
+
+**Voice:** Wiggler — the player's worm — is the guide. Friendly, upbeat, first-person. He's showing another worm the ropes, not lecturing them. Short sentences. A little personality. Never clinical.
+
+**Rules for all copy:**
+- Max 2 lines of body text per card — if it doesn't fit in 2 lines it's too long
+- No imperative instructions ("Eat the scrap") — Wiggler describes what he does, the player figures out to copy him
+- Exclamation points are fine, ellipses are fine, em-dashes are fine — this is a character talking
+- Scrap names can be casual ("that watermelon", "the eggshell") not formal ("Watermelon Chunk")
+
+**Card copy by step:**
+
+| Step | Title | Body |
+|------|-------|-------|
+| `eat` #1 (first bite) | "Oh hey, you made it!" | "I found something up here — follow me and take a bite!" |
+| `eat` #2 (grow) | "Keep eating!" | "Every bite makes us a little bigger. That's how we grow." |
+| `eat` #3 (juicy scrap / tea drip) | "Ooh, a juicy one!" | "Some scraps drip liquid down into the bin. Watch the sump!" |
+| `acidfull` (turn green) | "Uh oh…" | "That chunk's a bit much. I'm feeling it — you probably are too." |
+| `pooprelief` (constipation) | "Okay, time to go." | "Two fingers to poop. Trust me, you'll feel better." |
+| `cure` (eggshell) | "Eggshell! Grab it!" | "This stuff neutralises the acid. Eat it quick — we'll turn pink again." |
+| `refuel` | "Almost there!" | "Let's eat something normal and get our energy back." |
+| `poop` (compost bonus) | "Deeper is better." | "Pooping down in the compost does more good. Follow me down." |
+| `downdrain` (sump hold) | "Hold still here…" | "Stay on this spot — the drain does its thing if you wait." |
+| `cocoon` | "Watch this." | "I'm going to lay a cocoon. A new worm hatches from it — pretty wild." |
+| `updrain` | "One more hold." | "Same deal, different dot. Up-drain fires when you stay put." |
+| `eat` #12 (refuel surface) | "Back up top!" | "Burned some energy down there. Let's grab something to eat." |
+| `freeplay` | "You've got it!" | "That's the bin. Explore, eat, poop — and check on the cocoon!" |
+| `sleep` | "Getting tired?" | "Hold still in the compost to sleep. I'll show you." |
+| `viewscroll` | "Drag to look around." | "While we're sleeping, you can scroll the whole bin." |
+
+**Note:** copy for procedural scraps (steps 1–3, 6–7, 12) uses generic language — the scrap name is shown via the icon, not spelled out in the copy, so it stays correct regardless of which scrap type was randomly picked that run.
+
+---
+
+**PART 3 — Implementation notes**
+
+- All copy lives in `tutorial.steps[n].panel` (title + body fields) inside `spawnTutorialScene()` — update there only, no other files
+- Panel draw function `drawTutorialPanel()` reads those fields — no structural changes needed for copy
+- Fix the white circle and size normalisation first, verify cards look correct, then drop in new copy
+- Test on iPad in both portrait and landscape — panels must stay within the canvas boundary in both orientations
+
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
 1. Sky (gradient + stars/sun/moon)
