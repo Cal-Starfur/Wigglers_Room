@@ -485,30 +485,79 @@ exists nearby — closes the loop between the pooling system and the drain mecha
 
 ---
 
-### T-10 — NPC Helper Worm — Full Simulation
-**Status:** `[ ] TODO` — spec fully captured, ready to implement on top of T-08 v1 base
+### T-10 — NPC Helper Worm — Full Overhaul
+**Status:** `[ ] TODO` — v1 shipped in T-08, this ticket is a full overhaul of cocoon/NPC systems
 **Skills:** every-ticket skills
 
-**Concept:**
-Upgrade the v1 simple-AI helpers to full per-worm simulation loops. Each helper gets gut, acid, HP, tunnel carving, drain mechanics, and death — a real worm that just happens to be AI-driven.
+**What's broken in v1 (observed with 3 NPCs hatched):**
+- NPCs escape the bin — no bin boundary enforcement, seen flying into sky above the lid
+- NPCs share the same movement loop — they sync up and move in lockstep, obviously not independent
+- All NPCs return to the same spot in compost — no spatial variety, looks robotic
+- Cocoon laying logic is loose — timing and conditions need a full review
+- With 3 live NPCs the whole system feels unpolished for the demo
 
-**Per-worm state object:** `segs[], hist[], sr, gutMax, gut, hp, acid, path[], lastX, lastY, angle, stateTimer, state, target, sumpHadDown, junctionTimer, junctionTargetIdx, junctionUsedPoints, drainDownTimer, drainUpTimer, drainDownCooldown, junctionCarveOrigin, lastHeadX, lastHeadY, dead, hatchedAt`
+**Goals for this ticket:**
+1. Bin bounds enforcement — NPCs must be constrained exactly like the player
+2. Independent AI per worm — each NPC runs its own state machine and timer, no shared loop state
+3. Spatial variety — NPCs seek different targets, rest in different spots, don't clump
+4. Cocoon system overhaul — tighten laying conditions and hatch timing for demo feel
+5. Full simulation — gut, acid, HP, death — a real worm that happens to be AI-driven
 
-**Physics:** Replace `_npcMoveHead` chain-follow with `_npcStep(nw, tx, ty)` — history-trail segment placement with lerp, mirroring `updatePlayer()` exactly.
+---
 
-**Survival (all per-worm, matching player rates):**
+**PART 1 — Bin Bounds + Movement Parity**
+
+NPCs must obey the same world boundaries as the player. Apply to every `_npcStep()` call:
+- X: clamp to `getBin().x + nw.sr` … `getBin().x + getBin().w - nw.sr`
+- Y ceiling: `getLowestScrapY()` or `wormCeiling` equivalent — cannot breach the lid
+- Y floor: `cSurf() - nw.sr` — cannot go below the sump floor
+- Replace `_npcMoveHead` chain-follow with `_npcStep(nw, tx, ty)` — history-trail segment placement with lerp, mirroring `updatePlayer()` exactly
+
+**PART 2 — Independent AI Per Worm**
+
+Each NPC in `npcWorms[]` must have fully independent state. No shared loop variables.
+
+**Per-worm state object:**
+`segs[], hist[], sr, gutMax, gut, hp, acid, path[], lastX, lastY, angle, stateTimer, state, target, sumpHadDown, junctionTimer, junctionTargetIdx, junctionUsedPoints, drainDownTimer, drainUpTimer, drainDownCooldown, junctionCarveOrigin, lastHeadX, lastHeadY, dead, hatchedAt, restX, restY, idleOffset`
+
+Key additions vs v1:
+- `restX, restY` — each NPC picks a unique rest position at hatch time (spread across bin X span, randomised Y in tier-1), never shares with another NPC or returns to origin
+- `idleOffset` — frame offset (e.g. `hatchedAt % 60`) so wander timers fire at different times and NPCs never move in sync
+- All timers (`stateTimer`, `junctionTimer`, etc.) initialised with `idleOffset` applied
+
+**AI states:** `roam | seek | cure | tocompost | pooping | tosump | atsump | ascend | rest`
+- `roam`: wanders toward a randomly offset target near `restX/restY`, transitions to `seek` when gut < 60%
+- `seek`: finds nearest available scrap not targeted by another NPC (track `nw.targetScrapIdx`, clear on eat)
+- `cure`: drops everything, seeks nearest eggshell when `acid > 0.35`
+- `tocompost / pooping`: descends to compost, poops, returns to tier-1
+- `tosump / atsump`: descends to sump, holds for down drain then up drain
+- `ascend`: climbs back up carving tunnel, fires up-drain bonus on clearing tier-1
+- `rest`: returns to `restX/restY`, idles for a randomised duration before roaming again
+
+**Scrap competition prevention:** before targeting a scrap, check no other NPC in `npcWorms[]` has the same `targetScrapIdx`. If contested, pick next nearest.
+
+**PART 3 — Cocoon System Overhaul**
+
+Current `tryLayCocoon()` conditions are too loose — review and tighten:
+- Minimum gut threshold before laying is allowed (e.g. `pGut > 0.5`) — can't lay on an empty stomach
+- Minimum HP threshold (e.g. `pHP > 0.4`) — stressed worms don't lay
+- Cooldown between lays — enforce `lastCocoonLaid` gap, no rapid-fire cocoons
+- Cap: max `COCOON_MAX` (3) cocoons across `cocoons[]` at any time including unhatched
+- Hatch timer: tune for demo feel — 30s may be too fast with 3 NPCs already live; consider scaling hatch time by number of live NPCs (more helpers = longer before next hatch, so the system breathes)
+- On hatch: pick `restX` as a spread position — divide bin width into slots by `COCOON_MAX`, assign slot by cocoon index so NPCs start spatially separated
+
+**PART 4 — Survival (per-worm, matching player rates)**
 - Gut decay at `5*60*60` base, compost 2.5× multiplier
 - Constipation / starvation HP bleed
 - Acid HP drain when `nw.acid > 0.5`
-- Death at `hp <= 0`, culled from `npcWorms[]`
+- Death at `hp <= 0` — cull from `npcWorms[]`, free the cocoon slot
 
-**AI states:** `roam | seek | cure | tocompost | pooping | tosump | atsump | ascend`
-- `cure`: drops everything and seeks nearest eggshell when `acid > 0.35`
-- `tosump / atsump`: descends to sump, holds to stamp down drain then up drain (full `JUNCTION_HOLD_FRAMES` mechanic)
-- `ascend`: climbs back up through compost carving a tunnel, fires up-drain bonus when it clears tier-1
-- Each NPC carves its own `nw.path[]` — independent of player `pPath`, rendered as dark compost tunnels
+**PART 5 — Render**
 
-**Render:** `drawWorm(nw.segs, nw.sr, nw.color, false, nw.acid, nw.hp)` reused directly — acid tint and HP pallor automatic. NPC path tunnels drawn manually in world-translated space with `_fadeAt` depth fade. HP bar above head when HP < 75%.
+`drawWorm(nw.segs, nw.sr, nw.color, false, nw.acid, nw.hp)` reused directly — acid tint and HP pallor automatic.
+- NPC path tunnels drawn in world-translated space with `_fadeAt` depth fade
+- HP bar above head when HP < 75%
+- Colors: teal `#7ecfb0` / purple `#b08ed4` / gold `#e8c96a` — assigned by slot index, not hatch order
 
 **Critical implementation note — _fadeAt crash:**
 `_fadeAt` is defined as a closure inside `drawWorm()`. If NPC tunnel render calls it from `draw()` scope it throws `ReferenceError` on every frame. Before implementing: hoist `_fadeAt` to a top-level function before `drawWorm`. Replace `_gTop`/`_gBot` gradient vars inside `drawWorm` with `tier1Bot() - camY` / `tier1Bot() + (cSurf()-tier1Bot())*0.25 - camY` directly.
