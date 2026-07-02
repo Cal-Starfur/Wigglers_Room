@@ -737,6 +737,78 @@ for (var i = scraps.length - 1; i >= 0; i--) {
 - Sink rate (`0.012 + sz*0.001`) is tuned for `game.js`'s multi-day sessions — in the demo a scrap may sink and disappear within a few minutes. That's fine for demo pacing; adjust the sink rate if scraps disappear too fast before the player gets to eat them.
 - No new state needed — this is purely additive to `updatePhysics()` and the scrap draw loop.
 
+
+---
+
+### T-14 — Fullscreen Gesture (Android only)
+**Status:** `[ ] TODO`
+**Skills:** every-ticket skills
+
+**Concept:**
+Pinch-out on the canvas triggers fullscreen. Pinch-in exits it. Android/WebView only — iOS silently skips with no message or UI shown. No button, no toast, no visible affordance — pure gesture.
+
+**Gesture detection:**
+Reuse the existing two-touch pinch infrastructure already in the demo. The pinch gesture already tracks `_pinchStartDist` — add a threshold check on `touchend` to classify it as a fullscreen toggle vs a normal pinch-zoom:
+
+```js
+// In touchend handler, after existing pinch logic:
+if (e.changedTouches.length >= 2 || _pinchActive) {
+  var pinchDelta = _pinchCurrentDist - _pinchStartDist;
+  // Only fire if it was a deliberate expand/contract gesture, not incidental drift
+  var PINCH_FS_THRESHOLD = 40; // px — must move at least this much to trigger
+  if (Math.abs(pinchDelta) > PINCH_FS_THRESHOLD) {
+    if (pinchDelta > 0) {
+      _requestFullscreen();  // pinch out = go fullscreen
+    } else {
+      _exitFullscreen();     // pinch in = exit fullscreen
+    }
+  }
+  _pinchActive = false;
+}
+```
+
+**Fullscreen functions:**
+```js
+function _requestFullscreen() {
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req) req.call(el, { navigationUI: 'hide' }).catch(function(){});
+  // No fallback — iOS gets nothing, no toast, no message
+}
+
+function _exitFullscreen() {
+  var exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (exit) exit.call(document).catch(function(){});
+}
+```
+
+**Resize after transition:**
+Fullscreen changes the viewport dimensions — `resizeCanvas()` must fire after the transition settles:
+```js
+document.addEventListener('fullscreenchange', function() {
+  setTimeout(resizeCanvas, 300);
+});
+document.addEventListener('webkitfullscreenchange', function() {
+  setTimeout(resizeCanvas, 300);
+});
+```
+
+**iOS behaviour:**
+- `requestFullscreen` is undefined on iOS Safari and all iOS WebViews (Apple blocks it at OS level)
+- `req` will be null/undefined — the `if (req)` guard silently does nothing
+- No toast, no message, no UI — iOS players simply don't get the feature
+- Do NOT add any iOS detection or fallback messaging — keep it invisible
+
+**Conflict check:**
+- Existing two-finger poop gesture fires on `touchend` when `peakTouches === 2` with no significant movement
+- Fullscreen pinch requires `Math.abs(pinchDelta) > 40px` — movement-gated, so a stationary two-finger tap still fires poop correctly
+- The two gates are mutually exclusive as long as the threshold is respected
+
+**Test on Android:**
+- Pinch out → browser chrome disappears, canvas fills screen, `resizeCanvas()` fires
+- Pinch in from fullscreen → browser chrome returns, `resizeCanvas()` fires
+- Two-finger tap (poop) → fullscreen does NOT trigger, poop fires normally
+
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
 1. Sky (gradient + stars/sun/moon)
