@@ -307,6 +307,7 @@ ARCH
 - Lines 6479–6491: draw castings in `draw()`
 - Two-finger tap gesture → `tryPoop()` (add to touch handler)
 - Space key → `tryPoop()` (keyboard handler)
+- **Bug fix (open):** Two-finger tap poop should fire at `charge = 1.0` (same as spacebar) — currently fires at minimum charge. The hold-to-charge system (see DEMO_DELTA §4) gates charge on hold duration, so a quick tap produces a tiny poop. For the `pooprelief` constipation beat specifically, a two-finger tap must always produce a full poop regardless of hold time. Fix: in the two-finger touchend handler, if `tutorial.scene && _tutStepNow === 'pooprelief'`, fire `tryPoop(1.0)` instead of `tryPoop(_poopCharge)`. Or simpler: always fire two-finger tap at `charge = 1.0` and reserve hold-to-charge for a future deliberate design decision — the hold mechanic was never surfaced to the player via any UI anyway.
 - `_reliefPooped` latch: `if (tutorial.scene) tutorial._reliefPooped = true;` inside `tryPoop()`
 - `_compostPooped` latch: `if (tutorial.scene) tutorial._compostPooped = true;` inside `tryPoop()` tier-2 branch
 
