@@ -59,8 +59,6 @@ All changes are in `docs/wigglers-demo-t08.html` (output: `wigglers-demo-t08-v3.
   post-rotation on iOS), falling back to `root.offsetWidth/Height`.
 
 ## ⚠ Still Needs Verification
-- `acidfull`/`gutfull` curriculum split — flagged as unverified from a prior session,
-  still outstanding. Re-verify before any tutorial edits.
 - Tutorial beacon spots (`_poopSpot`, `_sleepSpot`, etc.) have Y values set at
   `spawnTutorialScene()` time and are NOT remapped by the world-Y remap (they live in
   the `scraps` array and ARE walked, but the named local refs in `tutorial.steps`
