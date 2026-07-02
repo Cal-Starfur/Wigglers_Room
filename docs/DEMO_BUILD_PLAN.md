@@ -667,6 +667,76 @@ While sleeping in view-scroll mode, extend the current Y-only camera drag to ful
 - Fix the white circle and size normalisation first, verify cards look correct, then drop in new copy
 - Test on iPad in both portrait and landscape — panels must stay within the canvas boundary in both orientations
 
+
+---
+
+### T-13 — Scrap Decay: Sink, Fade, Release Tea
+**Status:** `[ ] TODO`
+**Skills:** every-ticket skills
+
+**Concept:**
+Scraps that sit uneaten in tier-1 slowly sink deeper, fade out, and release tea drops proportional to their `liq` value — exactly as `game.js` does. This makes the bin feel alive even when the player isn't eating, and gives meaning to leaving scraps alone.
+
+**Source in `game.js`:** `updatePhysics()` lines ~4131–4149 — labelled `"Settled scraps slowly sink deeper into tier 1, then fade into compost"`. Port verbatim, no redesign needed.
+
+---
+
+**What `game.js` does:**
+
+```js
+// lines 4131–4149 (approximately)
+// --- Settled scraps slowly sink deeper into tier 1, then fade into compost ---
+for (var i = scraps.length - 1; i >= 0; i--) {
+  var sc = scraps[i];
+  // Sink at same rate as castings — 0.012 + sz*0.001 px/frame
+  sc.y += 0.012 + sc.sz * 0.001;
+
+  // Natural decomposition — produce tea drops scaled by liq value, same as eaten path
+  var scLiq = (sc.t && sc.t.liq) ? sc.t.liq : 0;
+  if (scLiq > 0) {
+    var numDecompDrops = Math.ceil(scLiq / 3);
+    // liq:3 = 1 drop, liq:6 = 2 drops, liq:9 = 3 drops
+    for (var d = 0; d < numDecompDrops; d++) {
+      dropsPush({x: sc.x + (Math.random()-0.5)*sc.sz, y: sc.y,
+                 vy: 0.4 + Math.random()*0.3, sz: 2 + Math.random(), active: true});
+    }
+  }
+
+  // Fade out as scrap sinks past tier-1 bottom
+  // (alpha driven by how far sc.y has crossed tier1Bot())
+  if (sc.y > tier1Bot()) {
+    sc.alpha = Math.max(0, sc.alpha - 0.008);
+    if (sc.alpha <= 0) { scraps.splice(i, 1); }
+  }
+}
+```
+
+**Key data already in place from T-02:**
+- `scraps[i].t.liq` — liquid value per scrap type, ranges 0–9 (see `TRASH_TYPES`)
+- `scraps[i].sz` — size, drives sink rate
+- `dropsPush()` — already ported in T-05, accepts the same object shape
+- `tier1Bot()` — boundary function already in the demo
+
+**What needs adding to each scrap object at spawn (`scrapsPush()`):**
+- `alpha: 1` — if not already present; draw call must respect it
+
+**Draw call update — `draw()` scrap section:**
+- Set `ctx.globalAlpha = sc.alpha` before drawing each scrap, reset to `1` after
+- Scraps with `alpha <= 0` are already culled from the array, so no invisible draws
+
+**Tea drop rate note:**
+- Decomp drops fire every frame for scraps with `liq > 0` — same as `game.js`
+- This is intentional: juicy scraps visibly drip as they decay, dry scraps (liq:0) produce nothing
+- Drop rate is naturally self-limiting because scraps get culled once fully faded
+
+**Tutorial consideration:**
+- Tutorial-protected scraps (`s.tutProtected`) must be excluded from the sink/fade loop — they need to stay in place for the curriculum
+- Gate: `if (sc.tutProtected) continue;` at the top of the decay loop
+
+**Port notes:**
+- Sink rate (`0.012 + sz*0.001`) is tuned for `game.js`'s multi-day sessions — in the demo a scrap may sink and disappear within a few minutes. That's fine for demo pacing; adjust the sink rate if scraps disappear too fast before the player gets to eat them.
+- No new state needed — this is purely additive to `updatePhysics()` and the scrap draw loop.
+
 ## draw() Call Order (trimmed for demo — preserve sequence from `game.js`)
 
 1. Sky (gradient + stars/sun/moon)
