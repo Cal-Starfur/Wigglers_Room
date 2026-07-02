@@ -67,9 +67,9 @@ All changes are in `docs/wigglers-demo-t08.html` (output: `wigglers-demo-t08-v3.
 
 ## Next Session Start
 1. Bootstrap github-sync + set token
-2. Fetch `docs/wigglers-demo-t08.html` pinned to HEAD SHA as working file
-3. Verify `acidfull`/`gutfull` split against current file before any tutorial edits
-4. T-09: Tea Drain System — read DEMO_BUILD_PLAN.md T-09 spec
+2. Pull DEMO_BUILD_PLAN.md from repo for current ticket spec
+3. Paste your local working file into the chat — repo copy is backup only
+4. T-09: Tea Drain System — read T-09 spec in plan
 5. T-10: Full NPC simulation — hoist `_fadeAt` first (see crash note in plan)
 
 ## Demo URL
