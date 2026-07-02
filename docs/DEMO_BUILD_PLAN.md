@@ -478,9 +478,56 @@ physics (`updatePhysics()`, the `pathIdx`-based tunnel-following system) — see
 - Should the visual puddle shrink smoothly as it drains, or step down per "released drop"
   for a more discrete, readable effect?
 
+---
+
+**Visual overhaul — particle blob aesthetic (iteration required)**
+
+The current pooling visual (hard-edged rectangle fill) is not satisfying. Target aesthetic:
+the poop clog system in `game.js` — particles that cluster into an organic blob with soft
+edges and surface tension feel, then break apart back into individual drops when the drain
+opens.
+
+**Reference — study `game.js` poop clog rendering** before implementing. The clog system
+draws overlapping circles with alpha blending to produce a blob that reads as a unified
+liquid mass rather than a collection of dots. That same technique applied to tea pooling:
+
+**Phase 1 — Pooling (blob forms):**
+- Each tea drop that hits the tier-1/compost border doesn't vanish into a bucket counter —
+  it joins a particle cluster at its X position
+- Particles have a small radius (~4–6px), rendered with `globalAlpha ~0.6` and a warm
+  tea color (`#7a4820` dark core, `#b07840` lighter)
+- Overlapping particles blend together visually into a blob — no hard outlines, no
+  rectangle fill
+- As more drops land the blob grows organically, spreading slightly at the base, taller
+  in the middle — liquid pooling under gravity
+- Soft feathered top edge — the uppermost particles fade out (`alpha` proportional to
+  distance above the cluster centroid) so there's no hard line where the pool surface is
+- Slight idle animation — particles drift very slowly (±0.2px/frame random walk) so the
+  blob feels alive even when nothing is happening
+
+**Phase 2 — Drain opens (blob breaks apart):**
+- When a `pPath` tunnel is detected near the cluster, particles detach from the bottom
+  of the blob one or a few at a time and re-enter normal drop physics — `dropsPush()`
+  with their current position and a downward `vy`
+- The blob visibly shrinks from the bottom as particles peel off and flow into the tunnel
+- Rate of detachment scales with tunnel quality (a steep direct tunnel drains faster than
+  a shallow angled one)
+- When the cluster drops below ~3 particles it fully dissolves back to individual drops
+
+**This will require iteration** — the blob rendering technique needs tuning to look like
+liquid rather than foam. Start with the poop clog draw approach as a base and adjust:
+- Particle radius
+- Alpha overlap amount
+- Spread / gravity compression ratio
+- Top-edge fade curve
+
+Do not ship T-09 until the blob visual feels satisfying on device. The drain mechanic
+and the visual are one ticket — both land together.
+
 **Result (when implemented):** Carving a down-drain tunnel near an existing puddle visibly
 drains it over time, instead of the puddle just sitting there indefinitely once a tunnel
-exists nearby — closes the loop between the pooling system and the drain mechanic.
+exists nearby — closes the loop between the pooling system and the drain mechanic. The
+pooling tea looks like real liquid, not a UI element.
 
 ---
 
