@@ -448,3 +448,53 @@ function getGenColor(g){return '#e88aaa';}  // confirmed correct this session, d
   point, or should production's worm definitely stay fully visible at all depths? Flagged
   as demo-only by default, but it's a strong enough visual that it seemed worth a
   deliberate "no" rather than just never coming up.
+
+---
+
+## 17. iPad Orientation / Rotation Fix — World-Y Remap + Resize Stabilisation
+
+**What changed:**
+
+Three-part fix applied to `resizeCanvas()` and the event listeners at the bottom of the script.
+
+**Part 1 — Debounced resize + orientationchange listener:**
+- Replaced bare `window.addEventListener('resize', resizeCanvas)` with a debounced
+  wrapper (`_debouncedResize`, 150ms) to absorb the premature resize Safari fires
+  before rotation layout is stable.
+- Added `window.addEventListener('orientationchange', ...)` with 300ms delay.
+- Added `window.visualViewport.addEventListener('resize', ...)` as a fourth trigger
+  (fires after layout is actually stable on iOS 13+).
+
+**Part 2 — `_smoothPileTopY` snap on resize:**
+- `_smoothPileTopY` lerps at 8%/frame. On rotation it held the old H for ~40 frames,
+  making `lidWorldY` stale-high and exposing the `#3a4a6a` blue tier-0 band above
+  the dirt gradient.
+- Fix: `window._smoothPileTopY = null` in `resizeCanvas()`, forcing an immediate
+  snap to the current pile position on the first draw after rotation (mirrors `setup()`).
+
+**Part 3 — World-Y remap (root fix):**
+- All world-Y positions are expressed as multiples of H (`tier1Bot = H + H/3`,
+  `layerBaseY = H*0.97+75`, etc.) and baked at spawn time. After rotation H changes
+  but stored Ys do not — tier boundaries (`tier1Bot()`, `cSurf()`) immediately reflect
+  new H while objects remain at old-H coords, producing a large visible blue gap.
+- Fix: capture `oldH` before updating `H`. If `oldH !== H`, multiply every stored `.y`
+  by `newH / oldH` across `trashChunks`, `scraps`, `debris`, `pSegs`, `pHist`,
+  `pPath`, and `mY`.
+- Also switched `resizeCanvas()` to read from `window.visualViewport` first for
+  reliable post-rotation dimensions on iOS.
+
+**Demo location:** `resizeCanvas()` (all three parts); event listener block at bottom
+of `<script>` (Part 1).
+
+**Port notes:**
+- Parts 1 and 2 are relevant to any HTML5 canvas game deployed on iOS — standard
+  patterns worth keeping.
+- Part 3 (world-Y remap) is only needed because `spawnScraps()` bakes `H` at init time.
+  In production (`game.js` on Devvit), the Reddit app does not rotate — no port relevance.
+  If a future non-Devvit build ever targets iOS rotation, the remap pattern here is the
+  reference.
+
+⚠ **Known gap:** Tutorial beacon spots set at `spawnTutorialScene()` time are walked
+via the `scraps` array remap, but named local refs inside `tutorial.steps` closures are
+not remapped. Tutorial navigation after rotation may be slightly off — flagged for the
+next session that touches orientation handling.
