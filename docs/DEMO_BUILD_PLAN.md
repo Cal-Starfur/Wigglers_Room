@@ -958,3 +958,66 @@ document.addEventListener('webkitfullscreenchange', function() {
 - `drawPath()` pulled in T-01 (not T-05 as planned) — tunnels visible immediately
 
 **Next:** Push T-01 as `docs/demo-game.js` + wire `demo.html` _enterBin(), then start T-02
+
+### Session — 2026-07-02
+**T-09 Tea Drain System — continued from previous session. 19 versions shipped.**
+
+Uploaded `wigglers-demo-t08-v3.html` as base. Worked file: `wigglers-demo-t09-v19.html` — local only, not yet pushed to repo.
+
+**Systems built this session:**
+- `teaPool[]` positional puddle system replaces `poolBuckets[]` grid — tea pools at exact landing X, no quantisation, no bucket snap
+- `surfaceFlow` drop phase — pool-drain drops slide visibly from puddle to tunnel mouth before entering
+- `pathIdx` tunnel steering — drops steer point-by-point down carved pPath, speed scaled by angle
+- `inSump` freefall — drops emerge from tunnel mouth and fall visibly through sump chamber air
+- Tea surface splash system — 44-frame crown + cavity + ripple rings on impact
+- Volume conservation — `tLvl` credited at drain time (`_drained / SUMP_FILL_H`), drops are visual only
+- `sumpExit` stamp is the only valid tunnel gate — `|| y >= cSurf() - 20` proximity fudge removed from all 3 scan sites
+- Pool absorption splash — 18-frame surface pop confirms drop arrived in pool
+- Sleep hold ring — blue arc around worm head while long-press charges, gated to compost + 200ms dead zone
+- Eggshell tutorial step: `target: _egg1` → `target: null, matchType: 'egg_shell'` + removed all `_eggExtras`/`_egg1` dead code + white highlight circles
+
+**Bugs fixed:**
+- tLvl double-credit (duplicate `d.y += d.vy` in inSump + floor fallthrough racing inSump)
+- Drop pool snap (bucket grid quantised X to column centres — fully abolished)
+- Drop disappearing before visible landing (gate `tier1Bot() - 2` → `tier1Bot()`, added surfaceFlow/inSump/pathIdx guards)
+- Tea draining before tunnel complete (sumpExit proximity fudge removed)
+- Pool centroid drifting (removed `_tp.x = _tp.x * 0.6 + d.x * 0.4` — merge only grows h)
+- Blob draw threshold too high (0.3 → 0.05, single drop now visible immediately)
+
+**End-of-session feedback from Sir — carry to next session:**
+- Pool still not visibly growing when drops accumulate
+- Pool art should be flat on bottom, expand horizontally, wobble on new drop impact
+- Pool should drain when its horizontal extent touches an open drain (not just centroid proximity)
+- Up-drain and down-drain connections both need to be wired into tea drain mechanic
+- Tea drops should color-shift amber → green as they travel down the compost tunnel, arrive green into sump
+
+**T-09 Continuation Tickets (written end of session, in SESSION_MANIFEST):**
+
+**T-09-P1 — Pool Art: Flat Puddle That Grows Horizontally**
+Replace vertical circle stack with a flat-bottomed puddle shape anchored to `tier1Bot()`.
+Width = `entry.h * POOL_SPREAD_RATIO` (e.g. 4.0). Shape: flat rect bottom + elliptical crown.
+Single drop = tiny dot. Many drops = wide flat pool spreading along the border.
+Adjacent entries whose widths overlap blend visually into one continuous body.
+
+**T-09-P2 — Wobble on Drop Impact**
+When a drop absorbs into existing entry: `entry.wobble = 1.0`, decays `*= 0.88` each frame.
+Crown arc Y oscillates by `Math.sin(frame * 0.8) * entry.wobble * 3`. One extra field, no new arrays.
+
+**T-09-P3 — Drain Triggers on Pool Edge Contact**
+Replace centroid proximity with horizontal extent overlap: `[entry.x - poolW/2, entry.x + poolW/2]`.
+Tunnel mouth X only needs to fall within pool extent. Drain drops emit from pool edge nearest tunnel.
+
+**T-09-P4 — Up-Drain Pumps Tea Back to Surface**
+Wire `tutorial._upDrainArmed` into pool system. When up-drain armed: `tLvl -= UP_DRAIN_RATE` each frame,
+emit drop at sump surface with `pathIdx` pointing to up-drain tunnel entry, drop steers upward
+through carved path, deposits into `teaPool` at tunnel exit X on reaching `tier1Bot()`.
+
+**T-09-P5 — Down-Drain vs Up-Drain Direction Check**
+Pool drain loop must confirm segment runs downward (entry near `tier1Bot()`, exit near `cSurf()`)
+before treating as valid down-drain. Up-drain segments handled only via P4, not pool drain loop.
+
+**T-09-P6 — Tea Color Shift Through Compost Tunnel**
+`_depthFrac = (d.y - tier1Bot()) / (cSurf() - tier1Bot())` clamped 0–1. Lerp amber → tea-green
+per channel. Computed at draw time from `d.y` — no new drop state. `surfaceFlow` drops stay amber.
+`inSump` freefall drops stay full green throughout. Splash already green — no change.
+Scope: drop draw loop only.
