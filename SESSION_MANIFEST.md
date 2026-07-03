@@ -108,12 +108,94 @@ Working file: `wigglers-demo-t09-v19.html` (built on top of `wigglers-demo-t08-v
 - **Tea drain visual tuning** — blob radius, step count, alpha values may need device
   tuning pass once flow is confirmed correct
 
+## T-09 Continuation Tickets (next session)
+
+### T-09-P0 — Push v19 + Smoke Test (first thing)
+Push `wigglers-demo-t09-v19.html` as `docs/wigglers-demo-t09.html`. Smoke test on
+device: pool grows in place, tea flows down tunnel, splash fires, no tLvl overflow.
+Then build P1–P6 in order.
+
+---
+
+### T-09-P1 — Pool Art: Flat Puddle That Grows Horizontally
+
+Replace the current vertical circle stack with a true puddle shape:
+
+- Pool renders as a flat-bottomed shape anchored to `tier1Bot()`
+- Width = `entry.h * POOL_SPREAD_RATIO` (e.g. `4.0` — a full 14px pool spreads 56px wide)
+- Shape: flat bottom at `tier1Bot()`, elliptical crown on top scaled to current width/height
+- Draw: `ctx.beginPath()`, flat line across bottom, arc for crown — filled with amber
+  gradient (dark base soaking into compost, lighter amber at crown)
+- Single drop: tiny dot. Ten drops: small puddle. Fifty drops: wide flat pool
+- Adjacent entries whose widths overlap blend visually into one continuous body
+- Replaces the current `_STEPS` circle stack entirely
+
+---
+
+### T-09-P2 — Wobble on Drop Impact
+
+When a new drop absorbs into an existing `teaPool` entry:
+- Push `entry.wobble = 1.0` on absorption
+- Each frame: `entry.wobble *= 0.88` (decays in ~20 frames)
+- In draw: crown arc Y oscillates by `Math.sin(frame * 0.8) * entry.wobble * 3`
+- Crown bounces up then settles — reads as surface tension responding to impact
+- One extra field on the entry object, no new arrays or systems
+
+---
+
+### T-09-P3 — Drain Triggers on Pool Edge Contact
+
+Replace point proximity check with horizontal extent overlap:
+- Each entry's drain-check width: `_poolW = entry.h * POOL_SPREAD_RATIO`
+- Pool X extent: `[entry.x - _poolW/2, entry.x + _poolW/2]`
+- Tunnel mouth X only needs to fall within that extent to trigger drain
+- Drain drops emit from the edge of the pool nearest the tunnel mouth, not the centroid
+- Visually: the puddle drains from whichever side is touching the drain opening
+
+---
+
+### T-09-P4 — Up-Drain Pumps Tea Back to Surface
+
+Wire `tutorial._upDrainArmed` / up-drain `sumpExit` stamps into the pool system:
+- When up-drain is armed and a reverse tunnel exists (sumpExit stamp whose segment
+  runs from sump up to `tier1Bot()`): each frame `tLvl -= UP_DRAIN_RATE` (e.g. `0.002`)
+- Emit a drop at sump surface with `pathIdx` pointing to up-drain tunnel entry
+- Drop steers upward through carved path to `tier1Bot()`
+- On reaching `tier1Bot()`: absorbs into `teaPool` at tunnel exit X instead of dying
+- `window._upDrainBonusFired` set true once `tLvl` reaches 0 or tunnel decays
+
+---
+
+### T-09-P5 — Down-Drain Connection Check
+
+Ensure that the pool drain loop correctly identifies down-drain tunnels separately from
+up-drain tunnels. Currently both stamp `sumpExit: true` on `pPath`. The drain loop
+should confirm the segment runs downward (entry point near `tier1Bot()`, exit near
+`cSurf()`) before treating it as a valid down-drain for the pool. Up-drain segments
+run the other direction and should only be activated via T-09-P4, not the pool drain loop.
+
+---
+
+### T-09-P6 — Tea Color Shift Through Compost Tunnel
+
+Drops entering a tunnel at `tier1Bot()` are amber (`#d4aa10`). By sump exit they should
+be tea green (`rgb(180,230,80)`). Transition happens progressively through the tunnel:
+
+- `_depthFrac = (d.y - tier1Bot()) / (cSurf() - tier1Bot())` clamped 0–1
+- Lerp each RGB channel: amber at 0, green at 1
+- Computed at draw time from `d.y` — no new state on the drop
+- `surfaceFlow` drops (haven't entered compost yet): stay amber
+- `inSump` freefall drops (exited tunnel): stay full green throughout freefall
+- Splash crown and rings already `rgba(180,230,80,...)` — no change needed
+- Scope: drop draw loop only, one lerp per tunnelled drop per frame
+
+---
+
 ## Next Session Start
 1. Bootstrap github-sync + set token
-2. Push `wigglers-demo-t09-v19.html` as `docs/wigglers-demo-t09.html`
-3. Smoke test on device — confirm pool grows in place, tea flows down tunnel, splash fires
-4. Address open ISS-09f (sumpExit stamp Y) — 3-line fix
-5. Continue T-09 tuning or advance to T-10
+2. T-09-P0: push v19, smoke test on device
+3. Build T-09-P1 → P2 → P3 → P4 → P5 → P6 in order
+4. Each patch gets its own version number (v20 onward)
 
 ## Demo URL
 `https://cal-starfur.github.io/Wigglers_Room/wigglers-demo-t09.html` (after push)
