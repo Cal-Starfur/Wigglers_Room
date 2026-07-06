@@ -2,6 +2,8 @@
 
 Drop trash-chunk PNGs here, one per trash type.
 
+**Gallery:** https://github.com/Cal-Starfur/Wigglers_Room/blob/main/docs/art/trash-chunk-gallery.html
+
 **Naming convention:** filename must exactly match the `name:` key used in
 the trash type table in `game.js` / `trash-chunks.html`
 (e.g. `broccoli.png`, `pizza.png`, `banana_peel.png`, `apple_core.png`,
