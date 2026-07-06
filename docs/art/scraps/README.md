@@ -2,6 +2,8 @@
 
 Drop scrap (debris fragment / tier-1 nibble) PNGs here, one per trash type.
 
+**Gallery:** https://cal-starfur.github.io/Wigglers_Room/art/debris-fragment-gallery.html
+
 **Naming convention:** filename must exactly match the `name:` key used in
 the trash type table in `game.js` / `debris-fragment-gallery.html`
 (e.g. `broccoli.png`, `pizza.png`, `banana_peel.png`, `apple_core.png`,
